@@ -38,3 +38,4 @@ First start creates a CTO account from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defa
 - **Reassign** (Project Lead, Dev Lead, CTO) changes the holder without changing the stage or previous sender.
 - **Comments**: shared by default; tick "Internal" to hide from Stakeholders. Stakeholders' own comments are always shared. Internal action comments are blanked in the history Stakeholders see.
 - **My Queue** is sorted by priority (High first), then due date.
+- **Folders**: `FILE_ROOT/<CODE>/<id>_<Title>/` with the six stage folders. Stage mapping for uploads: 1→01, 2→02, 3→03, 4→04, 5→05, 6 Analyst Review→02_Analysis, 7 Acceptance and 8 Closed→06_Acceptance. File and folder names are sanitised. Any project member can upload while the project is Active.

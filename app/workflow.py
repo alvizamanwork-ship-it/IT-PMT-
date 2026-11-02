@@ -54,6 +54,8 @@ def create(conn, user, pid, title, description="", due_date="", priority="Normal
         "created_by,entered_stage_at,created_at) VALUES(?,?,?,1,?,?,?,?,?,?)",
         (pid, title, description.strip(), user["id"], due_date or None, priority, user["id"], t, t)
     ).lastrowid
+    from .files import make_requirement_folder
+    make_requirement_folder(conn, rid)
     log(conn, pid, user, "Created requirement", rid, to_user=user["id"], to_stage=1, override=ov)
     return rid
 

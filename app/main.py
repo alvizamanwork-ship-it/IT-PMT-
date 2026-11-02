@@ -1,12 +1,13 @@
 import os
 
-from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, config, db
+from . import files as F
 from . import projects as P
 from . import workflow as W
 from .perms import Forbidden, NotFound, RuleError, can_view, role_of
@@ -200,12 +201,7 @@ def req_create(pid: int, title: str = Form(...), description: str = Form(""),
                due_date: str = Form(""), priority: str = Form("Normal"),
                user=Depends(current_user), conn=Depends(get_conn)):
     rid = W.create(conn, user, pid, title, description, due_date, priority)
-    after_create(conn, rid)
     return back(f"/requirements/{rid}")
-
-
-def after_create(conn, rid):
-    pass
 
 
 @app.get("/requirements/{rid}")
@@ -225,7 +221,22 @@ def req_page(rid: int, request: Request, user=Depends(current_user), conn=Depend
 
 
 def req_extra(conn, user, r):
-    return {}
+    return dict(files=F.for_requirement(conn, r["id"]))
+
+
+@app.post("/requirements/{rid}/files")
+def req_upload(rid: int, file: UploadFile = File(...), user=Depends(current_user),
+               conn=Depends(get_conn)):
+    if not file.filename:
+        raise RuleError("Choose a file to upload.")
+    F.upload(conn, user, rid, file.filename, file.file)
+    return back(f"/requirements/{rid}#files")
+
+
+@app.get("/files/{fid}")
+def file_download(fid: int, user=Depends(current_user), conn=Depends(get_conn)):
+    name, path = F.download(conn, user, fid)
+    return FileResponse(path, filename=name)
 
 
 def notify(conn, result):

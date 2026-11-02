@@ -48,6 +48,8 @@ def create(conn, user, name, code):
     folder = os.path.join(config.file_root(), code)
     pid = conn.execute("INSERT INTO projects(name,code,folder_path,created_at) VALUES(?,?,?,?)",
                        (name, code, folder, now())).lastrowid
+    from .files import make_project_folder
+    make_project_folder(folder)
     log(conn, pid, user, "Project created")
     return pid
 
