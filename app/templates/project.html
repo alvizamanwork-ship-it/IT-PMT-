@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block title %}{{ p.code }}{% endblock %}
+{% block content %}
+<h1>{{ p.code }} · {{ p.name }}</h1>
+<p>Status: <span class="label">{{ p.status }}</span>{% if my_role %} · My role: {{ my_role }}{% endif %}</p>
+{% block requirements %}{% endblock %}
+<section>
+  <h2>Members</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Role</th>{% if can_manage %}<th><span class="sr-only">Actions</span></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for m in members %}
+    <tr><td>{{ m.name }}</td><td>{{ m.role }}</td>
+      {% if can_manage %}<td>{% if user.is_cto or m.role != "Business Stakeholder" %}
+        <form method="post" action="/projects/{{ p.id }}/members/{{ m.id }}/remove" class="inline">
+          <button class="btn secondary">Remove<span class="sr-only"> {{ m.name }}</span></button></form>{% endif %}</td>{% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if can_manage %}
+  <form method="post" action="/projects/{{ p.id }}/members" class="row">
+    <label>User <select name="user_id">{% for u in all_users %}<option value="{{ u.id }}">{{ u.name }} ({{ u.username }})</option>{% endfor %}</select></label>
+    <label>Role <select name="role">{% for r in roles %}{% if user.is_cto or r != "Business Stakeholder" %}<option>{{ r }}</option>{% endif %}{% endfor %}</select></label>
+    <button class="btn primary">Add member</button>
+  </form>
+  {% endif %}
+</section>
+{% if user.is_cto %}
+<section>
+  <h2>Project status</h2>
+  <form method="post" action="/projects/{{ p.id }}/status" class="row">
+    <label>Status <select name="status">{% for s in statuses %}<option {% if s == p.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+    <label class="check"><input type="checkbox" name="confirm" value="yes"> I confirm closing (needed for Closed)</label>
+    <button class="btn primary">Update status</button>
+  </form>
+</section>
+{% endif %}
+<section>
+  <h2>Project history</h2>
+  {% include "_history.html" %}
+</section>
+{% endblock %}

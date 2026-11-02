@@ -1,0 +1,11 @@
+{% if history %}
+<ol class="history">
+{% for h in history %}
+  <li><time datetime="{{ h.at }}">{{ h.at[:16]|replace("T", " ") }}</time> · <strong>{{ h.who }}</strong>: {{ h.action }}
+    {% if h.from_name %} · from {{ h.from_name }}{% endif %}{% if h.to_name %} · to {{ h.to_name }}{% endif %}
+    {% if h.from_stage and h.to_stage and h.from_stage != h.to_stage %} · stage {{ h.from_stage }} {{ stages[h.from_stage] }} → {{ h.to_stage }} {{ stages[h.to_stage] }}{% endif %}
+    {% if h.comment %}<blockquote>{% if h.internal %}<span class="label">Internal</span> {% endif %}{{ h.comment }}</blockquote>{% endif %}
+  </li>
+{% endfor %}
+</ol>
+{% else %}<p>No history yet.</p>{% endif %}

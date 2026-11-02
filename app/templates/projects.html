@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Projects{% endblock %}
+{% block content %}
+<h1>Projects</h1>
+{% if projects %}
+<table>
+  <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>My role</th></tr></thead>
+  <tbody>
+  {% for p in projects %}
+  <tr><td>{{ p.code }}</td><td><a href="/projects/{{ p.id }}">{{ p.name }}</a></td>
+      <td><span class="label">{{ p.status }}</span></td><td>{{ p.role or ("CTO" if user.is_cto else "") }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>You are not a member of any project.</p>{% endif %}
+{% endblock %}

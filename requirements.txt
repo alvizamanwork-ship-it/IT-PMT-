@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn
+jinja2
+python-multipart
+itsdangerous
+pytest
+httpx

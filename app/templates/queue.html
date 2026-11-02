@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}My Queue{% endblock %}
+{% block content %}
+<h1>My Queue</h1>
+{% if items %}
+<table>
+  <thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Due</th><th>In stage since</th></tr></thead>
+  <tbody>
+  {% for r in items %}
+  <tr><td><a href="/requirements/{{ r.id }}">#{{ r.id }} {{ r.title }}</a></td><td>{{ r.code }}</td>
+      <td><span class="label">{{ r.stage }} {{ stages[r.stage] }}</span></td><td>{{ r.priority }}</td>
+      <td>{{ r.due_date or "" }}</td><td>{{ r.entered_stage_at[:10] }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>Nothing waiting for you.</p>{% endif %}
+{% endblock %}
