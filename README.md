@@ -1,5 +1,24 @@
 # PMT — lightweight project management for the IT team
 
+## Clickable demo (latest design)
+
+`demo/index.html` is a browser-only mock-up of the latest agreed design, for approval. Open it in any browser; no server needed. It starts empty (users only), and data stays in that browser. It reflects these design changes, which are **not yet in the FastAPI app below**:
+
+- Project codes are generated from the name (e.g. "Help Desk Portal" → HDP-001); the CTO joins every project as Project Head.
+- Team members are added as User + Role dropdown rows. One person can hold several roles in a project ("+ Add role"); single roles can be removed from the Members list. Only the CTO can remove a Project Lead or Dev Lead.
+- Projects and requirements have an optional "Start from" date (must be on or before the deadline / due date). The Dev Lead can create requirements.
+- Projects have a priority (Low, Normal, High) and an optional deadline, set by the CTO at creation. The CTO, Project Lead and Dev Lead can add or change them on the project page; changes are logged in Project history, and a past deadline on an Active project shows "Overdue".
+- Stages: Analysis, Analysis Feedback, Development, Development Feedback, QA, QA Feedback, Approval (plus Closed). The holder picks the stage and the user on every Send; a comment is required for Feedback stages; only the Stakeholder closes from Approval.
+- A requirement is visible only to its current holder. The CTO (all projects) and the Project Lead (their own project) see all requirements and holders.
+- Inside their project the Project Lead has the CTO's powers: add or remove any member including Stakeholders, open and act on any requirement (logged as a Project Lead override), and change project status. Creating projects and Admin stay CTO-only.
+- Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
+- No stall threshold or daily digest.
+- The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.
+- Text boxes, comments, file rows and emails are inverted panels with a brushed-metal rim: dark in Light mode, bright in Dark mode. All colour pairs meet WCAG AA.
+- Files are added as dummy files (a typed name only, no real file) so the flow can be tried without uploads.
+- iOS-style look: translucent sticky nav bar, large titles, grouped rounded cards, pill buttons, iOS switches, a segmented Light/Dark control, and the iOS system font by default. Dark mode (true black, white text) is the default; Light mode uses a beige background with dark text. Stages, priorities and comment types use high-contrast colour chips.
+
+
 FastAPI + SQLite + Jinja templates. Files live on a mounted network share; only names and paths are stored in the DB.
 
 ## Run
