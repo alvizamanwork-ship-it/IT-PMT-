@@ -7,35 +7,15 @@
 /* Layout: the real PMT screens (top bar, single content column) under a thin demo strip for switching users.
    Tokens match the app's style.css; one accent colour, AA contrast in both themes. */
 :root {
-  --bg: #ffffff; --surface: #f2f4f7; --text: #111827; --muted: #374151;
-  --border: #6b7280; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f;
-  --demo: #fff6d6;
+  --bg: #ffffff; --surface: #f1f4f8; --surface-2: #e6ebf2; --text: #0b1220; --muted: #3b4656; --border: #5f6b7a; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f; --demo: #fff6d6; --an-bg: #dbeeff; --an-fg: #0b4a85; --dev-bg: #ece5ff; --dev-fg: #4b2a9b; --qa-bg: #fff0c7; --qa-fg: #6b4a00; --ap-bg: #daf5e4; --ap-fg: #11632f; --fb-bg: #ffe0e0; --fb-fg: #9b1c1c; --cl-bg: #e6e9ee; --cl-fg: #2f3a48; --int: #8a5a00;
   --font: "Poppins", system-ui, sans-serif; --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --size: 16px; --space: 1rem; --radius: .375rem;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #121417; --surface: #1d2127; --text: #f3f4f6; --muted: #d1d5db;
-    --border: #9ca3af; --accent: #8cc2ff; --on-accent: #0b1220; --error: #ffa4a4; --ok: #86e0a5;
-    --demo: #2e2814; color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #121417; --surface: #1d2127; --text: #f3f4f6; --muted: #d1d5db;
-  --border: #9ca3af; --accent: #8cc2ff; --on-accent: #0b1220; --error: #ffa4a4; --ok: #86e0a5;
-  --demo: #2e2814; color-scheme: dark;
-}
-/* The app's own per-user Appearance setting wins over the viewer theme. */
-:root[data-appearance="light"] {
-  --bg: #ffffff; --surface: #f2f4f7; --text: #111827; --muted: #374151;
-  --border: #6b7280; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f;
-  --demo: #fff6d6; color-scheme: light;
-}
-:root[data-appearance="dark"] {
-  --bg: #121417; --surface: #1d2127; --text: #f3f4f6; --muted: #d1d5db;
-  --border: #9ca3af; --accent: #8cc2ff; --on-accent: #0b1220; --error: #ffa4a4; --ok: #86e0a5;
-  --demo: #2e2814; color-scheme: dark;
-}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; color-scheme: dark; }
+/* The app's own per-user Appearance setting (default Dark) wins over the viewer theme. */
+:root[data-appearance="light"] { --bg: #ffffff; --surface: #f1f4f8; --surface-2: #e6ebf2; --text: #0b1220; --muted: #3b4656; --border: #5f6b7a; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f; --demo: #fff6d6; --an-bg: #dbeeff; --an-fg: #0b4a85; --dev-bg: #ece5ff; --dev-fg: #4b2a9b; --qa-bg: #fff0c7; --qa-fg: #6b4a00; --ap-bg: #daf5e4; --ap-fg: #11632f; --fb-bg: #ffe0e0; --fb-fg: #9b1c1c; --cl-bg: #e6e9ee; --cl-fg: #2f3a48; --int: #8a5a00; color-scheme: light; }
+:root[data-appearance="dark"] { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; color-scheme: dark; }
 :root[data-font="atkinson"] { --font: "Atkinson Hyperlegible", system-ui, sans-serif; }
 :root[data-font="merriweather"] { --font: "Merriweather", Georgia, serif; }
 :root[data-size="1"] { --size: 14px; }
@@ -139,19 +119,46 @@ dialog.card::backdrop { background: rgba(8, 12, 20, .6); }
 .kv dt { font-weight: 600; color: var(--muted); }
 .kv dd { margin: 0; }
 
+/* Data chips: stage family and priority, each a high-contrast pair */
+.label.st-an, .label.pr-normal { background: var(--an-bg); color: var(--an-fg); border-color: currentColor; }
+.label.st-dev { background: var(--dev-bg); color: var(--dev-fg); border-color: currentColor; }
+.label.st-qa { background: var(--qa-bg); color: var(--qa-fg); border-color: currentColor; }
+.label.st-ap { background: var(--ap-bg); color: var(--ap-fg); border-color: currentColor; }
+.label.st-fb, .label.pr-high { background: var(--fb-bg); color: var(--fb-fg); border-color: currentColor; }
+.label.st-cl, .label.pr-low { background: var(--cl-bg); color: var(--cl-fg); border-color: currentColor; }
+.label.tag-int { background: var(--int); color: var(--bg); border-color: var(--int); }
+.label.tag-sh { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+tbody tr:nth-child(even) td { background: var(--surface); }
+tbody tr:hover td { background: var(--surface-2); }
+td .linkish, .history strong, .who { font-weight: 600; }
+
+/* Comments */
+.cmt-list { display: grid; gap: .6rem; }
+.cmt { background: var(--surface-2); border: 1px solid var(--border); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: .6rem .8rem; }
+.cmt.is-internal { border-left-color: var(--int); }
+.cmt-head { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .6rem; }
+.cmt-head time { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.cmt-text { margin: .35rem 0 0; color: var(--text); }
+
+/* File rows */
+.files li.file { display: flex; flex-wrap: nowrap; align-items: center; gap: .75rem; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem .7rem; }
+.ext { flex: none; min-width: 3.2rem; text-align: center; font: 700 .72rem/1 var(--mono); letter-spacing: .04em;
+  padding: .45rem .3rem; border-radius: var(--radius); background: var(--accent); color: var(--on-accent); }
+.file-main { display: grid; min-width: 0; }
+.file-name { font-weight: 600; overflow-wrap: anywhere; }
+.file-meta { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.mail { background: var(--surface-2); }
+
 /* Requirement card */
 .fl { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 .25rem; }
 .title-view { font-size: 1.35rem; font-weight: 700; line-height: 1.3; margin: 0; text-wrap: balance; }
 .meta { margin: .35rem 0 0; display: flex; flex-wrap: wrap; gap: .35rem .75rem; align-items: center; }
 .files { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; gap: .35rem; }
-.files li { display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline; }
 .filebtn { display: inline-flex; align-items: center; font-weight: 600; color: var(--accent); }
 .filebtn:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
 .card-section { border-top: 1px solid var(--border); padding-top: .75rem; }
 .card-section:first-child { border-top: 0; padding-top: 0; }
-.cmt { padding: .35rem 0; border-bottom: 1px solid var(--border); }
-.cmt:last-child { border-bottom: 0; }
-.cmt p { margin: .15rem 0; }
 
 /* Phase line */
 .phases-wrap { overflow-x: auto; padding: .25rem 0 .5rem; border-bottom: 1px solid var(--border); }
@@ -217,7 +224,10 @@ const fmt = t => { const d = new Date(t), p = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const isoDay = t => fmt(t).slice(0, 10);
 const label = (t, cls = "") => `<span class="label ${cls}">${h(t)}</span>`;
-const stageLabel = n => label(STAGES[n], isFeedback(n) ? "warn" : "");
+const STAGE_CLS = {1: "st-an", 2: "st-fb", 3: "st-dev", 4: "st-fb", 5: "st-qa", 6: "st-fb", 7: "st-ap", 8: "st-cl"};
+const stageLabel = n => label(STAGES[n], STAGE_CLS[n]);
+const priLabel = p => label(p, "pr-" + p.split(" ")[0].toLowerCase());
+const extOf = n => { const i = n.lastIndexOf("."); return (i > 0 ? n.slice(i + 1, i + 5) : "file").toUpperCase(); };
 const user = id => S.users.find(u => u.id === id);
 const uname = id => (user(id) || {}).name || "None";
 const me = () => user(S.me);
@@ -377,7 +387,7 @@ function seed() {
        me: 1, view: {name: "projects"}, flash: null};
   [["naj", "NAJ", 1], ["mds", "MDS"], ["nafisl", "Naf.Isl."], ["alvi", "Alvi"], ["bs1", "BS1"],
    ["eh", "EH"], ["kb", "KB"], ["sazh", "Saz.H"], ["qa1", "QA1"]].forEach(([un, name, cto]) =>
-    S.users.push({id: nextId("u"), username: un, name, email: `${un}@corp.example`, cto: !!cto, theme: "light", font: "poppins", size: 2}));
+    S.users.push({id: nextId("u"), username: un, name, email: `${un}@corp.example`, cto: !!cto, theme: "dark", font: "poppins", size: 2}));
   CLOCK = null;
   S.outbox = [];
 }
@@ -414,8 +424,11 @@ function reqCard(id, keepComment) {
   const p = proj(r.pid), sv = stakeholderView(u, r.pid), members = memberSort(p), closed = r.stage === 8;
   const pick = members.find(m => m.uid !== u.id) || members[0];
   const files = S.files.filter(f => f.rid === id);
-  const comments = S.comments.filter(c => c.rid === id && !(sv && c.internal));
   const hist = S.history.filter(x => x.rid === id);
+  // Comments list = plain comments plus comments written when sending, oldest first.
+  const comments = S.comments.filter(c => c.rid === id && !(sv && c.internal))
+    .concat(hist.filter(x => x.comment && !(sv && x.internal)).map(x => ({uid: x.uid, at: x.at, text: x.comment, internal: x.internal, sent: x})))
+    .sort((a, b) => a.at - b.at);
   const notes = [p.status !== "Active" ? `Project is ${p.status}. Sending is blocked${u.cto ? "; as CTO you can override (logged)" : ""}.` : "",
     !closed && r.holder !== u.id ? `${h(uname(r.holder))} holds this. As CTO, acting is logged as an override.` : "",
     closed ? "This requirement is Closed." : ""].filter(Boolean).map(t => `<p class="note">${t}</p>`).join("");
@@ -424,14 +437,14 @@ function reqCard(id, keepComment) {
     <div class="card-body">
       ${notes}
       <section class="card-section"><h3 class="fl">Requirement title</h3><p class="title-view">${h(r.title)}</p>
-        <p class="meta">${stageLabel(r.stage)}<span>${r.priority} priority</span>${r.due ? `<span>Due ${r.due}</span>` : ""}<span>Holder: ${h(uname(r.holder))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
+        <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>Holder: ${h(uname(r.holder))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
-        ${files.length ? `<ul class="files">${files.map(f => `<li><button type="button" class="linkish" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="note">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
+        ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${closed ? "" : `<label class="btn secondary filebtn" for="cd-file">Upload file<input type="file" id="cd-file" class="sr-only" data-rid="${id}"></label>
         <p class="note">Goes into ${FOLDERS[STAGE_TO_FOLDER[r.stage]]}. A file with the same name is saved as _v2, _v3.</p>`}</section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
-        ${comments.length ? comments.map(c => `<div class="cmt"><p><strong>${h(uname(c.uid))}</strong> · <time>${fmt(c.at)}</time> · ${label(c.internal ? "Internal" : "Shared")}</p><p class="pre">${h(c.text)}</p></div>`).join("") : `<p class="note">No comments yet.</p>`}</section>
+        ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h(uname(c.sent.to))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
       ${closed ? "" : `<section class="card-section stack">
         <label for="cd-comment">Comment <span class="note">(sent along with Send; required when sending to a Feedback stage)</span><textarea id="cd-comment" name="comment" rows="3">${h(keepComment || "")}</textarea></label>
         ${sv ? "" : `<label class="check"><input type="checkbox" id="cd-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>`}
@@ -560,8 +573,8 @@ function renderTop() {
     <details class="menu" id="settings-menu"><summary>${h(u.name)} · Settings</summary>
       <div class="menu-body"><form data-form="prefs" class="stack">
         <fieldset><legend>Appearance</legend>
-          <label class="check"><input type="radio" id="pref-light" name="theme" value="light" ${u.theme === "light" ? "checked" : ""}> Light</label>
-          <label class="check"><input type="radio" id="pref-dark" name="theme" value="dark" ${u.theme === "dark" ? "checked" : ""}> Dark</label></fieldset>
+          <label class="check"><input type="radio" id="pref-dark" name="theme" value="dark" ${u.theme === "dark" ? "checked" : ""}> Dark (default)</label>
+          <label class="check"><input type="radio" id="pref-light" name="theme" value="light" ${u.theme === "light" ? "checked" : ""}> Light</label></fieldset>
         <label for="pref-font">Font<select id="pref-font" name="font">${[["poppins", "Poppins"], ["atkinson", "Atkinson Hyperlegible"], ["merriweather", "Merriweather"]]
           .map(([k, t]) => `<option value="${k}" ${u.font === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
@@ -574,7 +587,7 @@ function historyList(rows, u, pid) {
   if (!rows.length) return "<p>No history yet.</p>";
   const hide = stakeholderView(u, pid);
   return `<ol class="history" reversed>${rows.slice().reverse().map(x => {
-    const c = x.comment && !(hide && x.internal) ? `<blockquote>${x.internal ? label("Internal") + " " : ""}${h(x.comment)}</blockquote>` : "";
+    const c = x.comment && !(hide && x.internal) ? `<blockquote>${x.internal ? label("Internal", "tag-int") + " " : ""}${h(x.comment)}</blockquote>` : "";
     return `<li><time>${fmt(x.at)}</time> · <strong>${h(uname(x.uid))}</strong>: ${h(x.action)}${x.from ? ` · from ${h(uname(x.from))}` : ""}${x.to ? ` · to ${h(uname(x.to))}` : ""}${x.fromStage && x.toStage && x.fromStage !== x.toStage ? ` · ${STAGES[x.fromStage]} → ${STAGES[x.toStage]}` : ""}${c}</li>`;
   }).join("")}</ol>`;
 }
@@ -585,7 +598,7 @@ function viewQueue(u) {
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
   return `<h1>My Queue</h1>${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
-    <td>${stageLabel(r.stage)}</td><td>${r.priority}</td><td class="num">${r.due || ""}</td>
+    <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td>
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td></tr>`).join("")}</tbody>`)
     : "<p>Nothing waiting for you.</p>"}
     <p class="note">Requirements in On Hold or Cancelled projects are hidden here.</p>`;
@@ -614,7 +627,7 @@ function viewProject(u, pid) {
   ${u.cto ? "" : `<p class="note">You see a requirement only while you hold it. The CTO sees all requirements and who holds them.</p>`}
   ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${u.cto ? "<th>Holder</th>" : ""}<th>Priority</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${stageLabel(r.stage)}</td>
-    ${u.cto ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${r.priority}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${u.cto ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
+    ${u.cto ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${u.cto ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
   <section><h2>Members</h2>
   ${tbl(`<thead><tr><th>Name</th><th>Role</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
@@ -715,7 +728,7 @@ document.addEventListener("submit", e => {
       case "newuser": {
         const un = d.username.trim(); if (!un || !d.name.trim()) throw new RuleError("Name and username are required.");
         if (S.users.some(x => x.username === un)) throw new RuleError("That username already exists.");
-        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, theme: "light", font: "poppins", size: 2});
+        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, theme: "dark", font: "poppins", size: 2});
         flash("ok", "User added."); break;
       }
     }
@@ -729,7 +742,7 @@ document.addEventListener("change", e => {
 document.addEventListener("change", e => {
   if (e.target.id !== "nr-files") return;
   const list = document.getElementById("nr-file-list"), names = [...e.target.files].map(x => x.name);
-  list.innerHTML = names.length ? names.map(n => `<li>${h(n)}</li>`).join("") : `<li class="note">No files yet.</li>`;
+  list.innerHTML = names.length ? names.map(n => `<li class="file"><span class="ext" aria-hidden="true">${extOf(n)}</span><span class="file-main"><span class="file-name">${h(n)}</span><span class="file-meta">Uploads when you press Send or Keep it with me</span></span></li>`).join("") : `<li class="note">No files yet.</li>`;
 });
 document.addEventListener("input", e => {
   if (e.target.id === "np-name") {
@@ -763,6 +776,7 @@ document.getElementById("reset-no").addEventListener("click", () => { rc.hidden 
 document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; seed(); flash("ok", "All projects and requirements were deleted."); render(); });
 
 if (!load()) seed();
+if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
 S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Viewing as" above to switch person.`
   : `No projects yet. You are viewing as ${me().name} (CTO): press New project to start. Use "Viewing as" above to switch person.`};
 render();
