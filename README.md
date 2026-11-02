@@ -7,7 +7,8 @@
 - Project codes are generated from the name (e.g. "Help Desk Portal" → HDP-001); the CTO joins every project as Project Head.
 - Team members are added as User + Role dropdown rows.
 - Stages: Analysis, Analysis Feedback, Development, Development Feedback, QA, QA Feedback, Approval (plus Closed). The holder picks the stage and the user on every Send; a comment is required for Feedback stages; only the Stakeholder closes from Approval.
-- A requirement is visible only to its current holder; the CTO sees all requirements and holders.
+- A requirement is visible only to its current holder. The CTO (all projects) and the Project Lead (their own project) see all requirements and holders.
+- Inside their project the Project Lead has the CTO's powers: add or remove any member including Stakeholders, open and act on any requirement (logged as a Project Lead override), and change project status. Creating projects and Admin stay CTO-only.
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
 - The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.

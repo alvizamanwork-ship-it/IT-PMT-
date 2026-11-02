@@ -257,15 +257,17 @@ const proj = id => S.projects.find(p => p.id === id);
 const req = id => S.reqs.find(r => r.id === id);
 const role = (pid, uid) => ((proj(pid)?.members || []).find(m => m.uid === uid) || {}).role || null;
 const canView = (u, pid) => u.cto || !!role(pid, u.id);
+// The CTO everywhere, and the Project Lead inside their own project, have the same powers.
+const isHead = (u, pid) => u.cto || role(pid, u.id) === "Project Lead";
 const nextId = k => (S.seq[k] = (S.seq[k] || 0) + 1);
 const clean = (t, n) => (t.replace(/[^A-Za-z0-9._ -]+/g, "_").replace(/^[ ._]+|[ ._]+$/g, "").slice(0, n) || "file");
 const tbl = inner => `<div class="tbl"><table>${inner}</table></div>`;
 
 class Forbidden extends Error {}
 class RuleError extends Error {}
-function require_(u, ok, msg) { if (ok) return false; if (u.cto) return true; throw new Forbidden(msg); }
+function require_(u, ok, msg, pid) { if (ok) return false; if (isHead(u, pid)) return true; throw new Forbidden(msg); }
 function log(pid, u, action, o = {}) {
-  S.history.push({id: nextId("h"), pid, rid: o.rid ?? null, uid: u.id, at: now(), action: action + (o.override ? " (CTO override)" : ""),
+  S.history.push({id: nextId("h"), pid, rid: o.rid ?? null, uid: u.id, at: now(), action: action + (o.override ? (u.cto ? " (CTO override)" : " (Project Lead override)") : ""),
     from: o.from ?? null, to: o.to ?? null, fromStage: o.fromStage ?? null, toStage: o.toStage ?? null,
     comment: (o.comment || "").trim(), internal: !!o.internal, override: !!o.override});
 }
@@ -286,7 +288,7 @@ function createProject(u, name) {
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
 function memberRule(u, pid, r) {
-  if (r === SH) { if (!u.cto) throw new Forbidden("Only the CTO manages Business Stakeholders."); }
+  if (r === SH) { if (!isHead(u, pid)) throw new Forbidden("Only the CTO or the Project Lead manage Business Stakeholders."); }
   else if (!(u.cto || LEADS.includes(role(pid, u.id)))) throw new Forbidden("Only the CTO, Project Lead or Dev Lead manage members.");
 }
 function addMember(u, pid, uid, r) {
@@ -303,7 +305,7 @@ function removeMember(u, pid, uid) {
   const p = proj(pid); p.members = p.members.filter(m => m.uid !== uid); log(pid, u, `Removed member (${r})`, {from: uid});
 }
 function setStatus(u, pid, status, confirm) {
-  if (!u.cto) throw new Forbidden("Only the CTO changes project status.");
+  if (!isHead(u, pid)) throw new Forbidden("Only the CTO or the Project Lead change project status.");
   const p = proj(pid); if (status === p.status) return;
   if (status === "Closed") {
     if (S.reqs.some(r => r.pid === pid && r.stage !== 8)) throw new RuleError("All requirements must be Closed before the project can close.");
@@ -323,8 +325,8 @@ function setStatus(u, pid, status, confirm) {
 function createReq(u, pid, title, desc, due, priority) {
   const p = proj(pid); if (!canView(u, pid)) throw new Forbidden("You are not a member of this project.");
   title = title.trim(); if (!title) throw new RuleError("Title is required.");
-  let ov = require_(u, u.cto || CREATORS.includes(role(pid, u.id)), "Only Stakeholders, Analysts, Project Leads or the CTO create requirements.");
-  ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`) || ov;
+  let ov = require_(u, u.cto || CREATORS.includes(role(pid, u.id)), "Only Stakeholders, Analysts, Project Leads or the CTO create requirements.", pid);
+  ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`, pid) || ov;
   const id = nextId("r"), t = now();
   S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holder: u.id, prev: null, prevStage: null, due: due || null,
     priority, feedback: false, createdBy: u.id, entered: t, created: t, folder: `${p.folder}\\${id}_${clean(title, 50).replace(/ /g, "_")}`});
@@ -334,8 +336,8 @@ function createReq(u, pid, title, desc, due, priority) {
 function guard(u, r) {
   if (r.stage === 8) throw new RuleError("This requirement is Closed.");
   const st = proj(r.pid).status;
-  let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`);
-  return require_(u, r.holder === u.id, "Only the current holder can act on this requirement.") || ov;
+  let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`, r.pid);
+  return require_(u, r.holder === u.id, "Only the current holder can act on this requirement.", r.pid) || ov;
 }
 function memberRole(pid, uid) { const r = role(pid, uid); if (!r) throw new RuleError("Choose a project member to send to."); return r; }
 function needComment(c) { if (!(c || "").trim()) throw new RuleError("Write a comment. Sending to a Feedback stage needs one."); }
@@ -348,8 +350,8 @@ function move(u, r, action, to, toStage, comment, internal, ov, setPrev = true) 
   log(r.pid, u, action, {rid: r.id, from, to, fromStage, toStage, comment, internal, override: ov});
   return handoff(u, r, action, to, (comment || "").trim(), internal);
 }
-const canSeeReq = (u, r) => u.cto || r.holder === u.id;
-function loadReq(u, id) { const r = req(id); if (!canSeeReq(u, r)) throw new Forbidden("Only the current holder and the CTO can open this requirement."); return r; }
+const canSeeReq = (u, r) => isHead(u, r.pid) || r.holder === u.id;
+function loadReq(u, id) { const r = req(id); if (!canSeeReq(u, r)) throw new Forbidden("Only the current holder, the Project Lead and the CTO can open this requirement."); return r; }
 function proceed(u, id, to, comment, internal, stage) {
   const r = loadReq(u, id); const ov = guard(u, r);
   if (!STAGES[stage]) throw new RuleError("Choose a stage.");
@@ -360,14 +362,14 @@ function proceed(u, id, to, comment, internal, stage) {
 }
 function accept(u, id, comment) {
   const r = loadReq(u, id); let ov = guard(u, r);
-  ov = require_(u, r.stage === 7 && role(r.pid, u.id) === SH, "Only the Business Stakeholder can close it, from Approval.") || ov;
+  ov = require_(u, r.stage === 7 && role(r.pid, u.id) === SH, "Only the Business Stakeholder can close it, from Approval.", r.pid) || ov;
   return move(u, r, "Accepted and closed", null, 8, comment, false, ov);
 }
 function reassign(u, id, to, comment) {
   const r = loadReq(u, id); if (r.stage === 8) throw new RuleError("This requirement is Closed.");
   const st = proj(r.pid).status;
-  let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`);
-  ov = require_(u, LEADS.includes(role(r.pid, u.id)), "Only the Project Lead or Dev Lead can reassign.") || ov;
+  let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`, r.pid);
+  ov = require_(u, LEADS.includes(role(r.pid, u.id)), "Only the Project Lead or Dev Lead can reassign.", r.pid) || ov;
   memberRole(r.pid, to);
   return move(u, r, "Reassign", to, r.stage, comment, false, ov, false);
 }
@@ -378,7 +380,7 @@ function addComment(u, id, text, internal) {
 }
 function upload(u, id, filename) {
   const r = loadReq(u, id); const st = proj(r.pid).status;
-  const ov = require_(u, st === "Active", `Project is ${st}; uploads are blocked.`);
+  const ov = require_(u, st === "Active", `Project is ${st}; uploads are blocked.`, r.pid);
   const folder = stageFolder(r.stage);
   const base0 = clean(filename.split(/[\\/]/).pop(), 80), dot = base0.lastIndexOf(".");
   const base = dot > 0 ? base0.slice(0, dot) : base0, ext = dot > 0 ? base0.slice(dot) : "";
@@ -442,7 +444,7 @@ function wizPhases(step) {
 
 function reqCard(id, keepComment) {
   const u = me(), r = req(id);
-  if (!canSeeReq(u, r)) { flash("error", "Only the current holder and the CTO can open this requirement."); render(); return; }
+  if (!canSeeReq(u, r)) { flash("error", "Only the current holder, the Project Lead and the CTO can open this requirement."); render(); return; }
   const p = proj(r.pid), sv = stakeholderView(u, r.pid), members = memberSort(p), closed = r.stage === 8;
   const pick = members.find(m => m.uid !== u.id) || members[0];
   const files = S.files.filter(f => f.rid === id);
@@ -451,8 +453,8 @@ function reqCard(id, keepComment) {
   const comments = S.comments.filter(c => c.rid === id && !(sv && c.internal))
     .concat(hist.filter(x => x.comment && !(sv && x.internal)).map(x => ({uid: x.uid, at: x.at, text: x.comment, internal: x.internal, sent: x})))
     .sort((a, b) => a.at - b.at);
-  const notes = [p.status !== "Active" ? `Project is ${p.status}. Sending is blocked${u.cto ? "; as CTO you can override (logged)" : ""}.` : "",
-    !closed && r.holder !== u.id ? `${h(uname(r.holder))} holds this. As CTO, acting is logged as an override.` : "",
+  const notes = [p.status !== "Active" ? `Project is ${p.status}. Sending is blocked${isHead(u, r.pid) ? "; you can override it (logged)" : ""}.` : "",
+    !closed && r.holder !== u.id ? `${h(uname(r.holder))} holds this. As ${u.cto ? "CTO" : "Project Lead"} you can still act; it is logged as an override.` : "",
     closed ? "This requirement is Closed." : ""].filter(Boolean).map(t => `<p class="note">${t}</p>`).join("");
   openModal(`${cardHead(`Requirement #${r.id} · ${p.code}`)}
   <form data-form="card" data-id="${id}">
@@ -473,7 +475,7 @@ function reqCard(id, keepComment) {
         ${sv ? "" : `<label class="check"><input type="checkbox" id="cd-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>`}
         <button class="btn secondary" name="do" value="comment">Add comment</button>
         <div class="row" style="margin:0">
-          <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => n !== 8 || r.stage === 7 || u.cto)
+          <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => n !== 8 || r.stage === 7 || isHead(u, r.pid))
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
           <label for="cd-to">User<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.role)})</option>`).join("")}</select></label>
         </div>
@@ -631,38 +633,38 @@ function viewQueue(u) {
 
 function viewProjects(u) {
   const list = S.projects.filter(p => canView(u, p.id));
-  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>My role</th><th>${u.cto ? "Open" : "With me"}</th></tr></thead><tbody>${list.map(p => `
+  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
-    <td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (u.cto || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
+    <td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (isHead(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
     : "<p>You are not a member of any project.</p>"}`;
 }
 
 function viewProject(u, pid) {
   const p = proj(pid); if (!p) return "<h1>Not found</h1>";
   if (!canView(u, pid)) return `<h1>Not allowed</h1><p>${h(u.name)} is not a member of this project, so it is hidden.</p>`;
-  const myRole = role(pid, u.id), manage = u.cto || LEADS.includes(myRole);
-  const canCreate = (u.cto || CREATORS.includes(myRole)) && (p.status === "Active" || u.cto);
+  const myRole = role(pid, u.id), head = isHead(u, pid), manage = head || LEADS.includes(myRole);
+  const canCreate = (u.cto || CREATORS.includes(myRole)) && (p.status === "Active" || head);
   const order = {High: 0, Normal: 1, Low: 2};
-  const reqs = S.reqs.filter(r => r.pid === pid && (u.cto || r.holder === u.id)).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
+  const reqs = S.reqs.filter(r => r.pid === pid && (head || r.holder === u.id)).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
   const members = memberSort(p);
   const others = S.users.filter(x => !role(pid, x.id));
   return `<h1>${h(p.code)} · ${h(p.name)}</h1>
   <p>Status: ${label(p.status)}${myRole ? ` · My role: ${h(myRole)}` : ""} · Folder: <code>${h(p.folder)}</code></p>
-  <section><div class="head-row"><h2>${u.cto ? "All requirements" : "Requirements you hold"}</h2>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
-  ${u.cto ? "" : `<p class="note">You see a requirement only while you hold it. The CTO sees all requirements and who holds them.</p>`}
-  ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${u.cto ? "<th>Holder</th>" : ""}<th>Priority</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
+  <section><div class="head-row"><h2>${head ? "All requirements" : "Requirements you hold"}</h2>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
+  ${head ? "" : `<p class="note">You see a requirement only while you hold it. The CTO and the Project Lead see all requirements and who holds them.</p>`}
+  ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${head ? "<th>Holder</th>" : ""}<th>Priority</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${stageLabel(r.stage)}</td>
-    ${u.cto ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${u.cto ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
+    ${head ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${head ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
   <section><h2>Members</h2>
   ${tbl(`<thead><tr><th>Name</th><th>Role</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
-    <tr><td>${h(uname(m.uid))}</td><td>${h(m.role)}</td>${manage ? `<td>${m.role !== HEAD && (u.cto || m.role !== SH) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
+    <tr><td>${h(uname(m.uid))}</td><td>${h(m.role)}</td>${manage ? `<td>${m.role !== HEAD && (head || m.role !== SH) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
   ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row">
     <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}</select></label>
-    <label for="am-role">Role<select id="am-role" name="role">${ROLES.filter(r => u.cto || r !== SH).map(r => `<option>${r}</option>`).join("")}</select></label>
+    <label for="am-role">Role<select id="am-role" name="role">${ROLES.filter(r => head || r !== SH).map(r => `<option>${r}</option>`).join("")}</select></label>
     <button class="btn primary">Add member</button></form>` : ""}
   </section>
-  ${u.cto ? `<section class="panel"><h2>Project status</h2><form data-form="status" data-pid="${pid}" class="row">
+  ${head ? `<section class="panel"><h2>Project status</h2><form data-form="status" data-pid="${pid}" class="row">
     <label for="ps-status">Status<select id="ps-status" name="status">${STATUSES.map(s => `<option ${s === p.status ? "selected" : ""}>${s}</option>`).join("")}</select></label>
     <label class="check"><input type="checkbox" id="ps-confirm" name="confirm" value="yes"> I confirm closing (needed for Closed)</label>
     <button class="btn primary">Update status</button></form>
