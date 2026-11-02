@@ -145,7 +145,7 @@ td .linkish, .history strong, .who { font-weight: 600; }
   border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem .7rem; }
 .ext { flex: none; min-width: 3.2rem; text-align: center; font: 700 .72rem/1 var(--mono); letter-spacing: .04em;
   padding: .45rem .3rem; border-radius: var(--radius); background: var(--accent); color: var(--on-accent); }
-.file-main { display: grid; min-width: 0; }
+.file-main { display: grid; min-width: 0; flex: 1; }
 .file-name { font-weight: 600; overflow-wrap: anywhere; }
 .file-meta { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
 .mail { background: var(--surface-2); }
@@ -440,8 +440,9 @@ function reqCard(id, keepComment) {
         <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>Holder: ${h(uname(r.holder))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
         ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
-        ${closed ? "" : `<label class="btn secondary filebtn" for="cd-file">Upload file<input type="file" id="cd-file" class="sr-only" data-rid="${id}"></label>
-        <p class="note">Goes into ${FOLDERS[STAGE_TO_FOLDER[r.stage]]}. A file with the same name is saved as _v2, _v3.</p>`}</section>
+        ${closed ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
+          <button type="button" class="btn secondary" data-act="add-dummy" data-rid="${id}">Add dummy file</button></div>
+        <p class="note">For testing: adds a file name only, no real file. It goes into ${FOLDERS[STAGE_TO_FOLDER[r.stage]]}; the same name again becomes _v2, _v3.</p>`}</section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
         ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h(uname(c.sent.to))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
@@ -475,7 +476,9 @@ function reqDialog(pid) {
         <label for="nr-due">Due date (optional)<input id="nr-due" type="date" name="due"></label></div></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
         <ul class="files" id="nr-file-list"><li class="note">No files yet.</li></ul>
-        <label class="btn secondary filebtn" for="nr-files">Upload files<input type="file" id="nr-files" class="sr-only" multiple></label></section>
+        <div class="row" style="margin:0"><label for="nr-dummy">Dummy file name<input id="nr-dummy" placeholder="e.g. requirements.docx" autocomplete="off"></label>
+          <button type="button" class="btn secondary" data-act="add-dummy-new">Add dummy file</button></div>
+        <p class="note">For testing: adds a file name only, no real file.</p></section>
       <section class="card-section"><label for="nr-desc"><span class="fl">Description</span><textarea id="nr-desc" name="desc" rows="4"></textarea></label></section>
       <section class="card-section stack">
         <label for="nr-comment">Comment <span class="note">(optional; required when sending to a Feedback stage)</span><textarea id="nr-comment" name="comment" rows="2"></textarea></label>
@@ -680,6 +683,9 @@ document.addEventListener("click", e => {
   const act = a.dataset.act;
   if (act === "close") { closeModal(); return; }
   if (act === "open-card") { S.flash = null; reqCard(+a.dataset.id); return; }
+  if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
+  if (act === "drop-dummy") { const list = a.closest("ul"); a.closest("li").remove();
+    if (!list.querySelector("li")) list.innerHTML = `<li class="note">No files yet.</li>`; return; }
   if (act === "team-add") { modal.querySelector("#np-team").insertAdjacentHTML("beforeend", teamRow()); modal.querySelector("#np-team .team-row:last-child select").focus(); return; }
   if (act === "team-remove") { a.closest(".team-row").remove(); return; }
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
@@ -687,7 +693,7 @@ document.addEventListener("click", e => {
   if (act === "wiz-next" || act === "wiz-back") { const f = modal.querySelector("form[data-form=newproject]"); wizGo(+f.dataset.step + (act === "wiz-next" ? 1 : -1)); return; }
   run(() => {
     if (a.dataset.act === "remove") { removeMember(me(), +a.dataset.pid, +a.dataset.uid); flash("ok", "Member removed."); }
-    if (a.dataset.act === "download") flash("ok", `In the real app this downloads ${a.dataset.name} from the network share.`);
+    if (a.dataset.act === "download") flash("ok", `${a.dataset.name} is a dummy file with no content. In the real app this downloads it from the network share.`);
   });
 });
 document.addEventListener("submit", e => {
@@ -708,7 +714,7 @@ document.addEventListener("submit", e => {
         if (!d.title.trim()) throw new RuleError("Give the requirement a title.");
         if (doIt === "send" && isFeedback(st) && !d.comment.trim()) throw new RuleError("Write a comment. Sending to a Feedback stage needs one.");
         const rid = createReq(u, pid, d.title, d.desc, d.due, d.priority);
-        [...f.querySelector("#nr-files").files].forEach(x => upload(u, rid, x.name));
+        [...f.querySelectorAll("#nr-file-list li[data-name]")].forEach(li => upload(u, rid, li.dataset.name));
         if (doIt === "send") {
           const to = proceed(u, rid, +d.to, d.comment, internal, st);
           flash("ok", `Requirement #${rid} created and sent to ${to} in ${STAGES[st]}. They were emailed.`);
@@ -734,20 +740,29 @@ document.addEventListener("submit", e => {
     }
   }, f);
 });
-document.addEventListener("change", e => {
-  if (e.target.id !== "cd-file" || !e.target.files[0]) return;
-  const rid = +e.target.dataset.rid, name = e.target.files[0].name, keep = (document.getElementById("cd-comment") || {}).value;
-  run(() => { const saved = upload(me(), rid, name); flash("ok", `Saved as ${saved}.`); return {reopen: rid, comment: keep}; }, e.target.form);
-});
-document.addEventListener("change", e => {
-  if (e.target.id !== "nr-files") return;
-  const list = document.getElementById("nr-file-list"), names = [...e.target.files].map(x => x.name);
-  list.innerHTML = names.length ? names.map(n => `<li class="file"><span class="ext" aria-hidden="true">${extOf(n)}</span><span class="file-main"><span class="file-name">${h(n)}</span><span class="file-meta">Uploads when you press Send or Keep it with me</span></span></li>`).join("") : `<li class="note">No files yet.</li>`;
-});
 document.addEventListener("input", e => {
   if (e.target.id === "np-name") {
     const c = genCode(e.target.value); document.getElementById("np-code").textContent = c;
     document.getElementById("np-folder").textContent = `${FILE_ROOT}\\${c}`;
+  }
+});
+// Dummy files: a name only, for trying the flow without real files.
+function addDummy(btn) {
+  const isNew = btn.dataset.act === "add-dummy-new", input = document.getElementById(isNew ? "nr-dummy" : "cd-dummy");
+  const name = input.value.trim(), err = modal.querySelector("#modal-error");
+  if (!name) { err.textContent = "Cannot do that: type a file name first, for example test_plan.xlsx."; err.hidden = false; input.focus(); return; }
+  err.hidden = true;
+  if (isNew) {
+    const list = document.getElementById("nr-file-list"), note = list.querySelector("li.note"); if (note) note.remove();
+    list.insertAdjacentHTML("beforeend", `<li class="file" data-name="${h(name)}"><span class="ext" aria-hidden="true">${extOf(name)}</span><span class="file-main"><span class="file-name">${h(name)}</span><span class="file-meta">Dummy file · added when you press Send or Keep it with me</span></span><button type="button" class="linkish" data-act="drop-dummy">Remove</button></li>`);
+    input.value = ""; input.focus(); return;
+  }
+  const rid = +btn.dataset.rid, keep = (document.getElementById("cd-comment") || {}).value;
+  run(() => { const saved = upload(me(), rid, name); flash("ok", `Dummy file ${saved} added.`); return {reopen: rid, comment: keep}; }, btn.closest("form"));
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.target.id === "cd-dummy" || e.target.id === "nr-dummy")) {
+    e.preventDefault(); e.target.closest(".row").querySelector("button").click();
   }
 });
 function run(fn, form) {
