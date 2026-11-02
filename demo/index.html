@@ -647,6 +647,14 @@ function move(u, r, action, to, toStage, comment, internal, ov, setPrev = true) 
   const hx = S.history[S.history.length - 1]; hx.fromList = fromList; hx.toList = toList; hx.before = before;
   return toList.map(t => handoff(u, r, action, t, (comment || "").trim(), internal)).join(", ");
 }
+// Workload: open requirements assigned to a person in Active projects (optionally in one project).
+const openLoad = (uid, pid) => S.reqs.filter(r => r.stage !== 8 && holds(r, uid) && proj(r.pid).status === "Active" && (!pid || r.pid === pid)).length;
+const loadTag = uid => ` · ${openLoad(uid)} open`;
+const loadChip = n => label(`${n} open`, n === 0 ? "st-ap" : n >= 5 ? "st-fb" : n >= 3 ? "st-qa" : "st-an");
+function workloadTable(rows, withProject) {
+  return tbl(`<thead><tr><th>Person</th><th>Roles</th>${withProject ? "<th>In this project</th>" : ""}<th>All active projects</th></tr></thead><tbody>${rows.map(x => `
+    <tr><td><strong>${h(uname(x.uid))}</strong></td><td>${h(x.roles)}</td>${withProject ? `<td>${loadChip(x.here)}</td>` : ""}<td>${loadChip(x.total)}</td></tr>`).join("")}</tbody>`);
+}
 // Sent requests: a sender can unsend while the requirement has not moved again since their send.
 const MOVE = /^(Send|Reassign|Accepted and closed|Unsent)\b/;
 const lastMove = rid => S.history.filter(x => x.rid === rid && MOVE.test(x.action)).pop();
@@ -836,7 +844,7 @@ function reqCard(id, keepComment) {
         <div class="row" style="margin:0">
           <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => n !== 8 || r.stage === 7 || isHead(u, r.pid))
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
-          <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
+          <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Choose the stage and one or more people, then press Send. Everyone you add gets it in their queue, and any of them can send it on.</p></section>`}
       <details class="card-section"><summary>History (${hist.length})</summary>${historyList(hist, u, r.pid)}</details>
@@ -872,7 +880,7 @@ function reqDialog(pid) {
         <label class="check"><input type="checkbox" id="nr-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>
         <div class="row" style="margin:0">
           <label for="nr-stage">Stage<select id="nr-stage" name="stage">${stageOrder().filter(n => n !== 8).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
-          <div class="role-picks to-picks"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
+          <div class="role-picks to-picks"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Send gives it to those people at that stage. Keep it with me saves it to your own queue.</p></section>
       ${modalError}
@@ -918,7 +926,7 @@ let teamSeq = 0;
 function teamRow() {
   const i = ++teamSeq, people = S.users.filter(x => !x.cto);
   return `<div class="team-row wiz">
-    <label for="tu-${i}">User<select id="tu-${i}" class="np-user"><option value="">Choose person</option>${people.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}</select></label>
+    <label for="tu-${i}">User<select id="tu-${i}" class="np-user"><option value="">Choose person</option>${people.map(x => `<option value="${x.id}">${h(x.name)}${loadTag(x.id)}</option>`).join("")}</select></label>
     <div class="role-picks"><label for="tr-${i}">Role<select id="tr-${i}" class="np-role">${ROLES.map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button type="button" class="btn secondary" data-act="team-remove" aria-label="Remove this person">Remove</button></div>`;
 }
@@ -1006,6 +1014,11 @@ function viewQueue(u) {
 }
 
 function viewProjects(u) {
+  return viewProjectList(u) + (u.cto ? `<section><h2>Team workload</h2><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each person across all active projects.</p>
+    ${workloadTable(S.users.filter(x => !x.cto).map(x => ({uid: x.id, roles: S.projects.filter(pp => pp.status === "Active" && role(pp.id, x.id)).map(pp => pp.code).join(", ") || "No active project", total: openLoad(x.id)}))
+      .sort((a, b) => b.total - a.total || uname(a.uid).localeCompare(uname(b.uid))), false).replace("<th>Roles</th>", "<th>Active projects</th>")}</section>` : "");
+}
+function viewProjectList(u) {
   const list = S.projects.filter(p => canView(u, p.id) && p.status !== "Closed" && !(u.cto && PAUSED.includes(p.status)));
   const paused = u.cto ? S.projects.filter(p => PAUSED.includes(p.status)).length : 0;
   const archived = S.projects.filter(p => p.status === "Closed" && canView(u, p.id)).length;
@@ -1038,11 +1051,14 @@ function viewProject(u, pid) {
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${stageLabel(r.stage)}</td>
     ${all ? `<td>${holdersOf(r).length ? h(holderNames(r)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${all ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
+  ${all ? `<section><h2>Workload</h2><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each member, in this project and across all active projects.</p>
+    ${workloadTable(memberSort(p).filter(m => !m.roles.includes(HEAD)).map(m => ({uid: m.uid, roles: m.roles.join(", "), here: openLoad(m.uid, pid), total: openLoad(m.uid)}))
+      .sort((a, b) => b.here - a.here || b.total - a.total || uname(a.uid).localeCompare(uname(b.uid))), true)}</section>` : ""}
   <section><h2>Members</h2>
   ${tbl(`<thead><tr><th>Name</th><th>Roles</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
     <tr><td>${h(uname(m.uid))}</td><td><div class="chips" style="margin:0">${m.roles.map(r => `<span class="label">${h(r)}${manage && canRemoveRole(u, pid, r) && m.roles.length > 1 ? `<button type="button" class="chip-x" data-act="remove-role" data-pid="${pid}" data-uid="${m.uid}" data-role="${h(r)}" aria-label="Remove the ${h(r)} role from ${h(uname(m.uid))}">×</button>` : ""}</span>`).join("")}</div></td>${manage ? `<td>${m.roles.every(r => canRemoveRole(u, pid, r)) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
   ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row team-row">
-    <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}${role(pid, x.id) ? " (member)" : ""}</option>`).join("")}</select></label>
+    <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}${role(pid, x.id) ? " (member)" : ""}${loadTag(x.id)}</option>`).join("")}</select></label>
     <div class="role-picks"><label for="am-role">Role<select id="am-role" class="np-role">${ROLES.filter(r => canAddRole(u, pid, r)).map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button class="btn primary">Add member</button></form>
     <p class="note">Pick someone who is already a member to give them another role. Only the CTO can remove a Project Lead or Dev Lead.</p>` : ""}
