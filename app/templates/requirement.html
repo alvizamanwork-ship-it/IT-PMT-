@@ -1,0 +1,76 @@
+{% extends "base.html" %}{% block title %}#{{ r.id }} {{ r.title }}{% endblock %}
+{% block content %}
+<p><a href="/projects/{{ r.project_id }}">{{ r.code }} · {{ r.project_name }}</a></p>
+<h1>#{{ r.id }} {{ r.title }}</h1>
+<dl class="details">
+  <dt>Stage</dt><dd><span class="label">{{ r.stage }} {{ stages[r.stage] }}</span></dd>
+  <dt>Holder</dt><dd>{{ names.get(r.holder_id, "None") }}</dd>
+  <dt>Project status</dt><dd><span class="label">{{ r.project_status }}</span></dd>
+  <dt>Priority</dt><dd>{{ r.priority }}</dd>
+  <dt>Due date</dt><dd>{{ r.due_date or "None" }}</dd>
+  <dt>Previous sender</dt><dd>{{ names.get(r.prev_sender_id, "None") }}</dd>
+  <dt>Created by</dt><dd>{{ names.get(r.created_by, "") }}</dd>
+  <dt>In stage since</dt><dd>{{ r.entered_stage_at[:16]|replace("T", " ") }} UTC</dd>
+  {% block folder %}{% endblock %}
+</dl>
+{% if r.description %}<h2>Description</h2><p class="pre">{{ r.description }}</p>{% endif %}
+
+{% if can_act %}
+<section class="panel">
+  <h2>Actions</h2>
+  {% if r.project_status != "Active" %}<p class="note">Project is {{ r.project_status }}. Actions are blocked{% if user.is_cto %}; as CTO you can override (logged){% endif %}.</p>{% endif %}
+  {% if r.holder_id != user.id %}<p class="note">You are not the holder. Acting will be logged as a CTO override.</p>{% endif %}
+  <form method="post" action="/requirements/{{ r.id }}/action" class="stack" id="action-form">
+    {% if r.stage < 7 %}
+    <label>Send to
+      <select name="to_user">{% for m in members %}<option value="{{ m.id }}">{{ m.name }} ({{ m.role }})</option>{% endfor %}</select>
+    </label>
+    {% if r.stage == 5 %}<p class="note">After QA, Proceed goes to the Project Analyst.</p>{% endif %}
+    {% endif %}
+    <label>Comment <span id="comment-hint">(optional for Proceed, required for Send with Feedback and Send Back)</span>
+      <textarea name="comment" id="comment" rows="3" aria-describedby="comment-hint"></textarea></label>
+    {% if not stakeholder %}<label class="check"><input type="checkbox" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>{% endif %}
+    <div class="row">
+      {% if r.stage < 7 %}
+      <button class="btn primary" name="action" value="proceed">Proceed to {{ r.stage + 1 }} {{ stages[r.stage + 1] }}</button>
+      <button class="btn secondary" name="action" value="feedback" data-needs-comment>Send with Feedback</button>
+      {% else %}
+      <button class="btn primary" name="action" value="accept">Accept</button>
+      {% endif %}
+      {% if r.prev_sender_id %}<button class="btn secondary" name="action" value="back" data-needs-comment>Send Back to {{ names.get(r.prev_sender_id) }}</button>{% endif %}
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{% if can_reassign %}
+<details class="panel">
+  <summary>Reassign</summary>
+  <form method="post" action="/requirements/{{ r.id }}/reassign" class="stack">
+    <label>New holder <select name="to_user">{% for m in members %}<option value="{{ m.id }}">{{ m.name }} ({{ m.role }})</option>{% endfor %}</select></label>
+    <label>Comment (optional) <textarea name="comment" rows="2"></textarea></label>
+    <button class="btn secondary">Reassign</button>
+  </form>
+</details>
+{% endif %}
+
+{% block files %}{% endblock %}
+
+<section id="comments">
+  <h2>Comments</h2>
+  {% for c in comments %}
+  <article class="comment"><p><strong>{{ c.who }}</strong> · <time datetime="{{ c.at }}">{{ c.at[:16]|replace("T", " ") }}</time>
+    · <span class="label">{{ "Internal" if c.internal else "Shared" }}</span></p><p class="pre">{{ c.text }}</p></article>
+  {% else %}<p>No comments yet.</p>{% endfor %}
+  <form method="post" action="/requirements/{{ r.id }}/comments" class="stack">
+    <label>Add comment <textarea name="text" rows="3" required></textarea></label>
+    {% if not stakeholder %}<label class="check"><input type="checkbox" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>{% endif %}
+    <button class="btn secondary">Add comment</button>
+  </form>
+</section>
+
+<section>
+  <h2>History</h2>
+  {% include "_history.html" %}
+</section>
+{% endblock %}

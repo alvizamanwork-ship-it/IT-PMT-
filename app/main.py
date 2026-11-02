@@ -8,12 +8,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, config, db
 from . import projects as P
+from . import workflow as W
 from .perms import Forbidden, NotFound, RuleError, can_view, role_of
 
 BASE = os.path.dirname(__file__)
 templates = Jinja2Templates(directory=os.path.join(BASE, "templates"))
-templates.env.globals["stages"] = {1: "Requirements", 2: "Analysis", 3: "Dev Review", 4: "Development",
-                                   5: "QA", 6: "Analyst Review", 7: "Acceptance", 8: "Closed"}
+templates.env.globals.update(stages=W.STAGES, priorities=W.PRIORITIES)
 
 
 class LoginRequired(Exception):
@@ -110,11 +110,7 @@ def project_page(pid: int, request: Request, user=Depends(current_user), conn=De
     p = P.get(conn, pid)
     if not can_view(conn, user, pid):
         raise Forbidden("You are not a member of this project.")
-    history = conn.execute(
-        "SELECT h.*, u.name AS who, tu.name AS to_name, fu.name AS from_name FROM history h "
-        "JOIN users u ON u.id=h.user_id LEFT JOIN users tu ON tu.id=h.to_user_id "
-        "LEFT JOIN users fu ON fu.id=h.from_user_id "
-        "WHERE h.project_id=? AND h.requirement_id IS NULL ORDER BY h.id DESC", (pid,)).fetchall()
+    history = conn.execute(W.HISTORY_SQL + "WHERE h.project_id=? AND h.requirement_id IS NULL ORDER BY h.id DESC", (pid,)).fetchall()
     ctx = dict(p=p, members=P.members(conn, pid), history=history, roles=P.ROLES,
                statuses=P.STATUSES, my_role=role_of(conn, pid, user["id"]),
                can_manage=P.can_manage_members(conn, user, pid),
@@ -124,7 +120,8 @@ def project_page(pid: int, request: Request, user=Depends(current_user), conn=De
 
 
 def project_extra(conn, user, p):
-    return {}
+    can_create = bool(user["is_cto"]) or role_of(conn, p["id"], user["id"]) in W.CREATORS
+    return dict(requirements=W.for_project(conn, p["id"]), can_create=can_create)
 
 
 @app.post("/projects/{pid}/members")
@@ -194,4 +191,74 @@ def admin_settings(stall_days: int = Form(...), user=Depends(current_user),
 # ---------- home ----------
 @app.get("/")
 def my_queue(request: Request, user=Depends(current_user), conn=Depends(get_conn)):
-    return render(request, "queue.html", user, items=[])
+    return render(request, "queue.html", user, items=W.queue(conn, user))
+
+
+# ---------- requirements ----------
+@app.post("/projects/{pid}/requirements")
+def req_create(pid: int, title: str = Form(...), description: str = Form(""),
+               due_date: str = Form(""), priority: str = Form("Normal"),
+               user=Depends(current_user), conn=Depends(get_conn)):
+    rid = W.create(conn, user, pid, title, description, due_date, priority)
+    after_create(conn, rid)
+    return back(f"/requirements/{rid}")
+
+
+def after_create(conn, rid):
+    pass
+
+
+@app.get("/requirements/{rid}")
+def req_page(rid: int, request: Request, user=Depends(current_user), conn=Depends(get_conn)):
+    r = W.load(conn, user, rid)
+    pid = r["project_id"]
+    my_role = role_of(conn, pid, user["id"])
+    names = {u["id"]: u["name"] for u in conn.execute("SELECT id, name FROM users").fetchall()}
+    ctx = dict(r=r, my_role=my_role, members=P.members(conn, pid), names=names,
+               history=W.history(conn, user, r), comments=W.comments(conn, user, r),
+               stakeholder=W.stakeholder_view(conn, user, pid),
+               can_act=r["stage"] < W.CLOSED and (r["holder_id"] == user["id"] or bool(user["is_cto"])),
+               can_reassign=r["stage"] < W.CLOSED and (my_role in ("Project Lead", "Dev Lead")
+                                                       or bool(user["is_cto"])))
+    ctx.update(req_extra(conn, user, r))
+    return render(request, "requirement.html", user, **ctx)
+
+
+def req_extra(conn, user, r):
+    return {}
+
+
+def notify(conn, result):
+    pass
+
+
+@app.post("/requirements/{rid}/action")
+def req_action(rid: int, action: str = Form(...), to_user: int = Form(0), comment: str = Form(""),
+               internal: str = Form(""), user=Depends(current_user), conn=Depends(get_conn)):
+    internal = internal == "yes"
+    if action == "proceed":
+        res = W.proceed(conn, user, rid, to_user, comment, internal)
+    elif action == "feedback":
+        res = W.feedback(conn, user, rid, to_user, comment, internal)
+    elif action == "back":
+        res = W.send_back(conn, user, rid, comment, internal)
+    elif action == "accept":
+        res = W.accept(conn, user, rid, comment)
+    else:
+        raise RuleError("Unknown action.")
+    notify(conn, res)
+    return back(f"/requirements/{rid}")
+
+
+@app.post("/requirements/{rid}/reassign")
+def req_reassign(rid: int, to_user: int = Form(...), comment: str = Form(""),
+                 user=Depends(current_user), conn=Depends(get_conn)):
+    notify(conn, W.reassign(conn, user, rid, to_user, comment))
+    return back(f"/requirements/{rid}")
+
+
+@app.post("/requirements/{rid}/comments")
+def req_comment(rid: int, text: str = Form(...), internal: str = Form(""),
+                user=Depends(current_user), conn=Depends(get_conn)):
+    W.add_comment(conn, user, rid, text, internal == "yes")
+    return back(f"/requirements/{rid}#comments")

@@ -2,7 +2,35 @@
 {% block content %}
 <h1>{{ p.code }} · {{ p.name }}</h1>
 <p>Status: <span class="label">{{ p.status }}</span>{% if my_role %} · My role: {{ my_role }}{% endif %}</p>
-{% block requirements %}{% endblock %}
+<section>
+  <h2>Requirements</h2>
+  {% if requirements %}
+  <table>
+    <thead><tr><th>Requirement</th><th>Stage</th><th>Holder</th><th>Priority</th><th>Due</th></tr></thead>
+    <tbody>
+    {% for r in requirements %}
+    <tr><td><a href="/requirements/{{ r.id }}">#{{ r.id }} {{ r.title }}</a></td>
+        <td><span class="label">{{ r.stage }} {{ stages[r.stage] }}</span></td>
+        <td>{{ r.holder_name or "" }}</td><td>{{ r.priority }}</td><td>{{ r.due_date or "" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p>No requirements yet.</p>{% endif %}
+  {% if can_create and (p.status == "Active" or user.is_cto) %}
+  <details class="panel">
+    <summary>New requirement</summary>
+    <form method="post" action="/projects/{{ p.id }}/requirements" class="stack">
+      <label>Title <input name="title" required></label>
+      <label>Description <textarea name="description" rows="4"></textarea></label>
+      <div class="row">
+        <label>Priority <select name="priority">{% for pr in priorities %}<option {% if pr == "Normal" %}selected{% endif %}>{{ pr }}</option>{% endfor %}</select></label>
+        <label>Due date (optional) <input type="date" name="due_date"></label>
+      </div>
+      <button class="btn primary">Create requirement</button>
+    </form>
+  </details>
+  {% endif %}
+</section>
 <section>
   <h2>Members</h2>
   <table>

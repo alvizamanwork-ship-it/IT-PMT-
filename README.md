@@ -32,3 +32,9 @@ First start creates a CTO account from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defa
 - **CTO overrides**: whenever the CTO does something the normal rules would block (acting when not the holder, acting on an On Hold/Cancelled project, etc.), the history entry is marked "(CTO override)" and flagged in the DB.
 - **Project status**: the CTO can set any status. Leaving Active for On Hold/Cancelled pauses the stall timer; returning to Active shifts each open requirement's entered-stage time by the paused duration. Closing needs all requirements Closed plus a confirmation tick (not bypassable).
 - **CSRF**: relies on `SameSite=Lax` session cookies (internal tool).
+- **New requirement**: starts at stage 1 Requirements, held by its creator.
+- **Proceed** is not offered at stage 7; the Stakeholder uses **Accept** to move to Closed. Proceed from stage 5 QA must go to a Project Analyst ("after QA the Analyst chooses the next person").
+- **Send Back** goes to the previous sender at the stage they held when they sent it; the sender becomes the new previous sender. If that person is no longer a member, it goes to the first Project Analyst.
+- **Reassign** (Project Lead, Dev Lead, CTO) changes the holder without changing the stage or previous sender.
+- **Comments**: shared by default; tick "Internal" to hide from Stakeholders. Stakeholders' own comments are always shared. Internal action comments are blanked in the history Stakeholders see.
+- **My Queue** is sorted by priority (High first), then due date.
