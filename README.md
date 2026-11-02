@@ -1,5 +1,17 @@
 # PMT — lightweight project management for the IT team
 
+## Clickable demo (latest design)
+
+`demo/index.html` is a browser-only mock-up of the latest agreed design, for approval. Open it in any browser; no server needed. It starts empty (users only), and data stays in that browser. It reflects these design changes, which are **not yet in the FastAPI app below**:
+
+- Project codes are generated from the name (e.g. "Help Desk Portal" → HDP-001); the CTO joins every project as Project Head.
+- Team members are added as User + Role dropdown rows.
+- Stages: Analysis, Analysis Feedback, Development, Development Feedback, QA, QA Feedback, Approval (plus Closed). The holder picks the stage and the user on every Send; a comment is required for Feedback stages; only the Stakeholder closes from Approval.
+- A requirement is visible only to its current holder; the CTO sees all requirements and holders.
+- Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
+- No stall threshold or daily digest.
+
+
 FastAPI + SQLite + Jinja templates. Files live on a mounted network share; only names and paths are stored in the DB.
 
 ## Run
