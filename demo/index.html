@@ -285,7 +285,7 @@ label { display: grid; gap: .3rem; font-weight: 600; font-size: .95rem; }
 input, select, textarea { font: inherit; font-size: 1rem; max-width: 100%; min-height: 2.75rem; border-radius: var(--radius-sm); }
 select, input[type="date"], input[type="number"] { color: var(--text); background: var(--surface-2); border: 1px solid var(--sep-strong); padding: .45em .6em; }
 /* Text boxes are inverted panels with a metal rim: dark in Light mode, bright in Dark mode. */
-textarea, input:not([type]), input[type="text"], input[type="email"] {
+textarea, input:not([type]), input[type="text"], input[type="email"], input[type="url"] {
   color: var(--inv-fg); caret-color: var(--inv-link); padding: .55em .8em; border: 2px solid transparent;
   background: linear-gradient(var(--inv-bg), var(--inv-bg)) padding-box, var(--metal) border-box; }
 textarea { width: 100%; resize: vertical; }
@@ -413,6 +413,9 @@ dialog.card::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter:
 .file-name { font-weight: 600; overflow-wrap: anywhere; }
 .file-meta { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
 .mail { padding: .7rem .95rem; margin-bottom: .55rem; }
+.files li.file a.file-name { color: var(--inv-link); text-decoration: none; }
+.files li.file a.file-name:hover { text-decoration: underline; }
+.links-block { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--sep); }
 .mail pre { white-space: pre-wrap; font-family: var(--mono); font-size: .85rem; margin: .3rem 0 0; }
 @media (prefers-reduced-motion: reduce) { .btn, label.check input[type="checkbox"], label.check input[type="checkbox"]::before { transition: none; } .btn:active { transform: none; } }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
@@ -665,6 +668,30 @@ function upload(u, id, filename) {
   return name;
 }
 
+// Repository / reference links: a URL plus an optional label, kept with the requirement.
+function cleanUrl(url) {
+  url = (url || "").trim(); if (url && !/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = "https://" + url;
+  let ok = false; try { const x = new URL(url); ok = (x.protocol === "https:" || x.protocol === "http:") && !/\s/.test(url) && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(x.hostname); } catch (e) {}
+  if (!ok) throw new RuleError("Type a full web address, for example https://github.com/team/repo.");
+  return url;
+}
+const linkKind = url => /github\.com|gitlab|bitbucket|dev\.azure\.com|visualstudio\.com/i.test(url) ? "REPO" : "LINK";
+function addLink(u, id, url, labelText) {
+  const r = loadReq(u, id); const st = proj(r.pid).status;
+  const ov = require_(u, st === "Active", `Project is ${st}; changes are blocked.`, r.pid);
+  url = cleanUrl(url); labelText = (labelText || "").trim();
+  if ((S.links || []).some(l => l.rid === id && l.url === url)) throw new RuleError("That link is already added.");
+  (S.links = S.links || []).push({id: nextId("l"), rid: id, url, label: labelText, uid: u.id, at: now()});
+  log(r.pid, u, `Added ${linkKind(url) === "REPO" ? "repository" : "reference"} link ${labelText || url}`, {rid: id, override: ov});
+}
+const linkRow = (l, extra = "") => `<li class="file"><span class="ext" aria-hidden="true">${linkKind(l.url)}</span><span class="file-main">
+  <a class="file-name" href="${h(l.url)}" target="_blank" rel="noopener noreferrer">${h(l.label || l.url)}</a>
+  <span class="file-meta">${l.label ? h(l.url) + " · " : ""}${l.uid ? `${h(uname(l.uid))} · ${fmt(l.at)}` : "Saved when you press Send or Keep it with me"}</span></span>${extra}</li>`;
+const linkInputs = (prefix, act, rid) => `<div class="row" style="margin:0">
+  <label for="${prefix}-url">Link<input id="${prefix}-url" type="url" placeholder="https://github.com/team/repo" autocomplete="off"></label>
+  <label for="${prefix}-label">Label (optional)<input id="${prefix}-label" placeholder="e.g. Main repository" autocomplete="off"></label>
+  <button type="button" class="btn secondary" data-act="${act}"${rid ? ` data-rid="${rid}"` : ""}>Add link</button></div>`;
+
 // ---------- email (recorded, not sent) ----------
 function handoff(actor, r, action, to, comment, internal) {
   if (!to) return null;
@@ -721,7 +748,7 @@ function reqCard(id, keepComment) {
   if (!canSeeReq(u, r)) { flash("error", "Only the current holder, the Project Lead and the CTO can open this requirement."); render(); return; }
   const p = proj(r.pid), sv = stakeholderView(u, r.pid), members = memberSort(p), closed = r.stage === 8;
   const pick = members.find(m => m.uid !== u.id) || members[0];
-  const files = S.files.filter(f => f.rid === id);
+  const files = S.files.filter(f => f.rid === id), links = (S.links || []).filter(l => l.rid === id);
   const hist = S.history.filter(x => x.rid === id);
   // Comments list = plain comments plus comments written when sending, oldest first.
   const comments = S.comments.filter(c => c.rid === id && !(sv && c.internal))
@@ -740,7 +767,10 @@ function reqCard(id, keepComment) {
         ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${closed ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
           <button type="button" class="btn secondary" data-act="add-dummy" data-rid="${id}">Add dummy file</button></div>
-        <p class="note">For testing: adds a file name only, no real file. It goes into ${stageFolder(r.stage)}; the same name again becomes _v2, _v3.</p>`}</section>
+        <p class="note">For testing: adds a file name only, no real file. It goes into ${stageFolder(r.stage)}; the same name again becomes _v2, _v3.</p>`}
+        <div class="links-block"><h3 class="fl">Repository and reference links</h3>
+        ${links.length ? `<ul class="files">${links.map(l => linkRow(l)).join("")}</ul>` : `<p class="note">No links yet.</p>`}
+        ${closed ? "" : linkInputs("cd-link", "add-link", id)}</div></section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
         ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h(uname(c.sent.to))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
@@ -777,7 +807,10 @@ function reqDialog(pid) {
         <ul class="files" id="nr-file-list"><li class="note">No files yet.</li></ul>
         <div class="row" style="margin:0"><label for="nr-dummy">Dummy file name<input id="nr-dummy" placeholder="e.g. requirements.docx" autocomplete="off"></label>
           <button type="button" class="btn secondary" data-act="add-dummy-new">Add dummy file</button></div>
-        <p class="note">For testing: adds a file name only, no real file.</p></section>
+        <p class="note">For testing: adds a file name only, no real file.</p>
+        <div class="links-block"><h3 class="fl">Repository and reference links</h3>
+        <ul class="files" id="nr-link-list"><li class="note">No links yet.</li></ul>
+        ${linkInputs("nr-link", "add-link-new")}</div></section>
       <section class="card-section"><label for="nr-desc"><span class="fl">Description</span><textarea id="nr-desc" name="desc" rows="4"></textarea></label></section>
       <section class="card-section stack">
         <label for="nr-comment">Comment <span class="note">(optional; required when sending to a Feedback stage)</span><textarea id="nr-comment" name="comment" rows="2"></textarea></label>
@@ -1010,8 +1043,9 @@ document.addEventListener("click", e => {
   if (act === "close") { closeModal(); return; }
   if (act === "open-card") { S.flash = null; reqCard(+a.dataset.id); return; }
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
+  if (act === "add-link" || act === "add-link-new") { addLinkUi(a); return; }
   if (act === "drop-dummy") { const list = a.closest("ul"); a.closest("li").remove();
-    if (!list.querySelector("li")) list.innerHTML = `<li class="note">No files yet.</li>`; return; }
+    if (!list.querySelector("li")) list.innerHTML = `<li class="note">${list.id === "nr-link-list" ? "No links yet." : "No files yet."}</li>`; return; }
   if (act === "role-add") {
     const box = a.closest(".role-picks"), first = box.querySelector("select"), id = `rp-${++teamSeq}`;
     const used = [...box.querySelectorAll("select")].map(x => x.value), next = [...first.options].find(o => !used.includes(o.value));
@@ -1050,6 +1084,7 @@ document.addEventListener("submit", e => {
         if (doIt === "send" && isFeedback(st) && !d.comment.trim()) throw new RuleError("Write a comment. Sending to a Feedback stage needs one.");
         const rid = createReq(u, pid, d.title, d.desc, d.due, d.priority, d.start);
         [...f.querySelectorAll("#nr-file-list li[data-name]")].forEach(li => upload(u, rid, li.dataset.name));
+        [...f.querySelectorAll("#nr-link-list li[data-url]")].forEach(li => addLink(u, rid, li.dataset.url, li.dataset.label));
         if (doIt === "send") {
           const to = proceed(u, rid, +d.to, d.comment, internal, st);
           flash("ok", `Requirement #${rid} created and sent to ${to} in ${STAGES[st]}. They were emailed.`);
@@ -1098,6 +1133,21 @@ document.addEventListener("input", e => {
   }
 });
 // Dummy files: a name only, for trying the flow without real files.
+function addLinkUi(btn) {
+  const isNew = btn.dataset.act === "add-link-new", pre = isNew ? "nr-link" : "cd-link", err = modal.querySelector("#modal-error");
+  const urlIn = document.getElementById(pre + "-url"), labelIn = document.getElementById(pre + "-label");
+  if (isNew) {
+    let url; try { url = cleanUrl(urlIn.value); } catch (e) { err.textContent = "Cannot do that: " + e.message; err.hidden = false; urlIn.focus(); return; }
+    err.hidden = true;
+    const list = document.getElementById("nr-link-list"), note = list.querySelector("li.note"); if (note) note.remove();
+    if (list.querySelector(`li[data-url="${CSS.escape(url)}"]`)) { err.textContent = "Cannot do that: That link is already added."; err.hidden = false; return; }
+    list.insertAdjacentHTML("beforeend", linkRow({url, label: labelIn.value.trim()}, `<button type="button" class="linkish" data-act="drop-dummy">Remove</button>`)
+      .replace('<li class="file">', `<li class="file" data-url="${h(url)}" data-label="${h(labelIn.value.trim())}">`));
+    urlIn.value = ""; labelIn.value = ""; urlIn.focus(); return;
+  }
+  const rid = +btn.dataset.rid, keep = (document.getElementById("cd-comment") || {}).value;
+  run(() => { addLink(me(), rid, urlIn.value, labelIn.value); flash("ok", "Link added."); return {reopen: rid, comment: keep}; }, btn.closest("form"));
+}
 function addDummy(btn) {
   const isNew = btn.dataset.act === "add-dummy-new", input = document.getElementById(isNew ? "nr-dummy" : "cd-dummy");
   const name = input.value.trim(), err = modal.querySelector("#modal-error");
@@ -1112,7 +1162,7 @@ function addDummy(btn) {
   run(() => { const saved = upload(me(), rid, name); flash("ok", `Dummy file ${saved} added.`); return {reopen: rid, comment: keep}; }, btn.closest("form"));
 }
 document.addEventListener("keydown", e => {
-  if (e.key === "Enter" && (e.target.id === "cd-dummy" || e.target.id === "nr-dummy")) {
+  if (e.key === "Enter" && ["cd-dummy", "nr-dummy", "cd-link-url", "cd-link-label", "nr-link-url", "nr-link-label"].includes(e.target.id)) {
     e.preventDefault(); e.target.closest(".row").querySelector("button").click();
   }
 });
