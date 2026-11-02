@@ -568,7 +568,7 @@ function addMember(u, pid, uid, roles) {
   log(pid, u, isNew ? `Added member as ${fresh.join(", ")}` : `Added role ${fresh.join(", ")}`, {to: uid});
 }
 function checkNotHolding(pid, uid) {
-  if (S.reqs.some(x => x.pid === pid && x.holder === uid && x.stage !== 8)) throw new RuleError(`${uname(uid)} holds open requirements. Send them on first.`);
+  if (S.reqs.some(x => x.pid === pid && holds(x, uid) && x.stage !== 8)) throw new RuleError(`${uname(uid)} holds open requirements. Send them on first.`);
 }
 function removeRole(u, pid, uid, r) {
   if (!has(pid, uid, r)) throw new RuleError("That person does not have that role.");
@@ -608,7 +608,7 @@ function createReq(u, pid, title, desc, due, priority, start) {
   ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`, pid) || ov;
   checkDates(start, due, "due date");
   const id = nextId("r"), t = now();
-  S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holder: u.id, prev: null, prevStage: null, due: due || null, start: start || null,
+  S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holders: [u.id], prev: null, prevStage: null, due: due || null, start: start || null,
     priority, feedback: false, createdBy: u.id, entered: t, created: t, folder: `${p.folder}\\${id}_${clean(title, 50).replace(/ /g, "_")}`});
   log(pid, u, "Created requirement", {rid: id, to: u.id, toStage: 1, override: ov});
   return id;
@@ -617,29 +617,36 @@ function guard(u, r) {
   if (r.stage === 8) throw new RuleError("This requirement is Closed.");
   const st = proj(r.pid).status;
   let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`, r.pid);
-  return require_(u, r.holder === u.id, "Only the current holder can act on this requirement.", r.pid) || ov;
+  return require_(u, holds(r, u.id), "Only the people the requirement is assigned to can act on it.", r.pid) || ov;
 }
 function memberRole(pid, uid) { const r = role(pid, uid); if (!r) throw new RuleError("Choose a project member to send to."); return r; }
 function needComment(c) { if (!(c || "").trim()) throw new RuleError("Write a comment. Sending to a Feedback stage needs one."); }
 function move(u, r, action, to, toStage, comment, internal, ov, setPrev = true) {
   if (stakeholderView(u, r.pid)) internal = false;
-  const from = r.holder, fromStage = r.stage;
+  const fromList = holdersOf(r).slice(), fromStage = r.stage, toList = to ? [].concat(to) : [];
   if (toStage !== r.stage) r.entered = now();
   if (setPrev) { r.prev = u.id; r.prevStage = fromStage; }
-  r.stage = toStage; r.holder = to;
-  log(r.pid, u, action, {rid: r.id, from, to, fromStage, toStage, comment, internal, override: ov});
-  return handoff(u, r, action, to, (comment || "").trim(), internal);
+  r.stage = toStage; r.holders = toList;
+  log(r.pid, u, action, {rid: r.id, from: fromList[0], to: toList[0], fromStage, toStage, comment, internal, override: ov});
+  const hx = S.history[S.history.length - 1]; hx.fromList = fromList; hx.toList = toList;
+  return toList.map(t => handoff(u, r, action, t, (comment || "").trim(), internal)).join(", ");
 }
+// A requirement can be assigned to several people at once; any of them can work on it and send it on.
+const holdersOf = r => r.holders || [];
+const holds = (r, uid) => holdersOf(r).includes(uid);
+const holderNames = r => holdersOf(r).map(uname).join(", ") || "None";
 // Only the Project Head (CTO), Project Lead and Dev Lead see every requirement in a project; everyone else sees only what they hold.
 const seesAll = (u, pid) => isHead(u, pid) || has(pid, u.id, "Dev Lead");
-const canSeeReq = (u, r) => seesAll(u, r.pid) || r.holder === u.id;
+const canSeeReq = (u, r) => seesAll(u, r.pid) || holds(r, u.id);
 function loadReq(u, id) { const r = req(id); if (!canSeeReq(u, r)) throw new Forbidden("Only the current holder, the Project Lead, the Dev Lead and the CTO can open this requirement."); return r; }
 function proceed(u, id, to, comment, internal, stage) {
   const r = loadReq(u, id); const ov = guard(u, r);
   if (!STAGES[stage]) throw new RuleError("Choose a stage.");
   if (stage === 8) return accept(u, id, comment);
   if (isFeedback(stage)) needComment(comment);
-  memberRole(r.pid, to);
+  to = [...new Set([].concat(to).filter(Boolean))];
+  if (!to.length) throw new RuleError("Choose at least one person to send to.");
+  to.forEach(t => memberRole(r.pid, t));
   return move(u, r, "Send", to, stage, comment, internal, ov);
 }
 function accept(u, id, comment) {
@@ -653,7 +660,7 @@ function reassign(u, id, to, comment) {
   let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`, r.pid);
   ov = require_(u, isLead(r.pid, u.id), "Only the Project Lead or Dev Lead can reassign.", r.pid) || ov;
   memberRole(r.pid, to);
-  return move(u, r, "Reassign", to, r.stage, comment, false, ov, false);
+  return move(u, r, "Reassign", [to], r.stage, comment, false, ov, false);
 }
 function addComment(u, id, text, internal) {
   const r = loadReq(u, id); text = (text || "").trim(); if (!text) throw new RuleError("Write a comment first.");
@@ -752,7 +759,7 @@ function reqCard(id, keepComment) {
   const u = me(), r = req(id);
   if (!canSeeReq(u, r)) { flash("error", "Only the current holder, the Project Lead, the Dev Lead and the CTO can open this requirement."); render(); return; }
   const p = proj(r.pid), sv = stakeholderView(u, r.pid), members = memberSort(p), closed = r.stage === 8;
-  const viewOnly = !closed && r.holder !== u.id && !isHead(u, r.pid), ro = closed || viewOnly;
+  const viewOnly = !closed && !holds(r, u.id) && !isHead(u, r.pid), ro = closed || viewOnly;
   const pick = members.find(m => m.uid !== u.id) || members[0];
   const files = S.files.filter(f => f.rid === id), links = (S.links || []).filter(l => l.rid === id);
   const hist = S.history.filter(x => x.rid === id);
@@ -761,15 +768,15 @@ function reqCard(id, keepComment) {
     .concat(hist.filter(x => x.comment && !(sv && x.internal)).map(x => ({uid: x.uid, at: x.at, text: x.comment, internal: x.internal, sent: x})))
     .sort((a, b) => a.at - b.at);
   const notes = [p.status !== "Active" ? `Project is ${p.status}. Sending is blocked${isHead(u, r.pid) ? "; you can override it (logged)" : ""}.` : "",
-    viewOnly ? `View only: ${h(uname(r.holder))} holds this requirement. As Dev Lead you can see it but only the holder can work on it.` :
-    !closed && r.holder !== u.id ? `${h(uname(r.holder))} holds this. As ${u.cto ? "CTO" : "Project Lead"} you can still act; it is logged as an override.` : "",
+    viewOnly ? `View only: assigned to ${h(holderNames(r))}. As Dev Lead you can see it but only the assigned people can work on it.` :
+    !closed && !holds(r, u.id) ? `Assigned to ${h(holderNames(r))}. As ${u.cto ? "CTO" : "Project Lead"} you can still act; it is logged as an override.` : "",
     closed ? "This requirement is Closed." : ""].filter(Boolean).map(t => `<p class="note">${t}</p>`).join("");
   openModal(`${cardHead(`Requirement #${r.id} · ${p.code}`)}
   <form data-form="card" data-id="${id}">
     <div class="card-body">
       ${notes}
       <section class="card-section"><h3 class="fl">Requirement title</h3><p class="title-view">${h(r.title)}</p>
-        <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.start ? `<span>Starts ${r.start}</span>` : ""}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>Holder: ${h(uname(r.holder))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
+        <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.start ? `<span>Starts ${r.start}</span>` : ""}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>${holdersOf(r).length > 1 ? "Assigned to" : "Holder"}: ${h(holderNames(r))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
         ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${ro ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
@@ -780,7 +787,7 @@ function reqCard(id, keepComment) {
         ${ro ? "" : linkInputs("cd-link", "add-link", id)}</div></section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
-        ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h(uname(c.sent.to))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
+        ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h((c.sent.toList || [c.sent.to]).filter(Boolean).map(uname).join(", "))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
       ${ro ? "" : `<section class="card-section stack">
         <label for="cd-comment">Comment <span class="note">(sent along with Send; required when sending to a Feedback stage)</span><textarea id="cd-comment" name="comment" rows="3">${h(keepComment || "")}</textarea></label>
         ${sv ? "" : `<label class="check"><input type="checkbox" id="cd-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>`}
@@ -788,9 +795,9 @@ function reqCard(id, keepComment) {
         <div class="row" style="margin:0">
           <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => n !== 8 || r.stage === 7 || isHead(u, r.pid))
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
-          <label for="cd-to">User<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label>
+          <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
-        <p class="note">Choose the stage and the person, then press Send. It leaves your queue once sent.</p></section>`}
+        <p class="note">Choose the stage and one or more people, then press Send. Everyone you add gets it in their queue, and any of them can send it on.</p></section>`}
       <details class="card-section"><summary>History (${hist.length})</summary>${historyList(hist, u, r.pid)}</details>
       ${modalError}
     </div>
@@ -824,9 +831,9 @@ function reqDialog(pid) {
         <label class="check"><input type="checkbox" id="nr-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>
         <div class="row" style="margin:0">
           <label for="nr-stage">Stage<select id="nr-stage" name="stage">${stageOrder().filter(n => n !== 8).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
-          <label for="nr-to">User<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label>
+          <div class="role-picks to-picks"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
-        <p class="note">Send gives it to that person at that stage. Keep it with me saves it to your own queue.</p></section>
+        <p class="note">Send gives it to those people at that stage. Keep it with me saves it to your own queue.</p></section>
       ${modalError}
     </div>
     <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Cancel</button><span class="spacer"></span>
@@ -939,13 +946,13 @@ function historyList(rows, u, pid) {
   const hide = stakeholderView(u, pid);
   return `<ol class="history" reversed>${rows.slice().reverse().map(x => {
     const c = x.comment && !(hide && x.internal) ? `<blockquote>${x.internal ? label("Internal", "tag-int") + " " : ""}${h(x.comment)}</blockquote>` : "";
-    return `<li><time>${fmt(x.at)}</time> · <strong>${h(uname(x.uid))}</strong>: ${h(x.action)}${x.from ? ` · from ${h(uname(x.from))}` : ""}${x.to ? ` · to ${h(uname(x.to))}` : ""}${x.fromStage && x.toStage && x.fromStage !== x.toStage ? ` · ${STAGES[x.fromStage]} → ${STAGES[x.toStage]}` : ""}${c}</li>`;
+    return `<li><time>${fmt(x.at)}</time> · <strong>${h(uname(x.uid))}</strong>: ${h(x.action)}${(x.fromList || [x.from]).filter(Boolean).length ? ` · from ${h((x.fromList || [x.from]).filter(Boolean).map(uname).join(", "))}` : ""}${(x.toList || [x.to]).filter(Boolean).length ? ` · to ${h((x.toList || [x.to]).filter(Boolean).map(uname).join(", "))}` : ""}${x.fromStage && x.toStage && x.fromStage !== x.toStage ? ` · ${STAGES[x.fromStage]} → ${STAGES[x.toStage]}` : ""}${c}</li>`;
   }).join("")}</ol>`;
 }
 
 function viewQueue(u) {
   const order = {High: 0, Normal: 1, Low: 2};
-  const items = S.reqs.filter(r => r.holder === u.id && r.stage !== 8 && proj(r.pid).status === "Active")
+  const items = S.reqs.filter(r => holds(r, u.id) && r.stage !== 8 && proj(r.pid).status === "Active")
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
   return `<h1>My Queue</h1>${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
@@ -960,7 +967,7 @@ function viewProjects(u) {
   const archived = u.cto ? S.projects.filter(p => p.status === "Closed").length : 0;
   return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Start from</th><th>Deadline</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
-    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (seesAll(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
+    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (seesAll(u, p.id) || holds(r, u.id))).length}</td></tr>`).join("")}</tbody>`)
     : `<p>${u.cto ? "No open projects. Press New project to start one." : "You are not a member of any project."}</p>`}`;
 }
 
@@ -970,7 +977,7 @@ function viewProject(u, pid) {
   const myRole = role(pid, u.id), head = isHead(u, pid), all = seesAll(u, pid), manage = head || isLead(pid, u.id);
   const canCreate = (u.cto || CREATORS.includes(myRole)) && (p.status === "Active" || head);
   const order = {High: 0, Normal: 1, Low: 2};
-  const reqs = S.reqs.filter(r => r.pid === pid && (all || r.holder === u.id)).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
+  const reqs = S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id))).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
   const members = memberSort(p);
   const others = S.users.filter(x => !has(pid, x.id, HEAD));
   return `<h1>${h(p.code)} · ${h(p.name)}</h1>
@@ -983,9 +990,9 @@ function viewProject(u, pid) {
     <p class="note" style="margin-top:.6rem">Clear a date and save to remove it. Changes are logged in Project history.</p></section>` : ""}
   <section><div class="head-row"><h2>${all ? "All requirements" : "Requirements you hold"}</h2>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
   ${all ? "" : `<p class="note">You see a requirement only while you hold it. Only the Project Head, Project Lead and Dev Lead see all requirements and who holds them.</p>`}
-  ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${all ? "<th>Holder</th>" : ""}<th>Priority</th><th>Start</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
+  ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${all ? "<th>Assigned to</th>" : ""}<th>Priority</th><th>Start</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${stageLabel(r.stage)}</td>
-    ${all ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${all ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
+    ${all ? `<td>${holdersOf(r).length ? h(holderNames(r)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${all ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
   <section><h2>Members</h2>
   ${tbl(`<thead><tr><th>Name</th><th>Roles</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
@@ -1086,8 +1093,8 @@ document.addEventListener("click", e => {
   if (act === "role-add") {
     const box = a.closest(".role-picks"), first = box.querySelector("select"), id = `rp-${++teamSeq}`;
     const used = [...box.querySelectorAll("select")].map(x => x.value), next = [...first.options].find(o => !used.includes(o.value));
-    a.insertAdjacentHTML("beforebegin", `<div class="role-extra"><label for="${id}">Another role${first.outerHTML.replace(/ id="[^"]*"/, ` id="${id}"`)}</label>
-      <button type="button" class="linkish" data-act="role-drop">Remove role</button></div>`);
+    a.insertAdjacentHTML("beforebegin", `<div class="role-extra"><label for="${id}">${a.dataset.more || "Another role"}${first.outerHTML.replace(/ id="[^"]*"/, ` id="${id}"`).replace(/ name="[^"]*"/, "")}</label>
+      <button type="button" class="linkish" data-act="role-drop">${a.dataset.drop || "Remove role"}</button></div>`);
     const sel = document.getElementById(id); sel.value = next ? next.value : first.value; sel.focus(); return;
   }
   if (act === "role-drop") { a.closest(".role-extra").remove(); return; }
@@ -1112,7 +1119,7 @@ document.addEventListener("submit", e => {
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
-        const st = +d.stage, to = proceed(u, id, +d.to, d.comment, internal, st);
+        const st = +d.stage, to = proceed(u, id, [...f.querySelectorAll(".to-picks select")].map(x => +x.value), d.comment, internal, st);
         flash("ok", st === 8 ? "Approved. The requirement is Closed." : `Sent to ${to} in ${STAGES[st]}. They were emailed.`); break;
       }
       case "newreq": {
@@ -1123,7 +1130,7 @@ document.addEventListener("submit", e => {
         [...f.querySelectorAll("#nr-file-list li[data-name]")].forEach(li => upload(u, rid, li.dataset.name));
         [...f.querySelectorAll("#nr-link-list li[data-url]")].forEach(li => addLink(u, rid, li.dataset.url, li.dataset.label));
         if (doIt === "send") {
-          const to = proceed(u, rid, +d.to, d.comment, internal, st);
+          const to = proceed(u, rid, [...f.querySelectorAll(".to-picks select")].map(x => +x.value), d.comment, internal, st);
           flash("ok", `Requirement #${rid} created and sent to ${to} in ${STAGES[st]}. They were emailed.`);
         } else {
           if (d.comment.trim()) addComment(u, rid, d.comment, internal);
@@ -1236,6 +1243,7 @@ document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden
 
 if (!load()) seed();
 syncLists();
+S.reqs.forEach(r => { if (!r.holders) r.holders = r.holder ? [r.holder] : []; delete r.holder; });
 S.projects.forEach(p => p.members.forEach(m => { if (!m.roles) { m.roles = [m.role]; delete m.role; } }));
 if (!S.iosDefault) { S.users.forEach(x => { if (x.font === "poppins") x.font = "system"; }); S.iosDefault = true; }
 if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
