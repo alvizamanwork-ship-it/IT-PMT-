@@ -12,9 +12,9 @@
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
 - The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.
-- Text boxes (title, description, comment and other typed fields) use the opposite of the page colour: dark boxes in Light mode, light boxes in Dark mode.
+- Text boxes, comments, file rows and emails are inverted panels with a brushed-metal rim: dark in Light mode, bright in Dark mode. All colour pairs meet WCAG AA.
 - Files are added as dummy files (a typed name only, no real file) so the flow can be tried without uploads.
-- Dark mode is the default. Stages, priorities, comments (Shared / Internal) and files use high-contrast colour chips and cards; every colour pair is at least 6:1. Comments written when sending appear in the Comments list with the stage they were sent to.
+- iOS-style look: translucent sticky nav bar, large titles, grouped rounded cards, pill buttons, iOS switches, a segmented Light/Dark control, and the iOS system font by default. Dark mode (true black, white text) is the default; Light mode uses a beige background with dark text. Stages, priorities and comment types use high-contrast colour chips.
 
 
 FastAPI + SQLite + Jinja templates. Files live on a mounted network share; only names and paths are stored in the DB.
