@@ -14,7 +14,7 @@
 - Inside their project the Project Lead has the CTO's powers: add or remove any member including Stakeholders, open and act on any requirement (logged as a Project Lead override), and change project status. Creating projects and Admin stay CTO-only.
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
-- Archive (CTO only): every Closed project, newest first, with its details, team and all requirements (final stage, creator, created and closed dates, file and link counts). Searchable; requirements open read-only. Closed projects leave the CTO's Projects list.
+- Archive for everyone: closed projects they belong to and closed requirements in open projects. The CTO sees everything; the Project Lead and Dev Lead see every requirement in their projects; everyone else sees only requirements they created, acted on or were assigned. Searchable; archived requirements open read-only. Closed projects leave the Projects list.
 - The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.
 - Text boxes, comments, file rows and emails are inverted panels with a brushed-metal rim: dark in Light mode, bright in Dark mode. All colour pairs meet WCAG AA.
 - Under the files, a requirement can hold repository and reference links (URL plus optional label). Repository hosts (GitHub, GitLab, Bitbucket, Azure DevOps) are tagged REPO; links open in a new tab.
