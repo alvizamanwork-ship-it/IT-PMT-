@@ -11,6 +11,7 @@
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
 - The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.
+- Text boxes (title, description, comment and other typed fields) use the opposite of the page colour: dark boxes in Light mode, light boxes in Dark mode.
 - Files are added as dummy files (a typed name only, no real file) so the flow can be tried without uploads.
 - Dark mode is the default. Stages, priorities, comments (Shared / Internal) and files use high-contrast colour chips and cards; every colour pair is at least 6:1. Comments written when sending appear in the Comments list with the stage they were sent to.
 
