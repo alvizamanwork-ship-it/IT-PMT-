@@ -10,6 +10,7 @@
 - A requirement is visible only to its current holder; the CTO sees all requirements and holders.
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
+- The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.
 - Files are added as dummy files (a typed name only, no real file) so the flow can be tried without uploads.
 - Dark mode is the default. Stages, priorities, comments (Shared / Internal) and files use high-contrast colour chips and cards; every colour pair is at least 6:1. Comments written when sending appear in the Comments list with the stage they were sent to.
 

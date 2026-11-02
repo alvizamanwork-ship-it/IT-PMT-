@@ -7,15 +7,15 @@
 /* Layout: the real PMT screens (top bar, single content column) under a thin demo strip for switching users.
    Tokens match the app's style.css; one accent colour, AA contrast in both themes. */
 :root {
-  --bg: #ffffff; --surface: #f1f4f8; --surface-2: #e6ebf2; --text: #0b1220; --muted: #3b4656; --border: #5f6b7a; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f; --demo: #fff6d6; --an-bg: #dbeeff; --an-fg: #0b4a85; --dev-bg: #ece5ff; --dev-fg: #4b2a9b; --qa-bg: #fff0c7; --qa-fg: #6b4a00; --ap-bg: #daf5e4; --ap-fg: #11632f; --fb-bg: #ffe0e0; --fb-fg: #9b1c1c; --cl-bg: #e6e9ee; --cl-fg: #2f3a48; --int: #8a5a00;
+  --bg: #ffffff; --surface: #f1f4f8; --surface-2: #e6ebf2; --text: #0b1220; --muted: #3b4656; --border: #5f6b7a; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f; --demo: #fff6d6; --an-bg: #dbeeff; --an-fg: #0b4a85; --dev-bg: #ece5ff; --dev-fg: #4b2a9b; --qa-bg: #fff0c7; --qa-fg: #6b4a00; --ap-bg: #daf5e4; --ap-fg: #11632f; --fb-bg: #ffe0e0; --fb-fg: #9b1c1c; --cl-bg: #e6e9ee; --cl-fg: #2f3a48; --int: #8a5a00; --new-bg: #d5f3f1; --new-fg: #0b5e59;
   --font: "Poppins", system-ui, sans-serif; --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --size: 16px; --space: 1rem; --radius: .375rem;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; color-scheme: dark; } }
-:root[data-theme="dark"] { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; --new-bg: #0d3533; --new-fg: #8ce8e0; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; --new-bg: #0d3533; --new-fg: #8ce8e0; color-scheme: dark; }
 /* The app's own per-user Appearance setting (default Dark) wins over the viewer theme. */
-:root[data-appearance="light"] { --bg: #ffffff; --surface: #f1f4f8; --surface-2: #e6ebf2; --text: #0b1220; --muted: #3b4656; --border: #5f6b7a; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f; --demo: #fff6d6; --an-bg: #dbeeff; --an-fg: #0b4a85; --dev-bg: #ece5ff; --dev-fg: #4b2a9b; --qa-bg: #fff0c7; --qa-fg: #6b4a00; --ap-bg: #daf5e4; --ap-fg: #11632f; --fb-bg: #ffe0e0; --fb-fg: #9b1c1c; --cl-bg: #e6e9ee; --cl-fg: #2f3a48; --int: #8a5a00; color-scheme: light; }
-:root[data-appearance="dark"] { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; color-scheme: dark; }
+:root[data-appearance="light"] { --bg: #ffffff; --surface: #f1f4f8; --surface-2: #e6ebf2; --text: #0b1220; --muted: #3b4656; --border: #5f6b7a; --accent: #0a51a1; --on-accent: #ffffff; --error: #a3141d; --ok: #12662f; --demo: #fff6d6; --an-bg: #dbeeff; --an-fg: #0b4a85; --dev-bg: #ece5ff; --dev-fg: #4b2a9b; --qa-bg: #fff0c7; --qa-fg: #6b4a00; --ap-bg: #daf5e4; --ap-fg: #11632f; --fb-bg: #ffe0e0; --fb-fg: #9b1c1c; --cl-bg: #e6e9ee; --cl-fg: #2f3a48; --int: #8a5a00; --new-bg: #d5f3f1; --new-fg: #0b5e59; color-scheme: light; }
+:root[data-appearance="dark"] { --bg: #0d1117; --surface: #161b22; --surface-2: #1f2630; --text: #f3f6fa; --muted: #c3cbd6; --border: #7d8896; --accent: #6cb6ff; --on-accent: #071526; --error: #ff8f8f; --ok: #6fe39b; --demo: #2b2410; --an-bg: #0f2e4d; --an-fg: #a8d8ff; --dev-bg: #2a1f52; --dev-fg: #d0bcff; --qa-bg: #3d2c06; --qa-fg: #ffd47a; --ap-bg: #0f3a20; --ap-fg: #8ef0b0; --fb-bg: #4a1515; --fb-fg: #ffb3b3; --cl-bg: #2a3038; --cl-fg: #dbe1e8; --int: #ffc65c; --new-bg: #0d3533; --new-fg: #8ce8e0; color-scheme: dark; }
 :root[data-font="atkinson"] { --font: "Atkinson Hyperlegible", system-ui, sans-serif; }
 :root[data-font="merriweather"] { --font: "Merriweather", Georgia, serif; }
 :root[data-size="1"] { --size: 14px; }
@@ -126,6 +126,9 @@ dialog.card::backdrop { background: rgba(8, 12, 20, .6); }
 .label.st-ap { background: var(--ap-bg); color: var(--ap-fg); border-color: currentColor; }
 .label.st-fb, .label.pr-high { background: var(--fb-bg); color: var(--fb-fg); border-color: currentColor; }
 .label.st-cl, .label.pr-low { background: var(--cl-bg); color: var(--cl-fg); border-color: currentColor; }
+.label.st-new { background: var(--new-bg); color: var(--new-fg); border-color: currentColor; }
+.stage-list { margin: .25rem 0 .75rem; padding-left: 1.75rem; display: grid; gap: .35rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .25rem 0 .75rem; }
 .label.tag-int { background: var(--int); color: var(--bg); border-color: var(--int); }
 .label.tag-sh { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 tbody tr:nth-child(even) td { background: var(--surface); }
@@ -199,17 +202,33 @@ label.phase:focus-within .dot { outline: 3px solid var(--accent); outline-offset
 
 <script>
 "use strict";
-const STAGES = {1: "Analysis", 2: "Analysis Feedback", 3: "Development", 4: "Development Feedback", 5: "QA", 6: "QA Feedback", 7: "Approval", 8: "Closed"};
-const isFeedback = n => n === 2 || n === 4 || n === 6;
-const ROLES = ["Project Lead", "Dev Lead", "Project Analyst", "Business Stakeholder", "Developer", "QA"];
+// Stages and roles live in the data so the CTO can add new ones in Admin. Closed (id 8) always stays last.
+const DEFAULT_STAGES = [
+  {id: 1, name: "Analysis", feedback: false, folder: "01_Analysis", cls: "st-an"},
+  {id: 2, name: "Analysis Feedback", feedback: true, folder: "01_Analysis", cls: "st-fb"},
+  {id: 3, name: "Development", feedback: false, folder: "02_Development", cls: "st-dev"},
+  {id: 4, name: "Development Feedback", feedback: true, folder: "02_Development", cls: "st-fb"},
+  {id: 5, name: "QA", feedback: false, folder: "03_QA", cls: "st-qa"},
+  {id: 6, name: "QA Feedback", feedback: true, folder: "03_QA", cls: "st-fb"},
+  {id: 7, name: "Approval", feedback: false, folder: "04_Approval", cls: "st-ap"},
+  {id: 8, name: "Closed", feedback: false, folder: "04_Approval", cls: "st-cl"}];
+const DEFAULT_ROLES = ["Project Lead", "Dev Lead", "Project Analyst", "Business Stakeholder", "Developer", "QA"];
+let STAGES = {}, ROLES = [];
+function syncLists() {
+  if (!S.stages) S.stages = DEFAULT_STAGES.map(x => ({...x}));
+  if (!S.roles) S.roles = DEFAULT_ROLES.slice();
+  STAGES = Object.fromEntries(S.stages.map(x => [x.id, x.name])); ROLES = S.roles;
+}
+const stageInfo = n => S.stages.find(x => x.id === n) || {};
+const isFeedback = n => !!stageInfo(n).feedback;
+const stageOrder = () => S.stages.map(x => x.id);
+const stageFolder = n => stageInfo(n).folder;
 const STATUSES = ["Active", "On Hold", "Cancelled", "Closed"];
 const PAUSED = ["On Hold", "Cancelled"];
 const PRIORITIES = ["Low", "Normal", "High"];
 const CREATORS = ["Business Stakeholder", "Project Analyst", "Project Lead"];
 const LEADS = ["Project Lead", "Dev Lead"];
 const SH = "Business Stakeholder", AN = "Project Analyst";
-const FOLDERS = ["01_Analysis", "02_Development", "03_QA", "04_Approval"];
-const STAGE_TO_FOLDER = {1: 0, 2: 0, 3: 1, 4: 1, 5: 2, 6: 2, 7: 3, 8: 3};
 const FILE_ROOT = "\\\\fs01\\PMT";
 const DAY = 864e5;
 const KEY = "pmt-demo-v5";
@@ -224,8 +243,7 @@ const fmt = t => { const d = new Date(t), p = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const isoDay = t => fmt(t).slice(0, 10);
 const label = (t, cls = "") => `<span class="label ${cls}">${h(t)}</span>`;
-const STAGE_CLS = {1: "st-an", 2: "st-fb", 3: "st-dev", 4: "st-fb", 5: "st-qa", 6: "st-fb", 7: "st-ap", 8: "st-cl"};
-const stageLabel = n => label(STAGES[n], STAGE_CLS[n]);
+const stageLabel = n => label(STAGES[n], stageInfo(n).cls);
 const priLabel = p => label(p, "pr-" + p.split(" ")[0].toLowerCase());
 const extOf = n => { const i = n.lastIndexOf("."); return (i > 0 ? n.slice(i + 1, i + 5) : "file").toUpperCase(); };
 const user = id => S.users.find(u => u.id === id);
@@ -277,21 +295,21 @@ function removeMember(u, pid, uid) {
   const r = role(pid, uid); if (!r) throw new RuleError("That person is not a member.");
   if (r === HEAD) throw new RuleError("The Project Head is in every project and cannot be removed.");
   memberRule(u, pid, r);
-  if (S.reqs.some(x => x.pid === pid && x.holder === uid && x.stage < 8)) throw new RuleError(`${uname(uid)} holds open requirements. Reassign them first.`);
+  if (S.reqs.some(x => x.pid === pid && x.holder === uid && x.stage !== 8)) throw new RuleError(`${uname(uid)} holds open requirements. Reassign them first.`);
   const p = proj(pid); p.members = p.members.filter(m => m.uid !== uid); log(pid, u, `Removed member (${r})`, {from: uid});
 }
 function setStatus(u, pid, status, confirm) {
   if (!u.cto) throw new Forbidden("Only the CTO changes project status.");
   const p = proj(pid); if (status === p.status) return;
   if (status === "Closed") {
-    if (S.reqs.some(r => r.pid === pid && r.stage < 8)) throw new RuleError("All requirements must be Closed before the project can close.");
+    if (S.reqs.some(r => r.pid === pid && r.stage !== 8)) throw new RuleError("All requirements must be Closed before the project can close.");
     if (!confirm) throw new RuleError("Tick the confirmation box to close the project.");
   }
   const t = now();
   if (PAUSED.includes(status) && !PAUSED.includes(p.status)) p.pausedAt = t;
   else if (!PAUSED.includes(status) && PAUSED.includes(p.status)) {
     const delta = p.pausedAt ? t - p.pausedAt : 0;
-    S.reqs.filter(r => r.pid === pid && r.stage < 8).forEach(r => { r.entered += delta; });
+    S.reqs.filter(r => r.pid === pid && r.stage !== 8).forEach(r => { r.entered += delta; });
     p.pausedAt = null;
   }
   log(pid, u, `Status changed: ${p.status} to ${status}`); p.status = status;
@@ -357,7 +375,7 @@ function addComment(u, id, text, internal) {
 function upload(u, id, filename) {
   const r = loadReq(u, id); const st = proj(r.pid).status;
   const ov = require_(u, st === "Active", `Project is ${st}; uploads are blocked.`);
-  const folder = FOLDERS[STAGE_TO_FOLDER[r.stage]];
+  const folder = stageFolder(r.stage);
   const base0 = clean(filename.split(/[\\/]/).pop(), 80), dot = base0.lastIndexOf(".");
   const base = dot > 0 ? base0.slice(0, dot) : base0, ext = dot > 0 ? base0.slice(dot) : "";
   const taken = new Set(S.files.filter(f => f.rid === id && f.folder === folder).map(f => f.name));
@@ -442,7 +460,7 @@ function reqCard(id, keepComment) {
         ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${closed ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
           <button type="button" class="btn secondary" data-act="add-dummy" data-rid="${id}">Add dummy file</button></div>
-        <p class="note">For testing: adds a file name only, no real file. It goes into ${FOLDERS[STAGE_TO_FOLDER[r.stage]]}; the same name again becomes _v2, _v3.</p>`}</section>
+        <p class="note">For testing: adds a file name only, no real file. It goes into ${stageFolder(r.stage)}; the same name again becomes _v2, _v3.</p>`}</section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
         ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h(uname(c.sent.to))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
@@ -451,7 +469,7 @@ function reqCard(id, keepComment) {
         ${sv ? "" : `<label class="check"><input type="checkbox" id="cd-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>`}
         <button class="btn secondary" name="do" value="comment">Add comment</button>
         <div class="row" style="margin:0">
-          <label for="cd-stage">Stage<select id="cd-stage" name="stage">${Object.keys(STAGES).map(Number).filter(n => n < 8 || r.stage === 7 || u.cto)
+          <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => n !== 8 || r.stage === 7 || u.cto)
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
           <label for="cd-to">User<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.role)})</option>`).join("")}</select></label>
         </div>
@@ -484,7 +502,7 @@ function reqDialog(pid) {
         <label for="nr-comment">Comment <span class="note">(optional; required when sending to a Feedback stage)</span><textarea id="nr-comment" name="comment" rows="2"></textarea></label>
         <label class="check"><input type="checkbox" id="nr-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>
         <div class="row" style="margin:0">
-          <label for="nr-stage">Stage<select id="nr-stage" name="stage">${Object.keys(STAGES).map(Number).filter(n => n < 8).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
+          <label for="nr-stage">Stage<select id="nr-stage" name="stage">${stageOrder().filter(n => n !== 8).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
           <label for="nr-to">User<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.role)})</option>`).join("")}</select></label>
         </div>
         <p class="note">Send gives it to that person at that stage. Keep it with me saves it to your own queue.</p></section>
@@ -597,7 +615,7 @@ function historyList(rows, u, pid) {
 
 function viewQueue(u) {
   const order = {High: 0, Normal: 1, Low: 2};
-  const items = S.reqs.filter(r => r.holder === u.id && r.stage < 8 && proj(r.pid).status === "Active")
+  const items = S.reqs.filter(r => r.holder === u.id && r.stage !== 8 && proj(r.pid).status === "Active")
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
   return `<h1>My Queue</h1>${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
@@ -611,7 +629,7 @@ function viewProjects(u) {
   const list = S.projects.filter(p => canView(u, p.id));
   return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>My role</th><th>${u.cto ? "Open" : "With me"}</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
-    <td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage < 8 && (u.cto || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
+    <td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (u.cto || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
     : "<p>You are not a member of any project.</p>"}`;
 }
 
@@ -653,6 +671,17 @@ function viewAdmin(u) {
   return `<h1>Admin</h1>
   <section><h2>Projects</h2><p>Codes are generated from the project name. You join every project as Project Head.</p>
     <button class="btn primary" data-act="open-project">New project</button></section>
+  <section><h2>Roles</h2>
+    <p class="note">Built-in roles keep their permissions. A new role can be given to project members, who can then hold and send requirements.</p>
+    <div class="chips">${[HEAD].concat(S.roles).map(r => label(r, DEFAULT_ROLES.includes(r) || r === HEAD ? "" : "st-new")).join("")}</div>
+    <form data-form="newrole" class="row"><label for="new-role">New role name<input id="new-role" name="name" required autocomplete="off" placeholder="e.g. UX Designer"></label>
+      <button class="btn primary">Add role</button></form></section>
+  <section><h2>Stages</h2>
+    <p class="note">The holder picks from these when sending. A new stage is added before Closed and gets its own folder.</p>
+    <ol class="stage-list">${stageOrder().map(n => `<li>${stageLabel(n)} <span class="file-meta">${isFeedback(n) ? "Feedback, comment required · " : ""}${stageFolder(n)}</span></li>`).join("")}</ol>
+    <form data-form="newstage" class="row"><label for="new-stage">New stage name<input id="new-stage" name="name" required autocomplete="off" placeholder="e.g. UAT"></label>
+      <label class="check"><input type="checkbox" id="new-stage-fb" name="feedback" value="yes"> Feedback stage (comment required)</label>
+      <button class="btn primary">Add stage</button></form></section>
   <section><h2>Users</h2><form data-form="newuser" class="stack narrow">
     <label for="nu-name">Full name<input id="nu-name" name="name" required></label>
     <label for="nu-username">Username<input id="nu-username" name="username" required></label>
@@ -731,6 +760,21 @@ document.addEventListener("submit", e => {
         teamPicks(f).forEach(t => addMember(u, np, t.uid, t.role));
         S.view = {name: "project", id: np}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); break;
       }
+      case "newrole": {
+        if (!u.cto) throw new Forbidden("Only the CTO adds roles.");
+        const n = d.name.trim(); if (!n) throw new RuleError("Type a role name.");
+        if ([HEAD].concat(S.roles).some(r => r.toLowerCase() === n.toLowerCase())) throw new RuleError("That role already exists.");
+        S.roles.push(n); syncLists(); flash("ok", `Role "${n}" added. It is now in every role dropdown.`); break;
+      }
+      case "newstage": {
+        if (!u.cto) throw new Forbidden("Only the CTO adds stages.");
+        const n = d.name.trim(); if (!n) throw new RuleError("Type a stage name.");
+        if (S.stages.some(x => x.name.toLowerCase() === n.toLowerCase())) throw new RuleError("That stage already exists.");
+        const id = Math.max(...S.stages.map(x => x.id)) + 1, folders = new Set(S.stages.map(x => x.folder)).size;
+        const folder = `${String(folders + 1).padStart(2, "0")}_${clean(n, 40).replace(/ /g, "_")}`;
+        S.stages.splice(S.stages.findIndex(x => x.id === 8), 0, {id, name: n, feedback: d.feedback === "yes", folder, cls: d.feedback === "yes" ? "st-fb" : "st-new"});
+        syncLists(); flash("ok", `Stage "${n}" added. It is now in the Stage dropdown when sending.`); break;
+      }
       case "newuser": {
         const un = d.username.trim(); if (!un || !d.name.trim()) throw new RuleError("Name and username are required.");
         if (S.users.some(x => x.username === un)) throw new RuleError("That username already exists.");
@@ -788,9 +832,11 @@ document.getElementById("as-user").addEventListener("change", e => {
 const rc = document.getElementById("reset-confirm"), rb = document.getElementById("reset-demo");
 rb.addEventListener("click", () => { rc.hidden = false; rb.hidden = true; });
 document.getElementById("reset-no").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; });
-document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; seed(); flash("ok", "All projects and requirements were deleted."); render(); });
+document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; const keep = {roles: S.roles, stages: S.stages}; seed(); Object.assign(S, keep); syncLists();
+  flash("ok", "All projects and requirements were deleted. Roles and stages were kept."); render(); });
 
 if (!load()) seed();
+syncLists();
 if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
 S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Viewing as" above to switch person.`
   : `No projects yet. You are viewing as ${me().name} (CTO): press New project to start. Use "Viewing as" above to switch person.`};
