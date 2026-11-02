@@ -415,6 +415,9 @@ dialog.card::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter:
 .mail { padding: .7rem .95rem; margin-bottom: .55rem; }
 .files li.file a.file-name { color: var(--inv-link); text-decoration: none; }
 .files li.file a.file-name:hover { text-decoration: underline; }
+.arc-sum { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; }
+.arc-title { font-size: 1.1rem; font-weight: 700; letter-spacing: -.015em; }
+details.arc { margin: .75rem 0; }
 .links-block { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--sep); }
 .mail pre { white-space: pre-wrap; font-family: var(--mono); font-size: .85rem; margin: .3rem 0 0; }
 @media (prefers-reduced-motion: reduce) { .btn, label.check input[type="checkbox"], label.check input[type="checkbox"]::before { transition: none; } .btn:active { transform: none; } }
@@ -910,7 +913,7 @@ function flash(type, text) { S.flash = {type, text}; }
 
 function renderTop() {
   const u = me(), v = S.view.name;
-  const nav = [["queue", "My Queue"], ["projects", "Projects"]].concat(u.cto ? [["admin", "Admin"]] : []);
+  const nav = [["queue", "My Queue"], ["projects", "Projects"]].concat(u.cto ? [["archive", "Archive"], ["admin", "Admin"]] : []);
   document.getElementById("topbar").innerHTML = `
     <strong>PMT</strong>
     <nav aria-label="Main">${nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("")}</nav>
@@ -949,11 +952,12 @@ function viewQueue(u) {
 }
 
 function viewProjects(u) {
-  const list = S.projects.filter(p => canView(u, p.id));
-  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Start from</th><th>Deadline</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
+  const list = S.projects.filter(p => canView(u, p.id) && !(u.cto && p.status === "Closed"));
+  const archived = u.cto ? S.projects.filter(p => p.status === "Closed").length : 0;
+  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Start from</th><th>Deadline</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
     <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (isHead(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
-    : "<p>You are not a member of any project.</p>"}`;
+    : `<p>${u.cto ? "No open projects. Press New project to start one." : "You are not a member of any project."}</p>`}`;
 }
 
 function viewProject(u, pid) {
@@ -996,6 +1000,35 @@ function viewProject(u, pid) {
   <section><h2>Project history</h2>${historyList(S.history.filter(x => x.pid === pid && !x.rid), u, pid)}</section>`;
 }
 
+// Archive (CTO only): every Closed project, newest first, with all of its requirements.
+const projectClosedAt = pid => (S.history.filter(x => x.pid === pid && !x.rid && / to Closed$/.test(x.action)).pop() || {}).at || null;
+const reqClosedAt = rid => (S.history.filter(x => x.rid === rid && x.toStage === 8).pop() || {}).at || null;
+function viewArchive(u) {
+  if (!u.cto) return "<h1>Not allowed</h1><p>The Archive is for the CTO only.</p>";
+  const list = S.projects.filter(p => p.status === "Closed").sort((a, b) => (projectClosedAt(b.id) || 0) - (projectClosedAt(a.id) || 0));
+  return `<h1>Archive</h1>
+  <p class="note">Closed projects and all their requirements. To reopen a project, open its page and set the status to Active.</p>
+  ${list.length ? `<label for="arc-q" class="narrow" style="margin:1rem 0">Search the archive<input id="arc-q" placeholder="Project, code or requirement" autocomplete="off"></label>
+  <p class="note" id="arc-none" hidden>Nothing in the archive matches that search.</p>
+  ${list.map(p => {
+    const reqs = S.reqs.filter(r => r.pid === p.id).sort((a, b) => a.id - b.id), closed = projectClosedAt(p.id);
+    const q = [p.code, p.name].concat(reqs.map(r => r.title)).join(" ").toLowerCase();
+    return `<details class="panel arc" data-q="${h(q)}">
+      <summary class="arc-sum"><span class="arc-title">${h(p.code)} · ${h(p.name)}</span>${label("Closed", "st-cl")}${priLabel((p.priority || "Normal") + " priority")}
+        <span class="note">${closed ? `Closed ${fmt(closed).slice(0, 10)} · ` : ""}${reqs.length} requirement${reqs.length === 1 ? "" : "s"}</span></summary>
+      <dl class="kv" style="margin:.9rem 0">
+        <dt>Start from</dt><dd>${p.start || "None"}</dd><dt>Deadline</dt><dd>${p.deadline || "None"}</dd>
+        <dt>Team</dt><dd>${memberSort(p).map(m => `${h(uname(m.uid))} (${h(m.roles.join(", "))})`).join(", ")}</dd>
+        <dt>Folder</dt><dd><code>${h(p.folder)}</code></dd></dl>
+      <p style="margin:0 0 .5rem"><button class="linkish" data-go="project" data-id="${p.id}">Open project page and history</button></p>
+      ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Final stage</th><th>Priority</th><th>Created by</th><th>Created</th><th>Closed</th><th>Files</th><th>Links</th></tr></thead><tbody>${reqs.map(r => `
+        <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td>
+        <td>${h(uname(r.createdBy))}</td><td class="num">${fmt(r.created).slice(0, 10)}</td><td class="num">${reqClosedAt(r.id) ? fmt(reqClosedAt(r.id)).slice(0, 10) : ""}</td>
+        <td class="num">${S.files.filter(f => f.rid === r.id).length}</td><td class="num">${(S.links || []).filter(l => l.rid === r.id).length}</td></tr>`).join("")}</tbody>`)
+        : `<p class="note">This project had no requirements.</p>`}
+    </details>`;
+  }).join("")}` : `<p>No closed projects yet. When a project's status is set to Closed, it moves here.</p>`}`;
+}
 function viewAdmin(u) {
   if (!u.cto) return "<h1>Not allowed</h1><p>Admin is for the CTO only.</p>";
   return `<h1>Admin</h1>
@@ -1028,7 +1061,7 @@ function render() {
   applyPrefs(); renderTop();
   const u = me(), v = S.view;
   const body = v.name === "projects" ? viewProjects(u) : v.name === "project" ? viewProject(u, v.id)
-    : v.name === "admin" ? viewAdmin(u) : viewQueue(u);
+    : v.name === "admin" ? viewAdmin(u) : v.name === "archive" ? viewArchive(u) : viewQueue(u);
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
   save();
 }
@@ -1096,7 +1129,7 @@ document.addEventListener("submit", e => {
       }
       case "addmember": addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); break;
       case "plan": setPlan(u, pid, d.priority, d.deadline, d.start); flash("ok", "Project priority and dates saved."); break;
-      case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", `Project status is now ${d.status}.`); break;
+      case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", d.status === "Closed" ? (u.cto ? "Project closed. It is now in the Archive." : "Project closed.") : `Project status is now ${d.status}.`); break;
       case "newproject": {
         const np = createProject(u, d.name, d.priority, d.deadline, d.start);
         teamPicks(f).forEach(t => addMember(u, np, t.uid, t.roles));
@@ -1127,6 +1160,11 @@ document.addEventListener("submit", e => {
   }, f);
 });
 document.addEventListener("input", e => {
+  if (e.target.id === "arc-q") {
+    const q = e.target.value.trim().toLowerCase(); let shown = 0;
+    document.querySelectorAll("details.arc").forEach(d => { const on = !q || d.dataset.q.includes(q); d.hidden = !on; if (on) shown++; if (q && on) d.open = true; });
+    document.getElementById("arc-none").hidden = shown > 0;
+  }
   if (e.target.id === "np-name") {
     const c = genCode(e.target.value); document.getElementById("np-code").textContent = c;
     document.getElementById("np-folder").textContent = `${FILE_ROOT}\\${c}`;
