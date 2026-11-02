@@ -44,3 +44,12 @@ First start creates a CTO account from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defa
 - **Folders**: `FILE_ROOT/<CODE>/<id>_<Title>/` with the six stage folders. Stage mapping for uploads: 1→01, 2→02, 3→03, 4→04, 5→05, 6 Analyst Review→02_Analysis, 7 Acceptance and 8 Closed→06_Acceptance. File and folder names are sanitised. Any project member can upload while the project is Active.
 - **Handoff email** goes to the new holder after Proceed, Send with Feedback, Send Back and Reassign. Accept has no recipient, so no email. Internal comments are left out when the recipient is a Stakeholder. Email failures are logged and never block the action.
 - **Daily digest**: in-app background thread at `DIGEST_HOUR`; emails every CTO with an email address the requirements in Active projects whose time in the current stage exceeds STALL_DAYS. No email when nothing is stalled.
+- **UI**: per-user Appearance / Font / Font size are saved to the account from the top-bar menu and applied with CSS variables (`app/static/style.css`); everything is sized in `rem`, so spacing and buttons scale with font size. Fonts load from Google Fonts with system fallbacks. Colour pairs checked for 4.5:1 in both themes.
+
+## Tests
+
+```bash
+python -m pytest -q
+```
+
+Covers the action rules, permissions, CTO overrides, internal comments, uploads, digest and UI settings.

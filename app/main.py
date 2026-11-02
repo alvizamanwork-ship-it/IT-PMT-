@@ -192,6 +192,19 @@ def admin_settings(stall_days: int = Form(...), user=Depends(current_user),
     return back("/admin")
 
 
+# ---------- per-user UI settings ----------
+@app.post("/settings")
+def user_settings(request: Request, theme: str = Form("light"), font: str = Form("poppins"),
+                  font_size: int = Form(2), user=Depends(current_user), conn=Depends(get_conn)):
+    if theme not in ("light", "dark") or font not in ("poppins", "atkinson", "merriweather") \
+            or font_size not in (1, 2, 3):
+        raise RuleError("Invalid setting.")
+    conn.execute("UPDATE users SET theme=?, font=?, font_size=? WHERE id=?",
+                 (theme, font, font_size, user["id"]))
+    ref = request.headers.get("referer", "/")
+    return back(ref if ref.startswith(str(request.base_url)) else "/")
+
+
 # ---------- home ----------
 @app.get("/")
 def my_queue(request: Request, user=Depends(current_user), conn=Depends(get_conn)):

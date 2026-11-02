@@ -1,21 +1,41 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{ user.theme if user else 'light' }}" data-font="{{ user.font if user else 'poppins' }}" data-size="{{ user.font_size if user else 2 }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}PMT{% endblock %} · PMT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Merriweather:wght@400;700&family=Poppins:wght@400;600&display=swap">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 {% if user %}
 <header class="topbar">
+  <strong class="brand">PMT</strong>
   <nav aria-label="Main">
     <a href="/">My Queue</a><a href="/projects">Projects</a>{% if user.is_cto %}<a href="/admin">Admin</a>{% endif %}
   </nav>
-  <div class="who">
-    <span>{{ user.name }}</span>
-    <form method="post" action="/logout" class="inline"><button class="btn secondary">Log out</button></form>
-  </div>
+  <details class="menu">
+    <summary>{{ user.name }} · Settings</summary>
+    <div class="menu-body">
+      <form method="post" action="/settings" class="stack">
+        <fieldset><legend>Appearance</legend>
+          <label class="check"><input type="radio" name="theme" value="light" {% if user.theme == 'light' %}checked{% endif %}> Light</label>
+          <label class="check"><input type="radio" name="theme" value="dark" {% if user.theme == 'dark' %}checked{% endif %}> Dark</label>
+        </fieldset>
+        <label>Font
+          <select name="font">
+            {% for v, n in [("poppins", "Poppins"), ("atkinson", "Atkinson Hyperlegible"), ("merriweather", "Merriweather")] %}<option value="{{ v }}" {% if user.font == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+          </select></label>
+        <label>Font size
+          <select name="font_size">
+            {% for v, n in [(1, "1 (14px)"), (2, "2 (16px)"), (3, "3 (19px)")] %}<option value="{{ v }}" {% if user.font_size == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+          </select></label>
+        <button class="btn primary">Save settings</button>
+      </form>
+      <form method="post" action="/logout"><button class="btn secondary">Log out</button></form>
+    </div>
+  </details>
 </header>
 {% endif %}
 <main id="main">{% block content %}{% endblock %}</main>
