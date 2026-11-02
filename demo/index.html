@@ -334,6 +334,14 @@ code { font-family: var(--mono); font-size: .9em; overflow-wrap: anywhere; }
 .kv dt { font-weight: 600; color: var(--muted); }
 .kv dd { margin: 0; }
 .stage-list { margin: .25rem 0 .75rem; padding-left: 1.75rem; display: grid; gap: .4rem; }
+.team-row.wiz { display: grid; grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr) auto; gap: .75rem; align-items: start;
+  padding-bottom: .85rem; border-bottom: 1px solid var(--sep); }
+.team-row.wiz > .btn { margin-top: 1.75rem; }
+@media (max-width: 40rem) { .team-row.wiz { grid-template-columns: 1fr; } .team-row.wiz > .btn { justify-self: start; margin-top: 0; } }
+.role-picks { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.role-extra { display: flex; gap: .5rem; align-items: end; }
+.role-extra .linkish, .add-role { padding-bottom: .7rem; font-weight: 600; white-space: nowrap; }
+.chip-x { background: none; border: 0; color: inherit; font: inherit; font-weight: 700; cursor: pointer; margin-left: .35rem; padding: 0 .15rem; line-height: 1; }
 .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .25rem 0 .75rem; }
 
 /* Chips: stage family, priority, comment type */
@@ -475,10 +483,14 @@ const uname = id => (user(id) || {}).name || "None";
 const me = () => user(S.me);
 const proj = id => S.projects.find(p => p.id === id);
 const req = id => S.reqs.find(r => r.id === id);
-const role = (pid, uid) => ((proj(pid)?.members || []).find(m => m.uid === uid) || {}).role || null;
+// A member can hold several roles in one project.
+const rolesOf = (pid, uid) => ((proj(pid)?.members || []).find(m => m.uid === uid) || {}).roles || [];
+const has = (pid, uid, r) => rolesOf(pid, uid).includes(r);
+const role = (pid, uid) => rolesOf(pid, uid).join(", ") || null;
+const isLead = (pid, uid) => rolesOf(pid, uid).some(r => LEADS.includes(r));
 const canView = (u, pid) => u.cto || !!role(pid, u.id);
 // The CTO everywhere, and the Project Lead inside their own project, have the same powers.
-const isHead = (u, pid) => u.cto || role(pid, u.id) === "Project Lead";
+const isHead = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
 const nextId = k => (S.seq[k] = (S.seq[k] || 0) + 1);
 const clean = (t, n) => (t.replace(/[^A-Za-z0-9._ -]+/g, "_").replace(/^[ ._]+|[ ._]+$/g, "").slice(0, n) || "file");
 const tbl = inner => `<div class="tbl"><table>${inner}</table></div>`;
@@ -491,7 +503,7 @@ function log(pid, u, action, o = {}) {
     from: o.from ?? null, to: o.to ?? null, fromStage: o.fromStage ?? null, toStage: o.toStage ?? null,
     comment: (o.comment || "").trim(), internal: !!o.internal, override: !!o.override});
 }
-const stakeholderView = (u, pid) => !u.cto && role(pid, u.id) === SH;
+const stakeholderView = (u, pid) => !isHead(u, pid) && has(pid, u.id, SH);
 
 // ---------- projects & members ----------
 // Code = initials of the name (up to 4) + running number, e.g. "Customer Portal Revamp" -> CPR-001.
@@ -505,11 +517,11 @@ function createProject(u, name, priority = "Normal", deadline = "") {
   if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
   const code = genCode(name);
   const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, deadline: deadline || null,
-    members: S.users.filter(x => x.cto).map(x => ({uid: x.id, role: HEAD}))};
+    members: S.users.filter(x => x.cto).map(x => ({uid: x.id, roles: [HEAD]}))};
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
 // Project priority and deadline: the CTO, the Project Lead and the Dev Lead can set or change them.
-const canPlan = (u, pid) => isHead(u, pid) || role(pid, u.id) === "Dev Lead";
+const canPlan = (u, pid) => isHead(u, pid) || has(pid, u.id, "Dev Lead");
 function setPlan(u, pid, priority, deadline) {
   if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead change the project priority and deadline.");
   if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
@@ -521,22 +533,42 @@ function setPlan(u, pid, priority, deadline) {
 }
 const overdue = p => p.deadline && p.status === "Active" && p.deadline < isoDay(now());
 const deadlineText = p => p.deadline ? `${p.deadline}${overdue(p) ? " " + label("Overdue", "st-fb") : ""}` : `<span class="note">None</span>`;
-function memberRule(u, pid, r) {
-  if (r === SH) { if (!isHead(u, pid)) throw new Forbidden("Only the CTO or the Project Lead manage Business Stakeholders."); }
-  else if (!(u.cto || LEADS.includes(role(pid, u.id)))) throw new Forbidden("Only the CTO, Project Lead or Dev Lead manage members.");
+// Member rules: Stakeholders are managed by the CTO or Project Lead; Project Lead and Dev Lead roles can be removed only by the CTO.
+function canAddRole(u, pid, r) { return r === SH ? isHead(u, pid) : isHead(u, pid) || isLead(pid, u.id); }
+function canRemoveRole(u, pid, r) { if (r === HEAD) return false; if (LEADS.includes(r)) return !!u.cto; return canAddRole(u, pid, r); }
+const removeWhy = r => r === HEAD ? "The Project Head is in every project and cannot be removed."
+  : LEADS.includes(r) ? "Only the CTO can remove a Project Lead or Dev Lead."
+  : r === SH ? "Only the CTO or the Project Lead manage Business Stakeholders." : "Only the CTO, Project Lead or Dev Lead manage members.";
+function addMember(u, pid, uid, roles) {
+  roles = [...new Set([].concat(roles))].filter(Boolean);
+  if (!roles.length) throw new RuleError("Choose at least one role.");
+  roles.forEach(r => {
+    if (!ROLES.includes(r)) throw new RuleError("Unknown role.");
+    if (!canAddRole(u, pid, r)) throw new Forbidden(r === SH ? "Only the CTO or the Project Lead add Business Stakeholders." : "Only the CTO, Project Lead or Dev Lead manage members.");
+  });
+  const p = proj(pid); let m = p.members.find(x => x.uid === uid);
+  if (m && m.roles.includes(HEAD)) throw new RuleError("The Project Head already has full access.");
+  const fresh = roles.filter(r => !(m && m.roles.includes(r)));
+  if (!fresh.length) throw new RuleError(`${uname(uid)} already has ${roles.length > 1 ? "these roles" : "that role"}.`);
+  const isNew = !m; if (isNew) { m = {uid, roles: []}; p.members.push(m); }
+  m.roles.push(...fresh);
+  log(pid, u, isNew ? `Added member as ${fresh.join(", ")}` : `Added role ${fresh.join(", ")}`, {to: uid});
 }
-function addMember(u, pid, uid, r) {
-  if (!ROLES.includes(r)) throw new RuleError("Unknown role.");
-  memberRule(u, pid, r);
-  if (role(pid, uid)) throw new RuleError("That person is already a member.");
-  proj(pid).members.push({uid, role: r}); log(pid, u, `Added member as ${r}`, {to: uid});
+function checkNotHolding(pid, uid) {
+  if (S.reqs.some(x => x.pid === pid && x.holder === uid && x.stage !== 8)) throw new RuleError(`${uname(uid)} holds open requirements. Send them on first.`);
+}
+function removeRole(u, pid, uid, r) {
+  if (!has(pid, uid, r)) throw new RuleError("That person does not have that role.");
+  if (!canRemoveRole(u, pid, r)) throw new Forbidden(removeWhy(r));
+  const p = proj(pid), m = p.members.find(x => x.uid === uid);
+  if (m.roles.length === 1) { checkNotHolding(pid, uid); p.members = p.members.filter(x => x.uid !== uid); log(pid, u, `Removed member (${r})`, {from: uid}); return; }
+  m.roles = m.roles.filter(x => x !== r); log(pid, u, `Removed role ${r}`, {from: uid});
 }
 function removeMember(u, pid, uid) {
-  const r = role(pid, uid); if (!r) throw new RuleError("That person is not a member.");
-  if (r === HEAD) throw new RuleError("The Project Head is in every project and cannot be removed.");
-  memberRule(u, pid, r);
-  if (S.reqs.some(x => x.pid === pid && x.holder === uid && x.stage !== 8)) throw new RuleError(`${uname(uid)} holds open requirements. Reassign them first.`);
-  const p = proj(pid); p.members = p.members.filter(m => m.uid !== uid); log(pid, u, `Removed member (${r})`, {from: uid});
+  const rs = rolesOf(pid, uid); if (!rs.length) throw new RuleError("That person is not a member.");
+  rs.forEach(r => { if (!canRemoveRole(u, pid, r)) throw new Forbidden(removeWhy(r)); });
+  checkNotHolding(pid, uid);
+  const p = proj(pid); p.members = p.members.filter(m => m.uid !== uid); log(pid, u, `Removed member (${rs.join(", ")})`, {from: uid});
 }
 function setStatus(u, pid, status, confirm) {
   if (!isHead(u, pid)) throw new Forbidden("Only the CTO or the Project Lead change project status.");
@@ -559,7 +591,7 @@ function setStatus(u, pid, status, confirm) {
 function createReq(u, pid, title, desc, due, priority) {
   const p = proj(pid); if (!canView(u, pid)) throw new Forbidden("You are not a member of this project.");
   title = title.trim(); if (!title) throw new RuleError("Title is required.");
-  let ov = require_(u, u.cto || CREATORS.includes(role(pid, u.id)), "Only Stakeholders, Analysts, Project Leads or the CTO create requirements.", pid);
+  let ov = require_(u, u.cto || rolesOf(pid, u.id).some(r => CREATORS.includes(r)), "Only Stakeholders, Analysts, Project Leads or the CTO create requirements.", pid);
   ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`, pid) || ov;
   const id = nextId("r"), t = now();
   S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holder: u.id, prev: null, prevStage: null, due: due || null,
@@ -596,14 +628,14 @@ function proceed(u, id, to, comment, internal, stage) {
 }
 function accept(u, id, comment) {
   const r = loadReq(u, id); let ov = guard(u, r);
-  ov = require_(u, r.stage === 7 && role(r.pid, u.id) === SH, "Only the Business Stakeholder can close it, from Approval.", r.pid) || ov;
+  ov = require_(u, r.stage === 7 && has(r.pid, u.id, SH), "Only the Business Stakeholder can close it, from Approval.", r.pid) || ov;
   return move(u, r, "Accepted and closed", null, 8, comment, false, ov);
 }
 function reassign(u, id, to, comment) {
   const r = loadReq(u, id); if (r.stage === 8) throw new RuleError("This requirement is Closed.");
   const st = proj(r.pid).status;
   let ov = require_(u, st === "Active", `Project is ${st}; actions are blocked.`, r.pid);
-  ov = require_(u, LEADS.includes(role(r.pid, u.id)), "Only the Project Lead or Dev Lead can reassign.", r.pid) || ov;
+  ov = require_(u, isLead(r.pid, u.id), "Only the Project Lead or Dev Lead can reassign.", r.pid) || ov;
   memberRole(r.pid, to);
   return move(u, r, "Reassign", to, r.stage, comment, false, ov, false);
 }
@@ -629,7 +661,7 @@ function upload(u, id, filename) {
 function handoff(actor, r, action, to, comment, internal) {
   if (!to) return null;
   const rec = user(to), p = proj(r.pid);
-  const hide = internal && role(r.pid, to) === SH;
+  const hide = internal && has(r.pid, to, SH);
   const lines = [`${actor.name} sent you a requirement (${action}).`, "", `Project: ${p.code} · ${p.name}`,
     `Requirement: #${r.id} ${r.title}`, `Stage: ${STAGES[r.stage]}`,
     `Priority: ${r.priority}` + (r.due ? ` · Due: ${r.due}` : "")];
@@ -666,7 +698,7 @@ function openModal(html) {
 function closeModal() { if (modal.open) modal.close(); }
 const cardHead = t => `<div class="card-head"><h2 id="modal-title">${h(t)}</h2><button type="button" class="x" data-act="close" aria-label="Close">×</button></div>`;
 const modalError = `<p id="modal-error" class="flash error" role="alert" hidden></p>`;
-const memberSort = p => p.members.slice().sort((a, b) => (a.role === HEAD) - (b.role === HEAD) || uname(a.uid).localeCompare(uname(b.uid)));
+const memberSort = p => p.members.slice().sort((a, b) => a.roles.includes(HEAD) - b.roles.includes(HEAD) || uname(a.uid).localeCompare(uname(b.uid)));
 
 const WIZ = ["Details", "Team", "Review"];
 function wizPhases(step) {
@@ -711,7 +743,7 @@ function reqCard(id, keepComment) {
         <div class="row" style="margin:0">
           <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => n !== 8 || r.stage === 7 || isHead(u, r.pid))
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
-          <label for="cd-to">User<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.role)})</option>`).join("")}</select></label>
+          <label for="cd-to">User<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label>
         </div>
         <p class="note">Choose the stage and the person, then press Send. It leaves your queue once sent.</p></section>`}
       <details class="card-section"><summary>History (${hist.length})</summary>${historyList(hist, u, r.pid)}</details>
@@ -743,7 +775,7 @@ function reqDialog(pid) {
         <label class="check"><input type="checkbox" id="nr-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>
         <div class="row" style="margin:0">
           <label for="nr-stage">Stage<select id="nr-stage" name="stage">${stageOrder().filter(n => n !== 8).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
-          <label for="nr-to">User<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.role)})</option>`).join("")}</select></label>
+          <label for="nr-to">User<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})</option>`).join("")}</select></label>
         </div>
         <p class="note">Send gives it to that person at that stage. Keep it with me saves it to your own queue.</p></section>
       ${modalError}
@@ -787,15 +819,19 @@ function projectDialog() {
 let teamSeq = 0;
 function teamRow() {
   const i = ++teamSeq, people = S.users.filter(x => !x.cto);
-  return `<div class="row team-row" style="margin:0">
+  return `<div class="team-row wiz">
     <label for="tu-${i}">User<select id="tu-${i}" class="np-user"><option value="">Choose person</option>${people.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}</select></label>
-    <label for="tr-${i}">Role<select id="tr-${i}" class="np-role">${ROLES.map(r => `<option>${r}</option>`).join("")}</select></label>
+    <div class="role-picks"><label for="tr-${i}">Role<select id="tr-${i}" class="np-role">${ROLES.map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button type="button" class="btn secondary" data-act="team-remove" aria-label="Remove this person">Remove</button></div>`;
 }
 function teamPicks(f) {
-  const picks = [...f.querySelectorAll(".team-row")].map(row => ({uid: +row.querySelector(".np-user").value, role: row.querySelector(".np-role").value})).filter(t => t.uid);
-  if (new Set(picks.map(t => t.uid)).size !== picks.length) throw new RuleError("Each person can be added once.");
-  return picks;
+  // Rows for the same person are merged, so one person can get several roles.
+  const byUser = new Map();
+  [...f.querySelectorAll(".team-row")].forEach(row => {
+    const uid = +row.querySelector(".np-user").value; if (!uid) return;
+    const list = byUser.get(uid) || []; row.querySelectorAll(".np-role").forEach(x => { if (!list.includes(x.value)) list.push(x.value); }); byUser.set(uid, list);
+  });
+  return [...byUser].map(([uid, roles]) => ({uid, roles}));
 }
 function wizGo(step) {
   const f = modal.querySelector("form[data-form=newproject]");
@@ -810,7 +846,7 @@ function wizGo(step) {
   f.querySelector("[data-act=wiz-next]").hidden = step === 3;
   f.querySelector("#np-create").hidden = step !== 3;
   if (step === 3) {
-    const team = teamPicks(f).map(t => `${h(uname(t.uid))} (${h(t.role)})`);
+    const team = teamPicks(f).map(t => `${h(uname(t.uid))} (${h(t.roles.join(", "))})`);
     const heads = S.users.filter(x => x.cto).map(x => `${h(x.name)} (Project Head)`);
     modal.querySelector("#np-review").innerHTML = `<dl class="kv"><dt>Name</dt><dd>${h(name)}</dd><dt>Code</dt><dd>${genCode(name)}</dd>
       <dt>Folder</dt><dd><code>${h(FILE_ROOT)}\\${genCode(name)}</code></dd><dt>Status</dt><dd>${label("Active")}</dd>
@@ -880,12 +916,12 @@ function viewProjects(u) {
 function viewProject(u, pid) {
   const p = proj(pid); if (!p) return "<h1>Not found</h1>";
   if (!canView(u, pid)) return `<h1>Not allowed</h1><p>${h(u.name)} is not a member of this project, so it is hidden.</p>`;
-  const myRole = role(pid, u.id), head = isHead(u, pid), manage = head || LEADS.includes(myRole);
+  const myRole = role(pid, u.id), head = isHead(u, pid), manage = head || isLead(pid, u.id);
   const canCreate = (u.cto || CREATORS.includes(myRole)) && (p.status === "Active" || head);
   const order = {High: 0, Normal: 1, Low: 2};
   const reqs = S.reqs.filter(r => r.pid === pid && (head || r.holder === u.id)).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
   const members = memberSort(p);
-  const others = S.users.filter(x => !role(pid, x.id));
+  const others = S.users.filter(x => !has(pid, x.id, HEAD));
   return `<h1>${h(p.code)} · ${h(p.name)}</h1>
   <p class="meta">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Deadline: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
   ${canPlan(u, pid) ? `<section class="panel"><h2>Priority and deadline</h2><form data-form="plan" data-pid="${pid}" class="row" style="margin:0">
@@ -900,18 +936,19 @@ function viewProject(u, pid) {
     ${head ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${head ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
   <section><h2>Members</h2>
-  ${tbl(`<thead><tr><th>Name</th><th>Role</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
-    <tr><td>${h(uname(m.uid))}</td><td>${h(m.role)}</td>${manage ? `<td>${m.role !== HEAD && (head || m.role !== SH) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
-  ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row">
-    <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}</select></label>
-    <label for="am-role">Role<select id="am-role" name="role">${ROLES.filter(r => head || r !== SH).map(r => `<option>${r}</option>`).join("")}</select></label>
-    <button class="btn primary">Add member</button></form>` : ""}
+  ${tbl(`<thead><tr><th>Name</th><th>Roles</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
+    <tr><td>${h(uname(m.uid))}</td><td><div class="chips" style="margin:0">${m.roles.map(r => `<span class="label">${h(r)}${manage && canRemoveRole(u, pid, r) && m.roles.length > 1 ? `<button type="button" class="chip-x" data-act="remove-role" data-pid="${pid}" data-uid="${m.uid}" data-role="${h(r)}" aria-label="Remove the ${h(r)} role from ${h(uname(m.uid))}">×</button>` : ""}</span>`).join("")}</div></td>${manage ? `<td>${m.roles.every(r => canRemoveRole(u, pid, r)) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
+  ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row team-row">
+    <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}${role(pid, x.id) ? " (member)" : ""}</option>`).join("")}</select></label>
+    <div class="role-picks"><label for="am-role">Role<select id="am-role" class="np-role">${ROLES.filter(r => canAddRole(u, pid, r)).map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
+    <button class="btn primary">Add member</button></form>
+    <p class="note">Pick someone who is already a member to give them another role. Only the CTO can remove a Project Lead or Dev Lead.</p>` : ""}
   </section>
   ${head ? `<section class="panel"><h2>Project status</h2><form data-form="status" data-pid="${pid}" class="row">
     <label for="ps-status">Status<select id="ps-status" name="status">${STATUSES.map(s => `<option ${s === p.status ? "selected" : ""}>${s}</option>`).join("")}</select></label>
     <label class="check"><input type="checkbox" id="ps-confirm" name="confirm" value="yes"> I confirm closing (needed for Closed)</label>
     <button class="btn primary">Update status</button></form>
-    <p class="note">On Hold and Cancelled block actions, hide requirements from My Queue and pause the stall timer.</p></section>` : ""}
+    <p class="note">On Hold and Cancelled block sending and hide the project's requirements from My Queue.</p></section>` : ""}
   <section><h2>Project history</h2>${historyList(S.history.filter(x => x.pid === pid && !x.rid), u, pid)}</section>`;
 }
 
@@ -964,12 +1001,21 @@ document.addEventListener("click", e => {
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
   if (act === "drop-dummy") { const list = a.closest("ul"); a.closest("li").remove();
     if (!list.querySelector("li")) list.innerHTML = `<li class="note">No files yet.</li>`; return; }
+  if (act === "role-add") {
+    const box = a.closest(".role-picks"), first = box.querySelector("select"), id = `rp-${++teamSeq}`;
+    const used = [...box.querySelectorAll("select")].map(x => x.value), next = [...first.options].find(o => !used.includes(o.value));
+    a.insertAdjacentHTML("beforebegin", `<div class="role-extra"><label for="${id}">Another role${first.outerHTML.replace(/ id="[^"]*"/, ` id="${id}"`)}</label>
+      <button type="button" class="linkish" data-act="role-drop">Remove role</button></div>`);
+    const sel = document.getElementById(id); sel.value = next ? next.value : first.value; sel.focus(); return;
+  }
+  if (act === "role-drop") { a.closest(".role-extra").remove(); return; }
   if (act === "team-add") { modal.querySelector("#np-team").insertAdjacentHTML("beforeend", teamRow()); modal.querySelector("#np-team .team-row:last-child select").focus(); return; }
   if (act === "team-remove") { a.closest(".team-row").remove(); return; }
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
   if (act === "open-project") { projectDialog(); return; }
   if (act === "wiz-next" || act === "wiz-back") { const f = modal.querySelector("form[data-form=newproject]"); wizGo(+f.dataset.step + (act === "wiz-next" ? 1 : -1)); return; }
   run(() => {
+    if (a.dataset.act === "remove-role") { removeRole(me(), +a.dataset.pid, +a.dataset.uid, a.dataset.role); flash("ok", `Role ${a.dataset.role} removed.`); }
     if (a.dataset.act === "remove") { removeMember(me(), +a.dataset.pid, +a.dataset.uid); flash("ok", "Member removed."); }
     if (a.dataset.act === "download") flash("ok", `${a.dataset.name} is a dummy file with no content. In the real app this downloads it from the network share.`);
   });
@@ -1002,12 +1048,12 @@ document.addEventListener("submit", e => {
         }
         break;
       }
-      case "addmember": addMember(u, pid, +d.uid, d.role); flash("ok", "Member added."); break;
+      case "addmember": addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); break;
       case "plan": setPlan(u, pid, d.priority, d.deadline); flash("ok", "Project priority and deadline saved."); break;
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", `Project status is now ${d.status}.`); break;
       case "newproject": {
         const np = createProject(u, d.name, d.priority, d.deadline);
-        teamPicks(f).forEach(t => addMember(u, np, t.uid, t.role));
+        teamPicks(f).forEach(t => addMember(u, np, t.uid, t.roles));
         S.view = {name: "project", id: np}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); break;
       }
       case "newrole": {
@@ -1087,6 +1133,7 @@ document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden
 
 if (!load()) seed();
 syncLists();
+S.projects.forEach(p => p.members.forEach(m => { if (!m.roles) { m.roles = [m.role]; delete m.role; } }));
 if (!S.iosDefault) { S.users.forEach(x => { if (x.font === "poppins") x.font = "system"; }); S.iosDefault = true; }
 if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
 S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Viewing as" above to switch person.`
