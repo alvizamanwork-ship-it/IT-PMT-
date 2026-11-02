@@ -17,6 +17,7 @@
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
 - On Hold & Cancelled page (Project Head only): paused projects with since-date, dates and open requirement counts; they leave the Head's Projects list.
+- Sent Requests for everyone: every requirement the person sent, with status (Waiting with …, Moved on, Unsent). Unsend returns it to the sender at the previous stage, as long as the recipient has not sent it on and the project is Active; recipients are notified.
 - Notifications for everyone: the last 24 hours of activity, e.g. "NAJ (Project Head) assigned you requirement “Task 1” · Development". Regular members see only what is about them (assignments, being added or removed, comments on what they hold); the Head, Project Lead and Dev Lead see all activity in their projects. A badge counts new items until the page is opened.
 - Archive for everyone: closed projects they belong to and closed requirements in open projects. The CTO sees everything; the Project Lead and Dev Lead see every requirement in their projects; everyone else sees only requirements they created, acted on or were assigned. Searchable; archived requirements open read-only. Closed projects leave the Projects list.
 - The CTO can add new role names and new stage names in Admin. New stages go before Closed, can be marked as Feedback (comment required) and get their own folder.

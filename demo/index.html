@@ -639,12 +639,36 @@ function needComment(c) { if (!(c || "").trim()) throw new RuleError("Write a co
 function move(u, r, action, to, toStage, comment, internal, ov, setPrev = true) {
   if (stakeholderView(u, r.pid)) internal = false;
   const fromList = holdersOf(r).slice(), fromStage = r.stage, toList = to ? [].concat(to) : [];
+  const before = {prev: r.prev, prevStage: r.prevStage, entered: r.entered};
   if (toStage !== r.stage) r.entered = now();
   if (setPrev) { r.prev = u.id; r.prevStage = fromStage; }
   r.stage = toStage; r.holders = toList;
   log(r.pid, u, action, {rid: r.id, from: fromList[0], to: toList[0], fromStage, toStage, comment, internal, override: ov});
-  const hx = S.history[S.history.length - 1]; hx.fromList = fromList; hx.toList = toList;
+  const hx = S.history[S.history.length - 1]; hx.fromList = fromList; hx.toList = toList; hx.before = before;
   return toList.map(t => handoff(u, r, action, t, (comment || "").trim(), internal)).join(", ");
+}
+// Sent requests: a sender can unsend while the requirement has not moved again since their send.
+const MOVE = /^(Send|Reassign|Accepted and closed|Unsent)\b/;
+const lastMove = rid => S.history.filter(x => x.rid === rid && MOVE.test(x.action)).pop();
+const isSend = x => x.rid && /^Send\b/.test(x.action);
+const canUnsend = (u, x) => { const r = req(x.rid); return !!r && isSend(x) && x.uid === u.id && !x.unsent && lastMove(x.rid) === x && proj(r.pid).status === "Active"; };
+function unsend(u, hid) {
+  const x = S.history.find(y => y.id === hid);
+  if (!x || x.uid !== u.id || !isSend(x)) throw new Forbidden("You can only unsend requirements you sent.");
+  const r = req(x.rid), st = proj(r.pid).status;
+  if (x.unsent) throw new RuleError("This send was already undone.");
+  if (lastMove(x.rid) !== x) throw new RuleError("It has already been sent on by the person who received it, so it cannot be unsent.");
+  if (st !== "Active") throw new RuleError(`Project is ${st}; nothing can be changed.`);
+  const recips = holdersOf(r).slice(), back = (x.fromList || [x.from]).filter(Boolean);
+  r.stage = x.fromStage; r.holders = back.length ? back : [u.id];
+  if (x.before) { r.prev = x.before.prev; r.prevStage = x.before.prevStage; r.entered = x.before.entered; }
+  x.unsent = true;
+  log(r.pid, u, "Unsent", {rid: r.id, from: recips[0], to: r.holders[0], fromStage: x.toStage, toStage: x.fromStage});
+  const hx = S.history[S.history.length - 1]; hx.fromList = recips; hx.toList = r.holders.slice();
+  const p = proj(r.pid);
+  recips.forEach(t => S.outbox.unshift({at: now(), to: (user(t) || {}).email, subject: `[IDLC Streams ${p.code}] #${r.id} ${r.title}: Unsent`,
+    body: `${u.name} took back requirement #${r.id} ${r.title}. It was sent to you by mistake; no action is needed.`}));
+  return {names: recips.map(uname).join(", "), title: r.title, stage: STAGES[r.stage]};
 }
 // A requirement can be assigned to several people at once; any of them can work on it and send it on.
 const holdersOf = r => r.holders || [];
@@ -804,7 +828,7 @@ function reqCard(id, keepComment) {
         ${ro ? "" : linkInputs("cd-link", "add-link", id)}</div></section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
-        ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent ? `<span class="file-meta">sent to ${h((c.sent.toList || [c.sent.to]).filter(Boolean).map(uname).join(", "))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
+        ${comments.length ? `<div class="cmt-list">${comments.map(c => `<article class="cmt ${c.internal ? "is-internal" : "is-shared"}"><div class="cmt-head"><strong class="who">${h(uname(c.uid))}</strong><time>${fmt(c.at)}</time>${label(c.internal ? "Internal" : "Shared", c.internal ? "tag-int" : "tag-sh")}${c.sent && c.sent.unsent ? label("Unsent", "pr-low") : ""}${c.sent ? `<span class="file-meta">sent to ${h((c.sent.toList || [c.sent.to]).filter(Boolean).map(uname).join(", "))}</span>${c.sent.toStage ? stageLabel(c.sent.toStage) : ""}` : ""}</div><p class="pre cmt-text">${h(c.text)}</p></article>`).join("")}</div>` : `<p class="note">No comments yet.</p>`}</section>
       ${ro ? "" : `<section class="card-section stack">
         <label for="cd-comment">Comment <span class="note">(sent along with Send; required when sending to a Feedback stage)</span><textarea id="cd-comment" name="comment" rows="3">${h(keepComment || "")}</textarea></label>
         ${sv ? "" : `<label class="check"><input type="checkbox" id="cd-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>`}
@@ -942,7 +966,7 @@ function flash(type, text) { S.flash = {type, text}; }
 function renderTop() {
   const u = me(), v = S.view.name;
   const unread = notifications(u).filter(n => n.at > (u.notifSeen || 0)).length;
-  const nav = [["queue", "My Queue"], ["projects", "Projects"]].concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["archive", "Archive"]],
+  const nav = [["queue", "My Queue"], ["sent", "Sent Requests"], ["projects", "Projects"]].concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["archive", "Archive"]],
     [["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`]], u.cto ? [["admin", "Admin"]] : []);
   document.getElementById("topbar").innerHTML = `
     <strong class="brand">IDLC Streams</strong>
@@ -1070,6 +1094,28 @@ function viewArchive(u) {
   <h2>Closed requirements in open projects</h2>
   ${doneReqs.length ? reqTable(doneReqs, true) : `<p class="note">None yet.</p>`}`}`;
 }
+// Sent Requests (everyone): every requirement this person sent, newest first, with Unsend while it has not moved on.
+function viewSent(u) {
+  const list = S.history.filter(x => x.uid === u.id && isSend(x) && req(x.rid)).sort((a, b) => b.at - a.at);
+  const status = x => {
+    const r = req(x.rid);
+    if (x.unsent) return label("Unsent", "pr-low");
+    if (lastMove(x.rid) !== x) return r.stage === 8 ? label("Moved on · Closed", "st-cl") : label("Moved on", "st-cl");
+    if (proj(r.pid).status !== "Active") return label(`Project ${proj(r.pid).status}`, "st-cl");
+    return label(`Waiting with ${(x.toList || [x.to]).map(uname).join(", ")}`, "st-an");
+  };
+  return `<h1>Sent Requests</h1>
+  <p class="note">Requirements you sent. If you sent one to the wrong person, Unsend brings it back to you at the stage it was in. Once the person you sent it to sends it on, it can no longer be unsent.</p>
+  ${list.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Sent to</th><th>Stage</th><th>Sent</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${list.map(x => {
+    const r = req(x.rid), title = `#${r.id} ${h(r.title)}`;
+    return `<tr><td>${canSeeReq(u, r) ? `<button class="linkish" data-act="open-card" data-id="${r.id}">${title}</button>` : `<strong>${title}</strong>`}</td>
+      <td>${h(proj(r.pid).code)}</td><td>${h((x.toList || [x.to]).filter(Boolean).map(uname).join(", "))}</td>
+      <td>${x.fromStage !== x.toStage ? `${stageLabel(x.fromStage)} → ${stageLabel(x.toStage)}` : stageLabel(x.toStage)}</td>
+      <td class="num">${fmt(x.at)}</td><td>${status(x)}</td>
+      <td>${canUnsend(u, x) ? `<button class="btn secondary" data-act="unsend" data-hid="${x.id}">Unsend</button>` : ""}</td></tr>`;
+  }).join("")}</tbody>`) : `<p style="margin-top:1rem">You have not sent any requirements yet.</p>`}`;
+}
+
 // On Hold & Cancelled (Project Head / CTO only)
 function viewPaused(u) {
   if (!u.cto) return "<h1>Not allowed</h1><p>This page is for the Project Head only.</p>";
@@ -1097,6 +1143,8 @@ function notifText(x, u, p, r, toList) {
   if (a === "Send") return mine ? `assigned you requirement ${q} · ${STAGES[x.toStage]}${others.length ? ` (with ${others.join(", ")})` : ""}`
     : `sent requirement ${q} to ${toList.map(uname).join(", ") || "no one"} · ${STAGES[x.toStage]}`;
   if (a === "Created requirement") return `created requirement ${q}`;
+  if (a === "Unsent") return (x.fromList || []).includes(u.id) ? `took back requirement ${q}. It was sent to you by mistake; no action is needed.`
+    : mine ? `took back requirement ${q}; it is with you again · ${STAGES[x.toStage]}` : `took back requirement ${q} from ${(x.fromList || []).map(uname).join(", ")}`;
   if (a === "Accepted and closed") return `approved and closed requirement ${q}`;
   if (a === "Reassign") return mine ? `reassigned requirement ${q} to you` : `reassigned requirement ${q} to ${toList.map(uname).join(", ")}`;
   if (r) return `${lower(a)} on ${q}`;
@@ -1171,7 +1219,7 @@ function render() {
   const u = me(), v = S.view;
   const body = v.name === "projects" ? viewProjects(u) : v.name === "project" ? viewProject(u, v.id)
     : v.name === "admin" ? viewAdmin(u) : v.name === "archive" ? viewArchive(u)
-    : v.name === "paused" ? viewPaused(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
+    : v.name === "paused" ? viewPaused(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
   renderTop();
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
   save();
@@ -1204,6 +1252,7 @@ document.addEventListener("click", e => {
   if (act === "open-project") { projectDialog(); return; }
   if (act === "wiz-next" || act === "wiz-back") { const f = modal.querySelector("form[data-form=newproject]"); wizGo(+f.dataset.step + (act === "wiz-next" ? 1 : -1)); return; }
   run(() => {
+    if (a.dataset.act === "unsend") { const res = unsend(me(), +a.dataset.hid); flash("ok", `Unsent from ${res.names}. “${res.title}” is back in your queue at ${res.stage}.`); }
     if (a.dataset.act === "remove-role") { removeRole(me(), +a.dataset.pid, +a.dataset.uid, a.dataset.role); flash("ok", `Role ${a.dataset.role} removed.`); }
     if (a.dataset.act === "remove") { removeMember(me(), +a.dataset.pid, +a.dataset.uid); flash("ok", "Member removed."); }
     if (a.dataset.act === "download") flash("ok", `${a.dataset.name} is a dummy file with no content. In the real app this downloads it from the network share.`);
