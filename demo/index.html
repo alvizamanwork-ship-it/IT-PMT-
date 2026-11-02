@@ -1015,7 +1015,7 @@ function viewQueue(u) {
 
 function viewProjects(u) {
   return viewProjectList(u) + (u.cto ? `<section><h2>Team workload</h2><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each person across all active projects.</p>
-    ${workloadTable(S.users.filter(x => !x.cto).map(x => ({uid: x.id, roles: S.projects.filter(pp => pp.status === "Active" && role(pp.id, x.id)).map(pp => pp.code).join(", ") || "No active project", total: openLoad(x.id)}))
+    ${workloadTable(S.users.filter(x => !x.cto).map(x => ({uid: x.id, roles: S.projects.filter(pp => pp.status === "Active" && role(pp.id, x.id)).map(pp => `${pp.code} · ${pp.name}`).join(", ") || "No active project", total: openLoad(x.id)}))
       .sort((a, b) => b.total - a.total || uname(a.uid).localeCompare(uname(b.uid))), false).replace("<th>Roles</th>", "<th>Active projects</th>")}</section>` : "");
 }
 function viewProjectList(u) {
