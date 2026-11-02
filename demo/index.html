@@ -458,7 +458,7 @@ const stageFolder = n => stageInfo(n).folder;
 const STATUSES = ["Active", "On Hold", "Cancelled", "Closed"];
 const PAUSED = ["On Hold", "Cancelled"];
 const PRIORITIES = ["Low", "Normal", "High"];
-const CREATORS = ["Business Stakeholder", "Project Analyst", "Project Lead"];
+const CREATORS = ["Business Stakeholder", "Project Analyst", "Project Lead", "Dev Lead"];
 const LEADS = ["Project Lead", "Dev Lead"];
 const SH = "Business Stakeholder", AN = "Project Analyst";
 const FILE_ROOT = "\\\\fs01\\PMT";
@@ -511,25 +511,32 @@ function genCode(name) {
   const ini = (name || "").split(/[^A-Za-z0-9]+/).filter(Boolean).map(w => w[0].toUpperCase()).join("").slice(0, 4) || "PRJ";
   return `${ini}-${String((S.seq.p || 0) + 1).padStart(3, "0")}`;
 }
-function createProject(u, name, priority = "Normal", deadline = "") {
+function checkDates(start, end, endName) {
+  if (start && end && start > end) throw new RuleError(`The start date must be on or before the ${endName}.`);
+}
+function createProject(u, name, priority = "Normal", deadline = "", start = "") {
   if (!u.cto) throw new Forbidden("Only the CTO creates projects.");
   name = name.trim(); if (!name) throw new RuleError("Give the project a name.");
   if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
+  checkDates(start, deadline, "deadline");
   const code = genCode(name);
-  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, deadline: deadline || null,
+  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, deadline: deadline || null, start: start || null,
     members: S.users.filter(x => x.cto).map(x => ({uid: x.id, roles: [HEAD]}))};
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
 // Project priority and deadline: the CTO, the Project Lead and the Dev Lead can set or change them.
 const canPlan = (u, pid) => isHead(u, pid) || has(pid, u.id, "Dev Lead");
-function setPlan(u, pid, priority, deadline) {
-  if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead change the project priority and deadline.");
+function setPlan(u, pid, priority, deadline, start) {
+  if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead change the project priority and dates.");
   if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
-  const p = proj(pid), oldP = p.priority || "Normal", oldD = p.deadline || null; deadline = deadline || null;
-  if (priority === oldP && deadline === oldD) throw new RuleError("Nothing changed.");
+  const p = proj(pid), oldP = p.priority || "Normal", oldD = p.deadline || null, oldS = p.start || null;
+  deadline = deadline || null; start = start || null;
+  checkDates(start, deadline, "deadline");
+  if (priority === oldP && deadline === oldD && start === oldS) throw new RuleError("Nothing changed.");
+  if (start !== oldS) log(pid, u, start ? (oldS ? `Project start changed: ${oldS} to ${start}` : `Project start set: ${start}`) : `Project start removed (was ${oldS})`);
   if (priority !== oldP) log(pid, u, `Project priority changed: ${oldP} to ${priority}`);
   if (deadline !== oldD) log(pid, u, deadline ? (oldD ? `Project deadline changed: ${oldD} to ${deadline}` : `Project deadline set: ${deadline}`) : `Project deadline removed (was ${oldD})`);
-  p.priority = priority; p.deadline = deadline;
+  p.priority = priority; p.deadline = deadline; p.start = start;
 }
 const overdue = p => p.deadline && p.status === "Active" && p.deadline < isoDay(now());
 const deadlineText = p => p.deadline ? `${p.deadline}${overdue(p) ? " " + label("Overdue", "st-fb") : ""}` : `<span class="note">None</span>`;
@@ -588,13 +595,14 @@ function setStatus(u, pid, status, confirm) {
 }
 
 // ---------- requirements & actions ----------
-function createReq(u, pid, title, desc, due, priority) {
+function createReq(u, pid, title, desc, due, priority, start) {
   const p = proj(pid); if (!canView(u, pid)) throw new Forbidden("You are not a member of this project.");
   title = title.trim(); if (!title) throw new RuleError("Title is required.");
-  let ov = require_(u, u.cto || rolesOf(pid, u.id).some(r => CREATORS.includes(r)), "Only Stakeholders, Analysts, Project Leads or the CTO create requirements.", pid);
+  let ov = require_(u, u.cto || rolesOf(pid, u.id).some(r => CREATORS.includes(r)), "Only Stakeholders, Analysts, Project Leads, Dev Leads or the CTO create requirements.", pid);
   ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`, pid) || ov;
+  checkDates(start, due, "due date");
   const id = nextId("r"), t = now();
-  S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holder: u.id, prev: null, prevStage: null, due: due || null,
+  S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holder: u.id, prev: null, prevStage: null, due: due || null, start: start || null,
     priority, feedback: false, createdBy: u.id, entered: t, created: t, folder: `${p.folder}\\${id}_${clean(title, 50).replace(/ /g, "_")}`});
   log(pid, u, "Created requirement", {rid: id, to: u.id, toStage: 1, override: ov});
   return id;
@@ -727,7 +735,7 @@ function reqCard(id, keepComment) {
     <div class="card-body">
       ${notes}
       <section class="card-section"><h3 class="fl">Requirement title</h3><p class="title-view">${h(r.title)}</p>
-        <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>Holder: ${h(uname(r.holder))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
+        <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.start ? `<span>Starts ${r.start}</span>` : ""}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>Holder: ${h(uname(r.holder))}</span><span>Created by ${h(uname(r.createdBy))}</span></p></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
         ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${closed ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
@@ -763,6 +771,7 @@ function reqDialog(pid) {
         <label for="nr-title"><span class="fl">Requirement title</span><input id="nr-title" name="title" required></label>
         <p class="note">Only you, the creator, set the title. Everyone else sees it read-only.</p>
         <div class="row" style="margin:0"><label for="nr-pri">Priority<select id="nr-pri" name="priority">${PRIORITIES.map(x => `<option ${x === "Normal" ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+        <label for="nr-start">Start from (optional)<input id="nr-start" type="date" name="start"></label>
         <label for="nr-due">Due date (optional)<input id="nr-due" type="date" name="due"></label></div></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
         <ul class="files" id="nr-file-list"><li class="note">No files yet.</li></ul>
@@ -795,6 +804,7 @@ function projectDialog() {
       <section data-step="1" class="stack">
         <label for="np-name">Project name<input id="np-name" name="name" required autocomplete="off"></label>
         <div class="row" style="margin:0"><label for="np-pri">Project priority<select id="np-pri" name="priority">${PRIORITIES.map(x => `<option ${x === "Normal" ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+          <label for="np-start">Start from (optional)<input id="np-start" type="date" name="start"></label>
           <label for="np-deadline">Project deadline (optional)<input id="np-deadline" type="date" name="deadline"></label></div>
         <p class="note">The Project Lead and Dev Lead can change these later.</p>
         <dl class="kv"><dt>Code</dt><dd><output id="np-code">${genCode("")}</output> <span class="note">(automatic)</span></dd>
@@ -850,7 +860,7 @@ function wizGo(step) {
     const heads = S.users.filter(x => x.cto).map(x => `${h(x.name)} (Project Head)`);
     modal.querySelector("#np-review").innerHTML = `<dl class="kv"><dt>Name</dt><dd>${h(name)}</dd><dt>Code</dt><dd>${genCode(name)}</dd>
       <dt>Folder</dt><dd><code>${h(FILE_ROOT)}\\${genCode(name)}</code></dd><dt>Status</dt><dd>${label("Active")}</dd>
-      <dt>Priority</dt><dd>${priLabel(f.querySelector("#np-pri").value)}</dd><dt>Deadline</dt><dd>${h(f.querySelector("#np-deadline").value) || "None"}</dd>
+      <dt>Priority</dt><dd>${priLabel(f.querySelector("#np-pri").value)}</dd><dt>Start from</dt><dd>${h(f.querySelector("#np-start").value) || "None"}</dd><dt>Deadline</dt><dd>${h(f.querySelector("#np-deadline").value) || "None"}</dd>
       <dt>Team</dt><dd>${heads.concat(team).join("<br>")}</dd></dl>`;
     f.querySelector("#np-create").focus();
   } else { const first = f.querySelector(`section[data-step="${step}"] input, section[data-step="${step}"] select`); if (first) first.focus(); }
@@ -897,9 +907,9 @@ function viewQueue(u) {
   const order = {High: 0, Normal: 1, Low: 2};
   const items = S.reqs.filter(r => r.holder === u.id && r.stage !== 8 && proj(r.pid).status === "Active")
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
-  return `<h1>My Queue</h1>${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
+  return `<h1>My Queue</h1>${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
-    <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td>
+    <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td></tr>`).join("")}</tbody>`)
     : "<p>Nothing waiting for you.</p>"}
     <p class="note">Requirements in On Hold or Cancelled projects are hidden here.</p>`;
@@ -907,9 +917,9 @@ function viewQueue(u) {
 
 function viewProjects(u) {
   const list = S.projects.filter(p => canView(u, p.id));
-  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Deadline</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
+  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Start from</th><th>Deadline</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
-    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (isHead(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
+    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (isHead(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
     : "<p>You are not a member of any project.</p>"}`;
 }
 
@@ -923,17 +933,18 @@ function viewProject(u, pid) {
   const members = memberSort(p);
   const others = S.users.filter(x => !has(pid, x.id, HEAD));
   return `<h1>${h(p.code)} · ${h(p.name)}</h1>
-  <p class="meta">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Deadline: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
-  ${canPlan(u, pid) ? `<section class="panel"><h2>Priority and deadline</h2><form data-form="plan" data-pid="${pid}" class="row" style="margin:0">
+  <p class="meta">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Start from: ${p.start || `<span class="note">None</span>`}</span><span>Deadline: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
+  ${canPlan(u, pid) ? `<section class="panel"><h2>Priority and dates</h2><form data-form="plan" data-pid="${pid}" class="row" style="margin:0">
     <label for="pp-pri">Project priority<select id="pp-pri" name="priority">${PRIORITIES.map(x => `<option ${x === (p.priority || "Normal") ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+    <label for="pp-start">Start from<input id="pp-start" type="date" name="start" value="${p.start || ""}"></label>
     <label for="pp-deadline">Project deadline<input id="pp-deadline" type="date" name="deadline" value="${p.deadline || ""}"></label>
     <button class="btn primary">Save</button></form>
-    <p class="note" style="margin-top:.6rem">Clear the date and save to remove the deadline. Changes are logged in Project history.</p></section>` : ""}
+    <p class="note" style="margin-top:.6rem">Clear a date and save to remove it. Changes are logged in Project history.</p></section>` : ""}
   <section><div class="head-row"><h2>${head ? "All requirements" : "Requirements you hold"}</h2>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
   ${head ? "" : `<p class="note">You see a requirement only while you hold it. The CTO and the Project Lead see all requirements and who holds them.</p>`}
-  ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${head ? "<th>Holder</th>" : ""}<th>Priority</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
+  ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${head ? "<th>Holder</th>" : ""}<th>Priority</th><th>Start</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${stageLabel(r.stage)}</td>
-    ${head ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${head ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
+    ${head ? `<td>${r.holder ? h(uname(r.holder)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p>${head ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
   <section><h2>Members</h2>
   ${tbl(`<thead><tr><th>Name</th><th>Roles</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
@@ -1037,7 +1048,7 @@ document.addEventListener("submit", e => {
         const internal = d.internal === "yes", st = +d.stage, doIt = e.submitter && e.submitter.value;
         if (!d.title.trim()) throw new RuleError("Give the requirement a title.");
         if (doIt === "send" && isFeedback(st) && !d.comment.trim()) throw new RuleError("Write a comment. Sending to a Feedback stage needs one.");
-        const rid = createReq(u, pid, d.title, d.desc, d.due, d.priority);
+        const rid = createReq(u, pid, d.title, d.desc, d.due, d.priority, d.start);
         [...f.querySelectorAll("#nr-file-list li[data-name]")].forEach(li => upload(u, rid, li.dataset.name));
         if (doIt === "send") {
           const to = proceed(u, rid, +d.to, d.comment, internal, st);
@@ -1049,10 +1060,10 @@ document.addEventListener("submit", e => {
         break;
       }
       case "addmember": addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); break;
-      case "plan": setPlan(u, pid, d.priority, d.deadline); flash("ok", "Project priority and deadline saved."); break;
+      case "plan": setPlan(u, pid, d.priority, d.deadline, d.start); flash("ok", "Project priority and dates saved."); break;
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", `Project status is now ${d.status}.`); break;
       case "newproject": {
-        const np = createProject(u, d.name, d.priority, d.deadline);
+        const np = createProject(u, d.name, d.priority, d.deadline, d.start);
         teamPicks(f).forEach(t => addMember(u, np, t.uid, t.roles));
         S.view = {name: "project", id: np}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); break;
       }
