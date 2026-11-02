@@ -9,7 +9,7 @@
 - Projects and requirements have an optional "Start from" date (must be on or before the deadline / due date). The Dev Lead can create requirements.
 - Projects have a priority (Low, Normal, High) and an optional deadline, set by the CTO at creation. The CTO, Project Lead and Dev Lead can add or change them on the project page; changes are logged in Project history, and a past deadline on an Active project shows "Overdue".
 - Stages: Analysis, Analysis Feedback, Development, Development Feedback, QA, QA Feedback, Approval (plus Closed). The holder picks the stage and the user on every Send; a comment is required for Feedback stages; only the Stakeholder closes from Approval.
-- A requirement is visible only to its current holder. The CTO (all projects) and the Project Lead (their own project) see all requirements and holders.
+- A requirement is visible only to its current holder. Only the Project Head (CTO), Project Lead and Dev Lead see every requirement in a project and who holds it; the Dev Lead can view others' requirements but not act on them. Only these three can add or remove project members.
 - Inside their project the Project Lead has the CTO's powers: add or remove any member including Stakeholders, open and act on any requirement (logged as a Project Lead override), and change project status. Creating projects and Admin stay CTO-only.
 - Creating and working on a requirement happens in one card: Title (set by the creator, read-only for others), Uploaded files, Description, Comments, Stage + User, Send.
 - No stall threshold or daily digest.
