@@ -499,14 +499,28 @@ function genCode(name) {
   const ini = (name || "").split(/[^A-Za-z0-9]+/).filter(Boolean).map(w => w[0].toUpperCase()).join("").slice(0, 4) || "PRJ";
   return `${ini}-${String((S.seq.p || 0) + 1).padStart(3, "0")}`;
 }
-function createProject(u, name) {
+function createProject(u, name, priority = "Normal", deadline = "") {
   if (!u.cto) throw new Forbidden("Only the CTO creates projects.");
   name = name.trim(); if (!name) throw new RuleError("Give the project a name.");
+  if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
   const code = genCode(name);
-  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`,
+  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, deadline: deadline || null,
     members: S.users.filter(x => x.cto).map(x => ({uid: x.id, role: HEAD}))};
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
+// Project priority and deadline: the CTO, the Project Lead and the Dev Lead can set or change them.
+const canPlan = (u, pid) => isHead(u, pid) || role(pid, u.id) === "Dev Lead";
+function setPlan(u, pid, priority, deadline) {
+  if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead change the project priority and deadline.");
+  if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
+  const p = proj(pid), oldP = p.priority || "Normal", oldD = p.deadline || null; deadline = deadline || null;
+  if (priority === oldP && deadline === oldD) throw new RuleError("Nothing changed.");
+  if (priority !== oldP) log(pid, u, `Project priority changed: ${oldP} to ${priority}`);
+  if (deadline !== oldD) log(pid, u, deadline ? (oldD ? `Project deadline changed: ${oldD} to ${deadline}` : `Project deadline set: ${deadline}`) : `Project deadline removed (was ${oldD})`);
+  p.priority = priority; p.deadline = deadline;
+}
+const overdue = p => p.deadline && p.status === "Active" && p.deadline < isoDay(now());
+const deadlineText = p => p.deadline ? `${p.deadline}${overdue(p) ? " " + label("Overdue", "st-fb") : ""}` : `<span class="note">None</span>`;
 function memberRule(u, pid, r) {
   if (r === SH) { if (!isHead(u, pid)) throw new Forbidden("Only the CTO or the Project Lead manage Business Stakeholders."); }
   else if (!(u.cto || LEADS.includes(role(pid, u.id)))) throw new Forbidden("Only the CTO, Project Lead or Dev Lead manage members.");
@@ -748,6 +762,9 @@ function projectDialog() {
     <div class="card-body">
       <section data-step="1" class="stack">
         <label for="np-name">Project name<input id="np-name" name="name" required autocomplete="off"></label>
+        <div class="row" style="margin:0"><label for="np-pri">Project priority<select id="np-pri" name="priority">${PRIORITIES.map(x => `<option ${x === "Normal" ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+          <label for="np-deadline">Project deadline (optional)<input id="np-deadline" type="date" name="deadline"></label></div>
+        <p class="note">The Project Lead and Dev Lead can change these later.</p>
         <dl class="kv"><dt>Code</dt><dd><output id="np-code">${genCode("")}</output> <span class="note">(automatic)</span></dd>
           <dt>Folder</dt><dd><code id="np-folder">${h(FILE_ROOT)}\\${genCode("")}</code></dd></dl>
       </section>
@@ -797,6 +814,7 @@ function wizGo(step) {
     const heads = S.users.filter(x => x.cto).map(x => `${h(x.name)} (Project Head)`);
     modal.querySelector("#np-review").innerHTML = `<dl class="kv"><dt>Name</dt><dd>${h(name)}</dd><dt>Code</dt><dd>${genCode(name)}</dd>
       <dt>Folder</dt><dd><code>${h(FILE_ROOT)}\\${genCode(name)}</code></dd><dt>Status</dt><dd>${label("Active")}</dd>
+      <dt>Priority</dt><dd>${priLabel(f.querySelector("#np-pri").value)}</dd><dt>Deadline</dt><dd>${h(f.querySelector("#np-deadline").value) || "None"}</dd>
       <dt>Team</dt><dd>${heads.concat(team).join("<br>")}</dd></dl>`;
     f.querySelector("#np-create").focus();
   } else { const first = f.querySelector(`section[data-step="${step}"] input, section[data-step="${step}"] select`); if (first) first.focus(); }
@@ -853,9 +871,9 @@ function viewQueue(u) {
 
 function viewProjects(u) {
   const list = S.projects.filter(p => canView(u, p.id));
-  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
+  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Deadline</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
-    <td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (isHead(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
+    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (isHead(u, p.id) || r.holder === u.id)).length}</td></tr>`).join("")}</tbody>`)
     : "<p>You are not a member of any project.</p>"}`;
 }
 
@@ -869,7 +887,12 @@ function viewProject(u, pid) {
   const members = memberSort(p);
   const others = S.users.filter(x => !role(pid, x.id));
   return `<h1>${h(p.code)} · ${h(p.name)}</h1>
-  <p>Status: ${label(p.status)}${myRole ? ` · My role: ${h(myRole)}` : ""} · Folder: <code>${h(p.folder)}</code></p>
+  <p class="meta">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Deadline: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
+  ${canPlan(u, pid) ? `<section class="panel"><h2>Priority and deadline</h2><form data-form="plan" data-pid="${pid}" class="row" style="margin:0">
+    <label for="pp-pri">Project priority<select id="pp-pri" name="priority">${PRIORITIES.map(x => `<option ${x === (p.priority || "Normal") ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+    <label for="pp-deadline">Project deadline<input id="pp-deadline" type="date" name="deadline" value="${p.deadline || ""}"></label>
+    <button class="btn primary">Save</button></form>
+    <p class="note" style="margin-top:.6rem">Clear the date and save to remove the deadline. Changes are logged in Project history.</p></section>` : ""}
   <section><div class="head-row"><h2>${head ? "All requirements" : "Requirements you hold"}</h2>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
   ${head ? "" : `<p class="note">You see a requirement only while you hold it. The CTO and the Project Lead see all requirements and who holds them.</p>`}
   ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${head ? "<th>Holder</th>" : ""}<th>Priority</th><th>Due</th></tr></thead><tbody>${reqs.map(r => `
@@ -980,9 +1003,10 @@ document.addEventListener("submit", e => {
         break;
       }
       case "addmember": addMember(u, pid, +d.uid, d.role); flash("ok", "Member added."); break;
+      case "plan": setPlan(u, pid, d.priority, d.deadline); flash("ok", "Project priority and deadline saved."); break;
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", `Project status is now ${d.status}.`); break;
       case "newproject": {
-        const np = createProject(u, d.name);
+        const np = createProject(u, d.name, d.priority, d.deadline);
         teamPicks(f).forEach(t => addMember(u, np, t.uid, t.role));
         S.view = {name: "project", id: np}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); break;
       }

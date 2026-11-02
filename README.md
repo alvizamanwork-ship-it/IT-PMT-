@@ -6,6 +6,7 @@
 
 - Project codes are generated from the name (e.g. "Help Desk Portal" → HDP-001); the CTO joins every project as Project Head.
 - Team members are added as User + Role dropdown rows.
+- Projects have a priority (Low, Normal, High) and an optional deadline, set by the CTO at creation. The CTO, Project Lead and Dev Lead can add or change them on the project page; changes are logged in Project history, and a past deadline on an Active project shows "Overdue".
 - Stages: Analysis, Analysis Feedback, Development, Development Feedback, QA, QA Feedback, Approval (plus Closed). The holder picks the stage and the user on every Send; a comment is required for Feedback stages; only the Stakeholder closes from Approval.
 - A requirement is visible only to its current holder. The CTO (all projects) and the Project Lead (their own project) see all requirements and holders.
 - Inside their project the Project Lead has the CTO's powers: add or remove any member including Stakeholders, open and act on any requirement (logged as a Project Lead override), and change project status. Creating projects and Admin stay CTO-only.
