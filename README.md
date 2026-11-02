@@ -21,6 +21,9 @@ First start creates a CTO account from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defa
 | `SECRET_KEY` | `change-me` | Session cookie signing key |
 | `SECURE_COOKIES` | `0` | Set `1` behind HTTPS |
 | `APP_URL` | `http://localhost:8000` | Base URL used in email links |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_STARTTLS` | empty / `25` / empty / empty / `pmt@localhost` / `0` | Email. With no `SMTP_HOST`, emails are only logged |
+| `DIGEST_HOUR` | `7` | Hour (server local time) the daily digest runs |
+| `DIGEST_ENABLED` | `1` | Set `0` to disable the in-app scheduler (e.g. to use cron with `python -m app.digest`) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` / `ADMIN_NAME` | `admin` / `admin` / empty / `CTO` | Bootstrap CTO account (only if no users exist) |
 
 ## Defaults and decisions
@@ -39,3 +42,5 @@ First start creates a CTO account from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defa
 - **Comments**: shared by default; tick "Internal" to hide from Stakeholders. Stakeholders' own comments are always shared. Internal action comments are blanked in the history Stakeholders see.
 - **My Queue** is sorted by priority (High first), then due date.
 - **Folders**: `FILE_ROOT/<CODE>/<id>_<Title>/` with the six stage folders. Stage mapping for uploads: 1→01, 2→02, 3→03, 4→04, 5→05, 6 Analyst Review→02_Analysis, 7 Acceptance and 8 Closed→06_Acceptance. File and folder names are sanitised. Any project member can upload while the project is Active.
+- **Handoff email** goes to the new holder after Proceed, Send with Feedback, Send Back and Reassign. Accept has no recipient, so no email. Internal comments are left out when the recipient is a Stakeholder. Email failures are logged and never block the action.
+- **Daily digest**: in-app background thread at `DIGEST_HOUR`; emails every CTO with an email address the requirements in Active projects whose time in the current stage exceeds STALL_DAYS. No email when nothing is stalled.

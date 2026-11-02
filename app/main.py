@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, config, db
+from . import auth, config, db, mailer
 from . import files as F
 from . import projects as P
 from . import workflow as W
@@ -56,6 +56,9 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="
 @app.on_event("startup")
 def _startup():
     db.init()
+    if config.digest_enabled():
+        from .digest import start_scheduler
+        start_scheduler()
 
 
 @app.exception_handler(LoginRequired)
@@ -239,10 +242,6 @@ def file_download(fid: int, user=Depends(current_user), conn=Depends(get_conn)):
     return FileResponse(path, filename=name)
 
 
-def notify(conn, result):
-    pass
-
-
 @app.post("/requirements/{rid}/action")
 def req_action(rid: int, action: str = Form(...), to_user: int = Form(0), comment: str = Form(""),
                internal: str = Form(""), user=Depends(current_user), conn=Depends(get_conn)):
@@ -257,14 +256,14 @@ def req_action(rid: int, action: str = Form(...), to_user: int = Form(0), commen
         res = W.accept(conn, user, rid, comment)
     else:
         raise RuleError("Unknown action.")
-    notify(conn, res)
+    mailer.handoff(conn, user, res)
     return back(f"/requirements/{rid}")
 
 
 @app.post("/requirements/{rid}/reassign")
 def req_reassign(rid: int, to_user: int = Form(...), comment: str = Form(""),
                  user=Depends(current_user), conn=Depends(get_conn)):
-    notify(conn, W.reassign(conn, user, rid, to_user, comment))
+    mailer.handoff(conn, user, W.reassign(conn, user, rid, to_user, comment))
     return back(f"/requirements/{rid}")
 
 
