@@ -1065,6 +1065,19 @@ function addLink(u, id, url, labelText) {
   (S.links = S.links || []).push({id: nextId("l"), rid: id, url, label: labelText, uid: u.id, at: now()});
   log(r.pid, u, `Added ${linkKind(url) === "REPO" ? "repository" : "reference"} link ${labelText || url}`, {rid: id, override: ov});
 }
+// Remove a file or link: the person who added it, or the Project Head / Project Lead / Dev Lead.
+const canRemoveItem = (u, r, x) => x.uid === u.id || seesAll(u, r.pid);
+function removeItem(u, kind, xid) {
+  const list = kind === "file" ? S.files : (S.links || []), x = list.find(y => y.id === xid);
+  if (!x) throw new RuleError("It was already removed.");
+  const r = loadReq(u, x.rid), st = proj(r.pid).status;
+  const ov = require_(u, st === "Active", `Project is ${st}; changes are blocked.`, r.pid);
+  if (r.stage === 8) throw new RuleError("This requirement is Closed.");
+  if (!canRemoveItem(u, r, x)) throw new Forbidden("Only the person who added it, or the Project Head, Project Lead or Dev Lead, can remove it.");
+  if (kind === "file") S.files = S.files.filter(y => y !== x); else S.links = S.links.filter(y => y !== x);
+  log(r.pid, u, `Removed ${kind === "file" ? "file " + x.name : "link " + (x.label || x.url)}`, {rid: r.id, override: ov});
+  return kind === "file" ? x.name : (x.label || x.url);
+}
 const linkRow = (l, extra = "") => `<li class="file"><span class="ext" aria-hidden="true">${linkKind(l.url)}</span><span class="file-main">
   <a class="file-name" href="${h(l.url)}" target="_blank" rel="noopener noreferrer">${h(l.label || l.url)}</a>
   <span class="file-meta">${l.label ? h(l.url) + " · " : ""}${l.uid ? `${h(uname(l.uid))} · ${fmt(l.at)}` : "Saved when you press Send or Keep it with me"}</span></span>${extra}</li>`;
@@ -1394,12 +1407,12 @@ function reqCard(id, keepComment) {
       <section class="card-section"><h3 class="fl">Requirement title</h3><p class="title-view">${h(r.title)}</p>
         <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.start ? `<span>Starts ${r.start}</span>` : ""}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>${holdersOf(r).length > 1 ? "Assigned to" : "Holder"}: ${h(holderNames(r))}</span><span>Created by ${h(uname(r.createdBy))}</span>${r.dues && r.dues.length > 1 ? `<span>End date moved ${r.dues.length - 1}×</span>` : ""}</p></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
-        ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span></li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
+        ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span>${!ro && canRemoveItem(u, r, f) ? `<button type="button" class="linkish" data-act="rm-item" data-kind="file" data-id="${f.id}" data-rid="${id}" aria-label="Remove ${h(f.name)}">Remove</button>` : ""}</li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${ro ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
           <button type="button" class="btn secondary" data-act="add-dummy" data-rid="${id}">Add dummy file</button></div>
         <p class="note">For testing: adds a file name only, no real file. It goes into ${stageFolder(r.stage)}; the same name again becomes _v2, _v3.</p>`}
         <div class="links-block"><h3 class="fl">Repository and reference links</h3>
-        ${links.length ? `<ul class="files">${links.map(l => linkRow(l)).join("")}</ul>` : `<p class="note">No links yet.</p>`}
+        ${links.length ? `<ul class="files">${links.map(l => linkRow(l, !ro && canRemoveItem(u, r, l) ? `<button type="button" class="linkish" data-act="rm-item" data-kind="link" data-id="${l.id}" data-rid="${id}" aria-label="Remove ${h(l.label || l.url)}">Remove</button>` : "")).join("")}</ul>` : `<p class="note">No links yet.</p>`}
         ${ro ? "" : linkInputs("cd-link", "add-link", id)}</div></section>
       <section class="card-section"><h3 class="fl">Description</h3><p class="pre" style="margin:0">${h(r.desc) || "No description."}</p></section>
       <section class="card-section"><h3 class="fl">Comments</h3>
@@ -2222,6 +2235,8 @@ document.addEventListener("click", e => {
   if (act === "dl-report" || act === "dl-csv") { offerDownload(act, +a.dataset.pid); return; }
   if (act === "back-project") { S.flash = null; projectCard(+modal.dataset.back); return; }
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
+  if (act === "rm-item") { const rid = +a.dataset.rid, keep = (document.getElementById("cd-comment") || {}).value;
+    run(() => { const n = removeItem(me(), a.dataset.kind, +a.dataset.id); flash("ok", `Removed ${n}.`); return {reopen: rid, comment: keep}; }, a.closest("form")); return; }
   if (act === "add-link" || act === "add-link-new") { addLinkUi(a); return; }
   if (act === "drop-dummy") { const list = a.closest("ul"); a.closest("li").remove();
     if (!list.querySelector("li")) list.innerHTML = `<li class="note">${list.id === "nr-link-list" ? "No links yet." : "No files yet."}</li>`; return; }
