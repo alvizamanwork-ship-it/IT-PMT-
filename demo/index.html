@@ -430,6 +430,7 @@ details.arc { margin: .75rem 0; }
 .tsearch-results li button:hover, .tsearch-results li button:focus-visible { background: var(--tint); }
 .tsearch-results .code { font: 700 .85rem var(--mono); color: var(--accent); }
 .tsearch-results .pname { overflow-wrap: anywhere; }
+.tsearch-results .grp { padding: .45rem .6rem .15rem; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tsearch-results .none { padding: .5rem .6rem; color: var(--muted); }
 @media (max-width: 40rem) { .tsearch { order: 5; flex: 1 1 100%; } .tsearch input { width: 100%; } .tsearch-results { left: 0; right: auto; } }
 /* Notifications */
@@ -496,6 +497,11 @@ tr.tl-project td { background: var(--surface-2); }
 .dl-bar .extend { flex-wrap: wrap; }
 .pwrap [role=tabpanel] { grid-template-columns: minmax(0, 1fr); }
 .pwrap [role=tabpanel] > * { min-width: 0; }
+/* How To */
+.howto { max-width: 46rem; }
+.howto h2 { margin-top: 1.6rem; }
+.howto .who { margin: -.2rem 0 .4rem; }
+.howto ol, .howto ul { margin: .3rem 0 0; padding-left: 1.4rem; display: grid; gap: .35rem; }
 /* Card outlines */
 .card-section, .panel, .tbl, .flash, .menu-body, dialog.card { border: 1px solid var(--sep-strong); }
 .topbar-in > .brand { display: inline-flex; align-items: center; gap: .45rem; font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; }
@@ -637,7 +643,7 @@ function deviation(ends) {
 const canApproveExt = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
 const extTarget = (kind, id) => kind === "project" ? proj(id) : req(id);
 const extPid = (kind, id) => kind === "project" ? id : req(id).pid;
-const extName = (kind, id) => kind === "project" ? "Whole project" : `#${id} ${req(id).title}`;
+const extName = (kind, id) => kind === "project" ? "Whole project" : `${reqCode(req(id))} ${req(id).title}`;
 const pendingExt = t => (t.extReqs || []).find(x => x.status === "pending");
 function canRequestExt(u, kind, id) {
   if (kind === "project") return canPlan(u, id);
@@ -645,7 +651,7 @@ function canRequestExt(u, kind, id) {
 }
 const baseStart = (kind, t) => kind === "project" ? t.start : (t.start || isoDay(t.created));
 const fieldWord = f => f === "start" ? "start date change" : "end date extension";
-const forWord = (kind, id) => kind === "project" ? "" : ` for #${id}`;
+const forWord = (kind, id) => kind === "project" ? "" : ` for ${reqCode(req(id))}`;
 function applyExt(u, kind, id, date, reason, by, field = "end") {
   const t = extTarget(kind, id), pid = extPid(kind, id), proj_ = kind === "project";
   let old;
@@ -796,8 +802,9 @@ function createReq(u, pid, title, desc, due, priority, start) {
   ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`, pid) || ov;
   checkDates(start, due, "due date");
   const id = nextId("r"), t = now();
-  S.reqs.push({id, pid, title, desc: desc.trim(), stage: 1, holders: [u.id], prev: null, prevStage: null, due: due || null, dues: due ? [due] : [], fbReqs: [], start: start || null,
-    priority, feedback: false, createdBy: u.id, entered: t, created: t, folder: `${p.folder}\\${id}_${clean(title, 50).replace(/ /g, "_")}`});
+  const code = `${p.code}-R${String(S.reqs.filter(x => x.pid === pid).length + 1).padStart(2, "0")}`;   // e.g. HDP-001-R01
+  S.reqs.push({id, code, pid, title, desc: desc.trim(), stage: 1, holders: [u.id], prev: null, prevStage: null, due: due || null, dues: due ? [due] : [], fbReqs: [], start: start || null,
+    priority, feedback: false, createdBy: u.id, entered: t, created: t, folder: `${p.folder}\\${code}_${clean(title, 50).replace(/ /g, "_")}`});
   log(pid, u, "Created requirement", {rid: id, to: u.id, toStage: 1, override: ov});
   return id;
 }
@@ -848,10 +855,12 @@ function unsend(u, hid) {
   log(r.pid, u, "Unsent", {rid: r.id, from: recips[0], to: r.holders[0], fromStage: x.toStage, toStage: x.fromStage});
   const hx = S.history[S.history.length - 1]; hx.fromList = recips; hx.toList = r.holders.slice();
   const p = proj(r.pid);
-  recips.forEach(t => S.outbox.unshift({at: now(), to: (user(t) || {}).email, subject: `[IDLC Streams ${p.code}] #${r.id} ${r.title}: Unsent`,
-    body: `${u.name} took back requirement #${r.id} ${r.title}. It was sent to you by mistake; no action is needed.`}));
+  recips.forEach(t => S.outbox.unshift({at: now(), to: (user(t) || {}).email, subject: `[IDLC Streams ${p.code}] ${reqCode(r)} ${r.title}: Unsent`,
+    body: `${u.name} took back requirement ${reqCode(r)} ${r.title}. It was sent to you by mistake; no action is needed.`}));
   return {names: recips.map(uname).join(", "), title: r.title, stage: STAGES[r.stage]};
 }
+// Requirement code shown everywhere instead of the internal number.
+const reqCode = r => r.code || `#${r.id}`;
 // A requirement can be assigned to several people at once; any of them can work on it and send it on.
 const holdersOf = r => r.holders || [];
 const holds = (r, uid) => holdersOf(r).includes(uid);
@@ -912,7 +921,7 @@ function decideFeedback(u, id, ok, stage, to, note) {
 }
 function fbTable(list, withProject) {
   return tbl(`<thead><tr><th>Requirement</th>${withProject ? "<th>Project</th>" : ""}<th>Stage</th><th>Requested by</th><th>Reason</th><th>When</th></tr></thead><tbody>${list.map(r => { const f = pendingFb(r); return `
-    <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td>${withProject ? `<td>${h(proj(r.pid).code)}</td>` : ""}
+    <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button></td>${withProject ? `<td>${h(proj(r.pid).code)}</td>` : ""}
     <td>${stageLabel(r.stage)}</td><td>${h(uname(f.by))}</td><td class="pre">${h(f.reason)}</td><td class="num">${fmt(f.at)}</td></tr>`; }).join("")}</tbody>`);
 }
 function accept(u, id, comment) {
@@ -976,10 +985,10 @@ function handoff(actor, r, action, to, comment, internal) {
   const rec = user(to), p = proj(r.pid);
   const hide = internal && has(r.pid, to, SH);
   const lines = [`${actor.name} sent you a requirement (${action}).`, "", `Project: ${p.code} · ${p.name}`,
-    `Requirement: #${r.id} ${r.title}`, `Stage: ${STAGES[r.stage]}`,
+    `Requirement: ${reqCode(r)} ${r.title}`, `Stage: ${STAGES[r.stage]}`,
     `Priority: ${r.priority}` + (r.due ? ` · Due: ${r.due}` : "")];
   if (comment && !hide) lines.push("", "Comment:", comment);
-  S.outbox.unshift({at: now(), to: rec.email, subject: `[IDLC Streams ${p.code}] #${r.id} ${r.title}: ${action}`, body: lines.join("\n")});
+  S.outbox.unshift({at: now(), to: rec.email, subject: `[IDLC Streams ${p.code}] ${reqCode(r)} ${r.title}: ${action}`, body: lines.join("\n")});
   S.outbox = S.outbox.slice(0, 30);
   return rec.name;
 }
@@ -1057,7 +1066,7 @@ function reqCard(id, keepComment) {
   const pf = pendingFb(r), all = seesAll(u, r.pid);
   const fbStage = pf ? defaultFbStage(r) : null, fbFrom = pf ? (members.find(m => m.uid === r.prev && m.uid !== pf.by) || members.find(m => m.uid !== pf.by) || members[0]) : null;
   const back = modal.open && modal.dataset.back ? +modal.dataset.back : 0;
-  openModal(`<div class="card-head">${back ? `<button type="button" class="btn secondary back-btn" data-act="back-project">‹ ${h(proj(back).code)}</button>` : ""}<h2 id="modal-title">${h(`Requirement #${r.id} · ${p.code}`)}</h2><button type="button" class="x" data-act="close" aria-label="Close">×</button></div>
+  openModal(`<div class="card-head">${back ? `<button type="button" class="btn secondary back-btn" data-act="back-project">‹ ${h(proj(back).code)}</button>` : ""}<h2 id="modal-title">${h(`Requirement ${reqCode(r)} · ${p.code}`)}</h2><button type="button" class="x" data-act="close" aria-label="Close">×</button></div>
   <form data-form="card" data-id="${id}">
     <div class="card-body">
       ${notes}
@@ -1291,8 +1300,8 @@ window.addEventListener("resize", setTopbarHeight);
 function renderTop() {
   const u = me(), v = S.view.name;
   const unread = notifications(u).filter(n => n.at > (u.notifSeen || 0)).length;
-  const nav = [["queue", "My Queue"], ["sent", "Sent Requests"], ["projects", "Projects"]].concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["archive", "Archive"]],
-    [["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`]], u.cto ? [["admin", "Admin"]] : []);
+  const nav = [["queue", "My Queue"], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`], ["projects", "Projects"]]
+    .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], u.cto ? [["admin", "Admin"]] : [], [["howto", "How To"]]);
   const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
   document.documentElement.dataset.nav = side ? "side" : "top";
   const aside = document.getElementById("sidenav"); aside.hidden = !side; aside.innerHTML = side ? `<nav aria-label="Main" class="side-nav">${links}</nav>` : "";
@@ -1300,8 +1309,8 @@ function renderTop() {
     <strong class="brand">IDLC Streams</strong>
     ${side ? `<span class="tb-spacer"></span>` : `<nav aria-label="Main">${links}</nav>`}
     <div class="tsearch" role="search">
-      <label for="top-q" class="sr-only">Search projects by code or name</label>
-      <input id="top-q" type="search" placeholder="Search project code" autocomplete="off" aria-controls="top-q-results">
+      <label for="top-q" class="sr-only">Search projects and requirements by code or name</label>
+      <input id="top-q" type="search" placeholder="Search code or name" autocomplete="off" aria-controls="top-q-results">
       <ul id="top-q-results" class="tsearch-results" hidden></ul>
     </div>
     <details class="menu" id="settings-menu"><summary>${h(u.name)} · Settings</summary>
@@ -1338,7 +1347,7 @@ function viewQueue(u) {
   ${ovs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project overviews waiting for your approval (${ovs.length})</h2>
     <ul class="files">${ovs.map(pp => `<li class="file-plain"><button class="linkish" data-go="project" data-tab="overview" data-id="${pp.id}">${h(pp.code)} · ${h(pp.name)}</button> <span class="file-meta">${ovPending(pp).change ? "change requested" : "sent"} by ${h(uname(ovPending(pp).by))} · ${fmt(ovPending(pp).at)}</span></li>`).join("")}</ul></section>` : ""}
   ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Date change requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
-    <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
+    <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
     <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td></tr>`).join("")}</tbody>`)
     : "<p>Nothing waiting for you.</p>"}
@@ -1397,7 +1406,7 @@ function projectPrimary(u, pid) {
   <section class="card-section"><div class="head-row"><h3 class="sec-title">${all ? "All requirements" : "Requirements you hold"}</h3>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
   ${all ? "" : `<p class="note">You see a requirement only while you hold it. Only the Project Head, Project Lead and Dev Lead see all requirements and who holds them.</p>`}
   ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${all ? "<th>Assigned to</th>" : ""}<th>Priority</th><th>Start</th><th>End date</th></tr></thead><tbody>${reqs.map(r => `
-    <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button>${pendingFb(r) && all ? " " + label("Feedback requested", "st-qa") : ""}</td><td>${stageLabel(r.stage)}</td>
+    <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button>${pendingFb(r) && all ? " " + label("Feedback requested", "st-qa") : ""}</td><td>${stageLabel(r.stage)}</td>
     ${all ? `<td>${holdersOf(r).length ? h(holderNames(r)) : ""}</td>` : ""}<td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td></tr>`).join("")}</tbody>`) : `<p class="note">${all ? "No requirements yet." : "Nothing in this project is with you right now."}</p>`}
   </section>
   ${all ? `<section class="card-section"><h3 class="sec-title">Workload</h3><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each member, in this project and across all active projects.</p>
@@ -1452,7 +1461,7 @@ function timelineRows(u, pid) {
   const p = proj(pid), all = seesAll(u, pid);
   return [{kind: "project", id: pid, name: "Whole project", start: p.start, starts: p.starts || (p.start ? [p.start] : []), startWhy: p.startWhy || {}, ends: p.deadlines || (p.deadline ? [p.deadline] : []), why: p.endWhy || {}, closed: p.status === "Closed"}]
     .concat(S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id) || involved(r, u.id))).sort((a, b) => a.id - b.id)
-      .map(r => ({kind: "req", id: r.id, name: `#${r.id} ${r.title}`, start: r.start || isoDay(r.created), starts: r.starts || [r.start || isoDay(r.created)], startWhy: r.startWhy || {}, ends: r.dues || (r.due ? [r.due] : []), why: r.endWhy || {}, closed: r.stage === 8})));
+      .map(r => ({kind: "req", id: r.id, name: `${reqCode(r)} ${r.title}`, start: r.start || isoDay(r.created), starts: r.starts || [r.start || isoDay(r.created)], startWhy: r.startWhy || {}, ends: r.dues || (r.due ? [r.due] : []), why: r.endWhy || {}, closed: r.stage === 8})));
 }
 function overviewSection(u, pid) {
   const p = proj(pid), dft = p.ovDraft, pend = ovPending(p), approved = !!p.ovApprovedAt, ov = p.overview || {};
@@ -1519,7 +1528,7 @@ function viewArchive(u) {
   const doneReqs = S.reqs.filter(r => r.stage === 8 && proj(r.pid).status !== "Closed" && canView(u, r.pid) && (seesAll(u, r.pid) || involved(r, u.id)))
     .sort((a, b) => (reqClosedAt(b.id) || 0) - (reqClosedAt(a.id) || 0));
   const reqTable = (reqs, withProject) => tbl(`<thead><tr><th>Requirement</th>${withProject ? "<th>Project</th>" : ""}<th>Final stage</th><th>Priority</th><th>Created by</th><th>Created</th><th>Closed</th><th>Files</th><th>Links</th></tr></thead><tbody>${reqs.map(r => `
-    <tr class="arc-row" data-q="${h([r.title, proj(r.pid).code, proj(r.pid).name].join(" ").toLowerCase())}"><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td>
+    <tr class="arc-row" data-q="${h([r.title, proj(r.pid).code, proj(r.pid).name].join(" ").toLowerCase())}"><td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button></td>
     ${withProject ? `<td>${h(proj(r.pid).code)}</td>` : ""}<td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td>
     <td>${h(uname(r.createdBy))}</td><td class="num">${fmt(r.created).slice(0, 10)}</td><td class="num">${reqClosedAt(r.id) ? fmt(reqClosedAt(r.id)).slice(0, 10) : ""}</td>
     <td class="num">${S.files.filter(f => f.rid === r.id).length}</td><td class="num">${(S.links || []).filter(l => l.rid === r.id).length}</td></tr>`).join("")}</tbody>`);
@@ -1561,7 +1570,7 @@ function viewSent(u) {
   return `<h1>Sent Requests</h1>
   <p class="note">Requirements you sent. If you sent one to the wrong person, Unsend brings it back to you at the stage it was in. Once the person you sent it to sends it on, it can no longer be unsent.</p>
   ${list.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Sent to</th><th>Stage</th><th>Sent</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${list.map(x => {
-    const r = req(x.rid), title = `#${r.id} ${h(r.title)}`;
+    const r = req(x.rid), title = `${reqCode(r)} ${h(r.title)}`;
     return `<tr><td>${canSeeReq(u, r) ? `<button class="linkish" data-act="open-card" data-id="${r.id}">${title}</button>` : `<strong>${title}</strong>`}</td>
       <td>${h(proj(r.pid).code)}</td><td>${h((x.toList || [x.to]).filter(Boolean).map(uname).join(", "))}</td>
       <td>${x.fromStage !== x.toStage ? `${stageLabel(x.fromStage)} → ${stageLabel(x.toStage)}` : stageLabel(x.toStage)}</td>
@@ -1648,6 +1657,25 @@ function viewNotifications(u) {
     ${n.rid ? `<button class="btn secondary" data-act="open-card" data-id="${n.rid}">Open</button>` : `<button class="btn secondary" data-go="project" data-id="${n.pid}">View project</button>`}</li>`).join("")}</ul>`
     : `<p style="margin-top:1rem">No activity in the last 24 hours.</p>`}`;
 }
+// How To: a short text manual for the essential tasks.
+function viewHowTo() {
+  const sec = (t, who, body) => `<section class="howto"><h2>${t}</h2>${who ? `<p class="note who">Who: ${who}</p>` : ""}${body}</section>`;
+  const ol = items => `<ol>${items.map(x => `<li>${x}</li>`).join("")}</ol>`, ul = items => `<ul>${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
+  return `<h1>How To</h1>
+  <p class="note" style="max-width:46rem">A short guide to the essential tasks. What you can do depends on your role in each project: Project Head (the CTO), Project Lead, Dev Lead, Project Analyst, Business Stakeholder, Developer or QA.</p>
+  ${sec("Find your work", "", ul(["<strong>My Queue</strong> lists the requirements assigned to you right now, highest priority first. Approvals waiting for you (feedback, date changes, overviews) appear at the top.", "<strong>Notifications</strong> shows the last 24 hours of activity that involves you. The red number shows new items.", "<strong>Search</strong> (top bar): type a project code (e.g. HDP-001) or a requirement code (e.g. HDP-001-R02), or part of a name, then press Enter."]))}
+  ${sec("Create a project", "Project Head", ol(["Open <strong>Projects</strong> (or use <strong>New project</strong> in My Queue).", "Type the name. The code is made automatically. Set the priority and the <strong>end date</strong> (required). Leave the start date empty to use today.", "Add people: pick a User and a Role. Use <strong>+ Add role</strong> to give one person several roles, and <strong>Add another person</strong> for more people.", "Check the Review step and press <strong>Create project</strong>."]))}
+  ${sec("Manage members", "Project Head, Project Lead, Dev Lead", ul(["Open the project card, Primary tab, Members.", "Pick a person and one or more roles, then <strong>Add member</strong>. Pick an existing member to give them another role.", "Remove a role with × on its chip, or remove the person with <strong>Remove</strong>. Only the Project Head removes a Project Lead or Dev Lead; Business Stakeholders are added or removed by the Project Head or Project Lead."]))}
+  ${sec("Create a requirement", "Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder", ol(["Open the project card and press <strong>New requirement</strong>.", "Enter the title (only the creator sets it), description, priority and dates. Add dummy file names and repository or reference links if needed.", "Choose the stage and one or more people, then press <strong>Send</strong>, or <strong>Keep it with me</strong> to keep it in your queue.", "The requirement gets a code such as HDP-001-R01."]))}
+  ${sec("Work on and send a requirement", "The people it is assigned to", ol(["Open it from My Queue.", "Add comments, dummy files and links as needed. Tick Internal to hide a comment from Business Stakeholders.", "Choose the next <strong>Stage</strong> and the person (use <strong>+ Add person</strong> for several), write a comment if useful, and press <strong>Send</strong>.", "<strong>Approval</strong> can only be sent to the Project Head, Project Lead or Dev Lead. One of them closes it by choosing <strong>Closed (approve)</strong>."]))}
+  ${sec("Ask for feedback", "The people it is assigned to; approved by the Project Head, Project Lead or Dev Lead", ol(["In the requirement card, open <strong>Request feedback</strong>, write the reason and send it.", "An approver opens it from My Queue, picks the Feedback stage and who gives feedback, then presses <strong>Accept and send</strong> or <strong>Decline</strong>."]))}
+  ${sec("Undo a send", "The person who sent it", ul(["Open <strong>Sent Requests</strong> and press <strong>Unsend</strong>. It comes back to you at the stage it was in.", "This only works until the other person sends it on."]))}
+  ${sec("Change a start or end date", "Asked by the Project Head, Project Lead, Dev Lead or the requirement's assignees; accepted by the Project Lead or Project Head", ol(["Project card, Overview tab, <strong>Date change requests</strong> (or <strong>Ask to change dates</strong> in a requirement card).", "Choose what it is for, Start date or End date, the new date and a reason (required).", "The Project Lead or Project Head accepts or declines it. Accepted changes appear in the Timeline with the reason."]))}
+  ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
+  ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
+  ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head): add users, new role names and new stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+}
 function viewAdmin(u) {
   if (!u.cto) return "<h1>Not allowed</h1><p>Admin is for the CTO only.</p>";
   return `<h1>Admin</h1>
@@ -1679,7 +1707,7 @@ function render() {
   const u = me(), v = S.view;
   const body = v.name === "projects" || v.name === "project" ? viewProjects(u)
     : v.name === "admin" ? viewAdmin(u) : v.name === "archive" ? viewArchive(u)
-    : v.name === "paused" ? viewPaused(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
+    : v.name === "paused" ? viewPaused(u) : v.name === "howto" ? viewHowTo() : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
   renderTop(); setTopbarHeight();
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
   save();
@@ -1697,7 +1725,7 @@ document.addEventListener("click", e => {
   const act = a.dataset.act;
   if (act === "close") { closeModal(); return; }
   if (act === "open-card") {
-    S.flash = null; const pw = modal.open && modal.querySelector(".pwrap");
+    S.flash = null; { const box = document.getElementById("top-q-results"); if (box) box.hidden = true; } const pw = modal.open && modal.querySelector(".pwrap");
     if (pw) modal.dataset.back = pw.dataset.pid; else if (!modal.open) modal.dataset.back = "";
     reqCard(+a.dataset.id); return;
   }
@@ -1760,10 +1788,10 @@ document.addEventListener("submit", e => {
         [...f.querySelectorAll("#nr-link-list li[data-url]")].forEach(li => addLink(u, rid, li.dataset.url, li.dataset.label));
         if (doIt === "send") {
           const to = proceed(u, rid, [...f.querySelectorAll(".to-picks select")].map(x => +x.value), d.comment, internal, st);
-          flash("ok", `Requirement #${rid} created and sent to ${to} in ${STAGES[st]}. They were emailed.`);
+          flash("ok", `Requirement ${reqCode(req(rid))} created and sent to ${to} in ${STAGES[st]}. They were emailed.`);
         } else {
           if (d.comment.trim()) addComment(u, rid, d.comment, internal);
-          flash("ok", `Requirement #${rid} created. It is in your queue.`);
+          flash("ok", `Requirement ${reqCode(req(rid))} created. It is in your queue.`);
         }
         return {reopenProject: pid};
       }
@@ -1811,10 +1839,14 @@ document.addEventListener("submit", e => {
 function topSearch(q) {
   const box = document.getElementById("top-q-results"), u = me(); q = q.trim().toLowerCase();
   if (!q) { box.hidden = true; box.innerHTML = ""; return; }
-  const hits = S.projects.filter(p => canView(u, p.id) && (p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)))
-    .sort((a, b) => (b.code.toLowerCase().startsWith(q)) - (a.code.toLowerCase().startsWith(q)) || a.code.localeCompare(b.code)).slice(0, 8);
-  box.innerHTML = hits.length ? hits.map(p => `<li><button type="button" data-go="project" data-id="${p.id}"><span class="code">${h(p.code)}</span><span class="pname">${h(p.name)}</span>${label(p.status, p.status === "Active" ? "st-ap" : "st-cl")}</button></li>`).join("")
-    : `<li class="none">No project matches “${h(q)}”.</li>`;
+  const first = (a, b) => (b.startsWith(q)) - (a.startsWith(q)) || a.localeCompare(b);
+  const projects = S.projects.filter(p => canView(u, p.id) && (p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)))
+    .sort((a, b) => first(a.code.toLowerCase(), b.code.toLowerCase())).slice(0, 5);
+  const reqs = S.reqs.filter(r => canSeeReq(u, r) && (reqCode(r).toLowerCase().includes(q) || r.title.toLowerCase().includes(q)))
+    .sort((a, b) => first(reqCode(a).toLowerCase(), reqCode(b).toLowerCase())).slice(0, 6);
+  box.innerHTML = !projects.length && !reqs.length ? `<li class="none">Nothing matches “${h(q)}”. You only find projects you belong to and requirements you can open.</li>`
+    : (projects.length ? `<li class="grp">Projects</li>` + projects.map(p => `<li><button type="button" data-go="project" data-id="${p.id}"><span class="code">${h(p.code)}</span><span class="pname">${h(p.name)}</span>${label(p.status, p.status === "Active" ? "st-ap" : "st-cl")}</button></li>`).join("") : "")
+    + (reqs.length ? `<li class="grp">Requirements</li>` + reqs.map(r => `<li><button type="button" data-act="open-card" data-id="${r.id}"><span class="code">${h(reqCode(r))}</span><span class="pname">${h(r.title)}</span>${stageLabel(r.stage)}</button></li>`).join("") : "");
   box.hidden = false;
 }
 document.addEventListener("keydown", e => {
@@ -1901,6 +1933,7 @@ document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden
 if (!load()) seed();
 syncLists();
 S.reqs.forEach(r => { if (!r.holders) r.holders = r.holder ? [r.holder] : []; delete r.holder; });
+S.projects.forEach(p => S.reqs.filter(r => r.pid === p.id).sort((a, b) => a.id - b.id).forEach((r, i) => { if (!r.code) r.code = `${p.code}-R${String(i + 1).padStart(2, "0")}`; }));
 S.projects.forEach(p => { if (!p.deadlines) p.deadlines = p.deadline ? [p.deadline] : []; if (!p.overview) p.overview = {}; });
 S.reqs.forEach(r => { if (!r.dues) r.dues = r.due ? [r.due] : []; if (!r.fbReqs) r.fbReqs = []; });
 if (S.view && S.view.name === "project") S.view = {name: "projects"};
