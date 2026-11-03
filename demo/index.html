@@ -265,7 +265,7 @@ a, .linkish { color: var(--accent); }
 .menu { position: relative; }
 .menu summary { list-style: none; cursor: pointer; padding: .4rem .95rem; border-radius: 999px; background: var(--tint); color: var(--accent); font-weight: 600; }
 .menu summary::-webkit-details-marker { display: none; }
-.menu-body { position: absolute; right: 0; z-index: 25; width: min(19rem, calc(100vw - 32px)); margin-top: .5rem; padding: 1rem;
+.menu-body { position: absolute; right: 0; z-index: 25; width: min(19rem, calc(100vw - 32px)); margin-top: .5rem; padding: 1rem; max-height: calc(100vh - 5rem); overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); display: grid; gap: .9rem; }
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 legend { font-weight: 600; font-size: .95rem; padding: 0 0 .35rem; }
@@ -1221,15 +1221,34 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 function load() { try { const v = localStorage.getItem(KEY); if (v) { S = JSON.parse(v); return true; } } catch (e) {} return false; }
 
 // ---------- sign-in ----------
-const INT_TYPES = ["Directory sign-in (LDAP / Active Directory)", "Single sign-on (SAML / OpenID Connect)", "Webhook", "REST API", "File storage"];
+const INT_TYPES = ["User import (HR / core system)", "Directory sign-in (LDAP / Active Directory)", "Single sign-on (SAML / OpenID Connect)", "Webhook", "REST API", "File storage"];
 function ensureAuthData() {
+  S.users.forEach((x, i) => { if (!x.sysadmin && !x.cif) x.cif = String(1004101 + i); });
   S.users.forEach(x => { if (!x.pw) x.pw = hashPw(x.sysadmin ? "admin" : "demo"); });
   if (!S.users.some(x => x.sysadmin)) S.users.push({id: nextId("u"), username: "admin", name: "System Admin", email: "admin@example.com", cto: false, sysadmin: true, pw: hashPw("admin"), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
   if (!S.mail) S.mail = {enabled: true, host: "smtp.example.com", port: 587, security: "STARTTLS", user: "streams@example.com", passSet: true, from: "streams@example.com", fromName: "IDLC Streams"};
   if (!S.integrations) S.integrations = [
-    {id: nextId("in"), name: "Company directory sign-in", type: INT_TYPES[0], url: "ldaps://ad.example.com", key: "saved", enabled: false, at: Date.now()},
+    {id: nextId("in"), name: "Company directory sign-in", type: INT_TYPES[1], url: "ldaps://ad.example.com", key: "saved", enabled: false, at: Date.now()},
     {id: nextId("in"), name: "Network file share", type: "File storage", url: "\\\\fs01\\IDLC_Streams", key: "", enabled: true, at: Date.now()}];
+  if (!S.integrations.some(x => x.type === INT_TYPES[0])) S.integrations.unshift({id: nextId("in"), name: "HR system (staff list)", type: INT_TYPES[0], url: "https://hr.example.com/api/staff", key: "saved", enabled: true, at: Date.now()});
 }
+// Username is made from the name: first name, then first.last, then first.last2, 3…
+function genUsername(name, skipId) {
+  const parts = String(name).replace(/\(.*?\)/g, " ").toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  const taken = un => S.users.some(x => x.id !== skipId && x.username.toLowerCase() === un);
+  const first = parts[0], last = parts.length > 1 ? parts[parts.length - 1] : "";
+  for (const c of [first, last && `${first}.${last}`]) if (c && !taken(c)) return c;
+  const base = last ? `${first}.${last}` : first; let n = 2; while (taken(base + n)) n++; return base + n;
+}
+// Demo stand-in for what the user-import integration returns: Name, Username, CIF.
+const HR_FEED = [
+  {name: "Farhana Rahman", username: "farhana.r", cif: "1004215"},
+  {name: "Tanvir Hasan", username: "", cif: "1004216"},
+  {name: "Rumana Akter", username: "rumana", cif: "1004217"},
+  {name: "Alvi Zaman", username: "alvi", cif: "1004105"},
+  {name: "Imran Chowdhury", username: "imam", cif: "1004218"}];
+let importRows = null;
 // Demo only: passwords are scrambled with a simple hash and kept in this browser. The real app stores PBKDF2 hashes on the server.
 const hashPw = pw => { let a = 5381, b = 52711; for (const ch of String(pw)) { const k = ch.charCodeAt(0); a = Math.imul(a, 33) ^ k; b = Math.imul(b, 31) ^ k; } return "demo$" + (a >>> 0).toString(16) + (b >>> 0).toString(16); };
 let auth = {step: "login", username: ""};
@@ -1620,6 +1639,11 @@ function renderTop() {
         <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
           .map(([k, t]) => `<option value="${k}" ${+u.size === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <button class="btn primary">Save settings</button></form>
+        <form data-form="chpw" class="stack"><fieldset><legend>Change password</legend>
+          <label for="cp-old">Current password<input id="cp-old" type="password" name="old" required autocomplete="current-password"></label>
+          <label for="cp-new">New password<input id="cp-new" type="password" name="pw" required autocomplete="new-password"></label>
+          <label for="cp-new2">Repeat new password<input id="cp-new2" type="password" name="pw2" required autocomplete="new-password"></label>
+          <button class="btn secondary">Change password</button></fieldset></form>
         <button type="button" class="btn secondary" data-act="logout">Sign out</button></div></details>`;
   document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.sysadmin ? " · Admin" : ""}${x.cto ? " · CTO" : ""}</option>`).join("");
 }
@@ -2036,9 +2060,28 @@ function viewHowTo() {
   ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
   ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
-  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
+  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password in the Settings menu (top right): enter your current password and the new one twice.", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): add users and email them reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+}
+function importPanel() {
+  const srcs = (S.integrations || []).filter(x => x.type === INT_TYPES[0]);
+  const on = srcs.filter(x => x.enabled);
+  let out = `<h3 style="margin-top:1.25rem">Import users from an integration</h3>
+    <p class="note" style="margin-bottom:.5rem">Brings in <strong>Name</strong>, <strong>Username</strong> and <strong>CIF</strong> (ID number). A blank or taken username is made from the name. People whose CIF is already here are skipped.</p>`;
+  if (!on.length) return out + `<p class="note">${srcs.length ? "Turn on" : "Add"} a "${INT_TYPES[0]}" integration below to import users.</p>`;
+  out += `<div class="row" style="margin:0"><label for="imp-src">Source<select id="imp-src">${on.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}</select></label>
+    <button type="button" class="btn secondary" data-act="imp-fetch">Fetch users</button></div>`;
+  if (!importRows) return out;
+  const rows = importRows.map((r, i) => {
+    const have = S.users.find(x => x.cif === r.cif), un = have ? have.username : (r.username && !S.users.some(x => x.username.toLowerCase() === r.username.toLowerCase()) ? r.username : genUsername(r.name));
+    return `<tr><td><input type="checkbox" name="pick" value="${i}" ${have ? "disabled" : "checked"} aria-label="Import ${h(r.name)}"></td><td>${h(r.name)}</td>
+      <td>${h(un)}${!have && un !== r.username ? ` <span class="note">(${r.username ? "was " + h(r.username) + ", taken" : "made from name"})</span>` : ""}</td><td>${h(r.cif)}</td>
+      <td>${have ? label("Already here", "pr-low") : label("New", "st-new")}</td></tr>`; }).join("");
+  return out + `<form data-form="impusers" class="stack panel" style="margin:.75rem 0 0">
+    ${tbl(`<thead><tr><th><span class="sr-only">Import</span></th><th>Name</th><th>Username</th><th>CIF</th><th>Status</th></tr></thead><tbody>${rows}</tbody>`)}
+    <label for="imp-pw">Temporary password for imported users<input id="imp-pw" type="password" name="pw" required autocomplete="new-password"></label>
+    <div class="row" style="margin:0"><button class="btn primary">Import selected</button><button type="button" class="btn secondary" data-act="imp-cancel">Cancel</button></div></form>`;
 }
 function viewAdmin(u) {
   if (!u.cto && !isSysAdmin(u)) return "<h1>Not allowed</h1><p>Admin is for the Project Head (CTO) and the system admin only.</p>";
@@ -2047,13 +2090,15 @@ function viewAdmin(u) {
   ${isSysAdmin(u) ? `<p class="note" style="margin-bottom:.5rem">You are signed in as the system admin. This account only has the Admin page.</p>` : ""}
   <section><h2>Users</h2><form data-form="newuser" class="stack narrow">
     <label for="nu-name">Full name<input id="nu-name" name="name" required></label>
-    <label for="nu-username">Username<input id="nu-username" name="username" required autocomplete="off"></label>
+    <label for="nu-username">Username <span class="note">made from the name</span><input id="nu-username" name="username" readonly tabindex="-1" placeholder="Type the full name first" autocomplete="off"></label>
+    <label for="nu-cif">CIF (ID number)<input id="nu-cif" name="cif" required inputmode="numeric" autocomplete="off"></label>
     <label for="nu-email">Email<input id="nu-email" type="email" name="email"></label>
     <label for="nu-pw">Temporary password<input id="nu-pw" type="password" name="pw" required autocomplete="new-password"></label>
     <button class="btn primary">Add user</button></form>
-    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Access</th><th><span class="sr-only">Password</span></th></tr></thead><tbody>${S.users.map(x => `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td><td>${h(x.email)}</td>
+    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>CIF</th><th>Email</th><th>Access</th><th><span class="sr-only">Password</span></th></tr></thead><tbody>${S.users.map(x => `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td><td>${h(x.cif || "")}</td><td>${h(x.email)}</td>
       <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head · Admin", "st-ap") : label("Staff", "st-cl")}</td>
       <td>${x.email ? `<button type="button" class="btn secondary qbtn" data-act="admin-reset" data-id="${x.id}">Email reset code</button>` : ""}</td></tr>`).join("")}</tbody>`)}
+    ${importPanel()}
   </section>
   <section><h2>Mail integration</h2>
     <p class="note" style="margin-bottom:.5rem">Used for password reset codes and email notifications. ${mailOn() ? label("On", "st-ap") : label("Off", "pr-low")} In this demo nothing is actually sent; emails appear in the Email log below.</p>
@@ -2131,6 +2176,12 @@ document.addEventListener("click", e => {
   if (act === "ptab") { setTab(a.dataset.tab); return; }
   if (act === "auth-step") { const un = (main.querySelector("[name=username], [name=who]") || {}).value; if (un) auth.username = un; auth.step = a.dataset.step; S.flash = null; render(); return; }
   if (act === "logout") { closeMenus(); S.me = null; S.view = {name: "queue"}; auth = {step: "login", username: ""}; flash("ok", "You are signed out."); render(); return; }
+  if (act === "imp-fetch" || act === "imp-cancel") {
+    const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
+    if (act === "imp-cancel") { importRows = null; S.flash = null; render(); return; }
+    const src = (S.integrations || []).find(x => x.id === +document.getElementById("imp-src").value);
+    importRows = HR_FEED.map(r => ({...r})); flash("ok", `Demo: ${importRows.length} people fetched from ${src ? src.name : "the integration"}. Tick who to import.`); render(); return;
+  }
   if (act === "int-toggle" || act === "int-del" || act === "int-test" || act === "mail-test" || act === "admin-reset") {
     const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
     run(() => {
@@ -2217,6 +2268,24 @@ document.addEventListener("submit", e => {
           from: d.from.trim(), fromName: d.fromName.trim() || "IDLC Streams"};
         flash("ok", `Mail settings saved. Email is ${S.mail.enabled ? "on" : "off"}.`); break;
       }
+      case "chpw": {
+        if (u.pw !== hashPw(d.old || "")) throw new RuleError("Your current password is not right.");
+        if ((d.pw || "").length < 4) throw new RuleError("The new password needs at least 4 characters.");
+        if (d.pw !== d.pw2) throw new RuleError("The two new passwords are not the same.");
+        if (d.pw === d.old) throw new RuleError("Choose a password different from the current one.");
+        u.pw = hashPw(d.pw); closeMenus(); flash("ok", "Password changed. Use it next time you sign in."); break;
+      }
+      case "impusers": {
+        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin import users.");
+        const picks = [...f.querySelectorAll("[name=pick]:checked")].map(x => importRows[+x.value]).filter(r => r && !S.users.some(x => x.cif === r.cif));
+        if (!picks.length) throw new RuleError("Tick at least one new person to import.");
+        if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
+        const names = picks.map(r => {
+          const un = r.username && !S.users.some(x => x.username.toLowerCase() === r.username.toLowerCase()) ? r.username : genUsername(r.name);
+          S.users.push({id: nextId("u"), username: un, name: r.name, cif: r.cif, email: "", cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+          return `${r.name} (${un})`; });
+        importRows = null; flash("ok", `Imported ${names.length}: ${names.join(", ")}.`); break;
+      }
       case "intadd": {
         if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin manage integrations.");
         if (!d.name.trim() || !d.url.trim()) throw new RuleError("Enter a name and an address.");
@@ -2293,12 +2362,14 @@ document.addEventListener("submit", e => {
         syncLists(); flash("ok", `Stage "${n}" added. It is now in the Stage dropdown when sending.`); break;
       }
       case "newuser": {
-        const un = d.username.trim(); if (!un || !d.name.trim()) throw new RuleError("Name and username are required.");
-        if (S.users.some(x => x.username.toLowerCase() === un.toLowerCase())) throw new RuleError("That username already exists.");
+        const un = genUsername(d.name || ""), cif = (d.cif || "").trim();
+        if (!un) throw new RuleError("Enter the full name.");
+        if (!/^\d+$/.test(cif)) throw new RuleError("CIF must be the ID number (digits only).");
+        if (S.users.some(x => x.cif === cif)) throw new RuleError("Someone with that CIF is already a user.");
         if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin add users.");
         if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
-        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
-        flash("ok", "User added."); break;
+        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), cif, email: d.email.trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+        flash("ok", `User added. Username: ${un}.`); break;
       }
     }
   }, f);
@@ -2330,6 +2401,7 @@ document.addEventListener("input", e => {
   }
   if (e.target.name === "accent") { document.documentElement.dataset.accent = e.target.value; return; }   // live preview
   if (e.target.id === "top-q") { topSearch(e.target.value); return; }
+  if (e.target.id === "nu-name") { document.getElementById("nu-username").value = genUsername(e.target.value); return; }
   if (e.target.id === "arc-q") {
     const q = e.target.value.trim().toLowerCase(); let shown = 0;
     document.querySelectorAll("details.arc").forEach(d => { const on = !q || d.dataset.q.includes(q); d.hidden = !on; if (on) shown++; if (q && on) d.open = true; });
