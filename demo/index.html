@@ -473,6 +473,9 @@ tr.tl-project td { background: var(--surface-2); }
 /* Menu position: top bar (default) or side bar */
 .tb-spacer { flex: 1; }
 :root[data-nav="side"] .topbar-in { max-width: none; }
+/* Every page starts at the same left edge beside the menu and uses the same width. */
+:root[data-nav="side"] main { margin: 0; width: 100%; max-width: 76rem; padding-block: 1.5rem 3rem; padding-left: 2rem; padding-right: max(2rem, env(safe-area-inset-right, 0px)); }
+@media (max-width: 48rem) { :root[data-nav="side"] main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); } }
 .navtoggle { min-height: 2.3rem; padding: .3em .9em; font-size: .9rem; display: inline-flex; align-items: center; gap: .45rem; }
 .nt-ico { width: 1rem; height: .85rem; border: 2px solid currentColor; border-radius: 3px; position: relative; }
 .nt-ico::after { content: ""; position: absolute; background: currentColor; }
@@ -1290,13 +1293,12 @@ function renderTop() {
   const unread = notifications(u).filter(n => n.at > (u.notifSeen || 0)).length;
   const nav = [["queue", "My Queue"], ["sent", "Sent Requests"], ["projects", "Projects"]].concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["archive", "Archive"]],
     [["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`]], u.cto ? [["admin", "Admin"]] : []);
-  const side = u.navPos === "side", links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
+  const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
   document.documentElement.dataset.nav = side ? "side" : "top";
   const aside = document.getElementById("sidenav"); aside.hidden = !side; aside.innerHTML = side ? `<nav aria-label="Main" class="side-nav">${links}</nav>` : "";
   document.getElementById("topbar").innerHTML = `
     <strong class="brand">IDLC Streams</strong>
     ${side ? `<span class="tb-spacer"></span>` : `<nav aria-label="Main">${links}</nav>`}
-    <button type="button" class="btn secondary navtoggle" data-act="nav-toggle" title="Move the menu to the ${side ? "top" : "side"}"><span class="nt-ico ${side ? "to-top" : "to-side"}" aria-hidden="true"></span>${side ? "Top menu" : "Side menu"}</button>
     <div class="tsearch" role="search">
       <label for="top-q" class="sr-only">Search projects by code or name</label>
       <input id="top-q" type="search" placeholder="Search project code" autocomplete="off" aria-controls="top-q-results">
@@ -1700,7 +1702,6 @@ document.addEventListener("click", e => {
     reqCard(+a.dataset.id); return;
   }
   if (act === "ptab") { setTab(a.dataset.tab); return; }
-  if (act === "nav-toggle") { const u = me(); u.navPos = u.navPos === "side" ? "top" : "side"; render(); const b = document.querySelector("[data-act=nav-toggle]"); if (b) b.focus(); return; }
   if (act === "dl-report" || act === "dl-csv") { offerDownload(act, +a.dataset.pid); return; }
   if (act === "back-project") { S.flash = null; projectCard(+modal.dataset.back); return; }
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
