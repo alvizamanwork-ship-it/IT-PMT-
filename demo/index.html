@@ -359,7 +359,7 @@ code { font-family: var(--mono); font-size: .9em; overflow-wrap: anywhere; }
 .label.tag-sh { background: var(--btn); color: var(--on-btn); border-color: var(--btn); }
 
 /* Sheets (popup cards) */
-dialog.card { border: 0; border-radius: 1.1rem; padding: 0; width: min(46rem, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+dialog.card { border: 0; border-radius: 1.1rem; padding: 0; width: min(76rem, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
   background: var(--bg); color: var(--text); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .45); }
 dialog.card[open] { display: flex; flex-direction: column; overflow: hidden; }
 dialog.card > form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
@@ -447,7 +447,8 @@ details.arc { margin: .75rem 0; }
 .notif .file-meta { margin: .2rem 0 0; }
 @media (max-width: 30rem) { .notif { flex-wrap: wrap; } }
 /* Project card: wide sheet with Primary / Overview tabs */
-dialog.card.wide { width: min(66rem, calc(100vw - 32px)); }
+dialog.card.wide { width: min(80rem, calc(100vw - 32px)); }
+dialog.card.narrow { width: min(30rem, calc(100vw - 32px)); }
 dialog.card > .pwrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .card-tabs { flex: none; padding: .75rem 1.1rem .1rem; }
 .tabs { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; background: var(--surface-2); border-radius: .65rem; }
@@ -1337,8 +1338,8 @@ function syncToOptions(form) {
     : "The Project Head only receives approval requests, so they are not listed for this stage.";
 }
 document.addEventListener("change", e => { if (e.target.name === "stage" && e.target.form) syncToOptions(e.target.form); });
-function openModal(html, wide) {
-  modal.classList.toggle("wide", !!wide);
+function openModal(html, wide, narrow) {
+  modal.classList.toggle("wide", !!wide); modal.classList.toggle("narrow", !!narrow);
   modal.innerHTML = html; if (!modal.open) modal.showModal();
   const f = modal.querySelector(".pwrap") ? modal.querySelector('[role=tab][aria-selected="true"]')
     : modal.querySelector("form[data-form=card]") ? modal.querySelector(".x")
@@ -1367,7 +1368,7 @@ function pwCard(mode, info) {
   openModal(`${cardHead("Change password")}<form data-form="${mode === "code" ? "chpwcode" : "chpw"}">
     <div class="card-body"><section class="card-section stack">${body}</section>${modalError}</div>
     <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Cancel</button><span class="spacer"></span>
-      <button class="btn primary">Change password</button></div></form>`);
+      <button class="btn primary">Change password</button></div></form>`, false, true);
 }
 const memberSort = p => p.members.slice().sort((a, b) => a.roles.includes(HEAD) - b.roles.includes(HEAD) || uname(a.uid).localeCompare(uname(b.uid)));
 
@@ -1650,7 +1651,7 @@ function renderTop() {
   const dueRem = dueReminders(u);
   const nav = [["queue", "My Queue"], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
     ["reminders", `Reminders${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
-    .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], u.cto ? [["admin", "Admin"]] : [], [["howto", "How To"]]);
+    .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], [["howto", "How To"]]);
   if (isSysAdmin(u)) nav.splice(0, nav.length, ["admin", "Admin"]);
   const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
   document.documentElement.dataset.nav = side ? "side" : "top";
@@ -2093,9 +2094,9 @@ function viewHowTo() {
   ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
   ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
-  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
+  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "Admin is only for the system admin account (admin), which only opens the Admin page. The Project Head does not have Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): set the folder share where uploaded files are saved (files are only ever added, never deleted), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF, Email), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (system admin only; the Project Head does not have it): set the folder share where uploaded files are saved (files are only ever added, never deleted), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF, Email), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
 function importPanel() {
   const srcs = (S.integrations || []).filter(x => x.type === INT_TYPES[0]);
@@ -2117,7 +2118,7 @@ function importPanel() {
     <div class="row" style="margin:0"><button class="btn primary">Import selected</button><button type="button" class="btn secondary" data-act="imp-cancel">Cancel</button></div></form>`;
 }
 function viewAdmin(u) {
-  if (!u.cto && !isSysAdmin(u)) return "<h1>Not allowed</h1><p>Admin is for the Project Head (CTO) and the system admin only.</p>";
+  if (!isSysAdmin(u)) return "<h1>Not allowed</h1><p>Admin is for the system admin only.</p>";
   const ml = S.mail || {};
   return `<h1>Admin</h1>
   ${isSysAdmin(u) ? `<p class="note" style="margin-bottom:.5rem">You are signed in as the system admin. This account only has the Admin page.</p>` : ""}
@@ -2129,7 +2130,7 @@ function viewAdmin(u) {
     <label for="nu-pw">Temporary password<input id="nu-pw" type="password" name="pw" required autocomplete="new-password"></label>
     <button class="btn primary">Add user</button></form>
     ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>CIF</th><th>Email</th><th>Access</th><th><span class="sr-only">Password</span></th></tr></thead><tbody>${S.users.map(x => `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td><td>${h(x.cif || "")}</td><td>${h(x.email)}</td>
-      <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head · Admin", "st-ap") : label("Staff", "st-cl")}</td>
+      <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head", "st-ap") : label("Staff", "st-cl")}</td>
       <td>${x.email ? `<button type="button" class="btn secondary qbtn" data-act="admin-reset" data-id="${x.id}">Email reset code</button>` : ""}</td></tr>`).join("")}</tbody>`)}
     ${importPanel()}
   </section>
@@ -2227,16 +2228,16 @@ document.addEventListener("click", e => {
     catch (err) { if (!(err instanceof RuleError)) throw err; const el = modal.querySelector("#modal-error"); el.textContent = "Cannot do that: " + err.message; el.hidden = false; }
     return;
   }
-  if (act === "fs-test") { const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return; const st = S.storage || {};
+  if (act === "fs-test") { const u = me(); if (!u || !isSysAdmin(u)) return; const st = S.storage || {};
     flash(st.enabled && st.path ? "ok" : "error", st.enabled && st.path ? `Demo: would check ${st.path} as ${st.user || "the service account"}: create folder ✓, write file ✓, delete ✗ (blocked, as required).` : "Turn on the folder share and enter its link first."); render(); return; }
   if (act === "imp-fetch" || act === "imp-cancel") {
-    const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
+    const u = me(); if (!u || !isSysAdmin(u)) return;
     if (act === "imp-cancel") { importRows = null; S.flash = null; render(); return; }
     const src = (S.integrations || []).find(x => x.id === +document.getElementById("imp-src").value);
     importRows = HR_FEED.map(r => ({...r})); flash("ok", `Demo: ${importRows.length} people fetched from ${src ? src.name : "the integration"}. Tick who to import.`); render(); return;
   }
   if (act === "int-toggle" || act === "int-del" || act === "int-test" || act === "mail-test" || act === "admin-reset") {
-    const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
+    const u = me(); if (!u || !isSysAdmin(u)) return;
     run(() => {
       if (act === "admin-reset") { const x = user(+a.dataset.id), code = sendResetCode(x); flash("ok", `Reset code emailed to ${x.email}. Demo: the code is ${code}.`); }
       if (act === "mail-test") { if (!mailOn()) throw new RuleError("Turn on Send emails and save first."); S.outbox.unshift({at: now(), to: u.email || S.mail.from, subject: "[IDLC Streams] Test email", body: `This is a test from ${S.mail.host}:${S.mail.port} (${S.mail.security}).`}); flash("ok", `Test email sent to ${u.email || S.mail.from}. See the Email log.`); }
@@ -2317,7 +2318,7 @@ document.addEventListener("submit", e => {
         flash("ok", "Password changed. Sign in with your new password."); break;
       }
       case "mailcfg": {
-        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin change mail settings.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin changes mail settings.");
         if (d.enabled === "yes" && (!d.host.trim() || !d.from.trim())) throw new RuleError("Enter the SMTP server and the From address to turn email on.");
         S.mail = {enabled: d.enabled === "yes", host: d.host.trim(), port: +d.port || 587, security: d.security, user: d.user.trim(), passSet: !!(d.pass || (S.mail && S.mail.passSet)),
           from: d.from.trim(), fromName: d.fromName.trim() || "IDLC Streams"};
@@ -2338,7 +2339,7 @@ document.addEventListener("submit", e => {
         u.pw = hashPw(d.pw); delete u.reset; flash("ok", "Password changed. Use it next time you sign in."); break;
       }
       case "impusers": {
-        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin import users.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin imports users.");
         const picks = [...f.querySelectorAll("[name=pick]:checked")].map(x => importRows[+x.value]).filter(r => r && !S.users.some(x => x.cif === r.cif));
         if (!picks.length) throw new RuleError("Tick at least one new person to import.");
         if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
@@ -2349,14 +2350,14 @@ document.addEventListener("submit", e => {
         importRows = null; flash("ok", `Imported ${names.length}: ${names.join(", ")}.`); break;
       }
       case "storagecfg": {
-        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin set up file storage.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin sets up file storage.");
         const path = (d.path || "").trim();
         if (d.enabled === "yes" && !/^(\\\\[^\\\s]+\\[^\\]+|smb:\/\/\S+\/\S+)/i.test(path)) throw new RuleError("Enter a folder share link like \\\\server\\share\\folder (or smb://server/share/folder).");
         S.storage = {enabled: d.enabled === "yes", path, user: (d.user || "").trim(), passSet: !!(d.pass || (S.storage && S.storage.passSet))};
         flash("ok", `Folder share saved. Saving files there is ${S.storage.enabled ? "on" : "off"}. Delete stays blocked.`); break;
       }
       case "intadd": {
-        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin manage integrations.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin manages integrations.");
         if (!d.name.trim() || !d.url.trim()) throw new RuleError("Enter a name and an address.");
         (S.integrations = S.integrations || []).push({id: nextId("in"), name: d.name.trim(), type: d.type, url: d.url.trim(), key: d.key ? "saved" : "", enabled: d.enabled === "yes", at: now()});
         flash("ok", `Integration "${d.name.trim()}" added.`); break;
@@ -2416,13 +2417,13 @@ document.addEventListener("submit", e => {
         S.view = {name: "projects"}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); return {reopenProject: np};
       }
       case "newrole": {
-        if (!u.cto) throw new Forbidden("Only the CTO adds roles.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin adds roles.");
         const n = d.name.trim(); if (!n) throw new RuleError("Type a role name.");
         if ([HEAD].concat(S.roles).some(r => r.toLowerCase() === n.toLowerCase())) throw new RuleError("That role already exists.");
         S.roles.push(n); syncLists(); flash("ok", `Role "${n}" added. It is now in every role dropdown.`); break;
       }
       case "newstage": {
-        if (!u.cto) throw new Forbidden("Only the CTO adds stages.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin adds stages.");
         const n = d.name.trim(); if (!n) throw new RuleError("Type a stage name.");
         if (S.stages.some(x => x.name.toLowerCase() === n.toLowerCase())) throw new RuleError("That stage already exists.");
         const id = Math.max(...S.stages.map(x => x.id)) + 1, folders = new Set(S.stages.map(x => x.folder)).size;
@@ -2435,7 +2436,7 @@ document.addEventListener("submit", e => {
         if (!un) throw new RuleError("Enter the full name.");
         if (!/^\d+$/.test(cif)) throw new RuleError("CIF must be the ID number (digits only).");
         if (S.users.some(x => x.cif === cif)) throw new RuleError("Someone with that CIF is already a user.");
-        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin add users.");
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin adds users.");
         if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
         S.users.push({id: nextId("u"), username: un, name: d.name.trim(), cif, email: d.email.trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
         flash("ok", `User added. Username: ${un}.`); break;
@@ -2535,7 +2536,7 @@ document.getElementById("as-user").addEventListener("change", e => {
   if (!e.target.value) return;
   S.me = +e.target.value; const u = me(); calDay = null; calYM = null; auth = {step: "login", username: ""};
   if (isSysAdmin(u)) { S.view = {name: "admin"}; flash("ok", "Now signed in as the system admin (Admin page only)."); render(); return; }
-  if (((S.view.name === "admin" || S.view.name === "paused") && !u.cto) || S.view.name === "notifications") S.view = {name: "queue"};
+  if (S.view.name === "admin" || (S.view.name === "paused" && !u.cto) || S.view.name === "notifications") S.view = {name: "queue"};
   flash("ok", `Now viewing as ${u.name}${u.cto ? " (CTO)" : ""}. Roles: ${S.projects.filter(p => role(p.id, u.id)).map(p => `${p.code} ${role(p.id, u.id)}`).join(", ") || (u.cto ? "CTO on all projects" : "none")}.`);
   render();
 });
