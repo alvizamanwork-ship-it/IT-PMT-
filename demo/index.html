@@ -629,7 +629,7 @@ const PRIORITIES = ["Low", "Normal", "High"];
 const CREATORS = ["Business Stakeholder", "Project Analyst", "Project Lead", "Dev Lead"];
 const LEADS = ["Project Lead", "Dev Lead"];
 const SH = "Business Stakeholder", AN = "Project Analyst";
-const FILE_ROOT = "\\\\fs01\\IDLC_Streams";
+const fileRoot = () => ((S && S.storage && S.storage.path) || "\\\\fs01\\IDLC_Streams").replace(/[\\/]+$/, "");
 const DAY = 864e5;
 const KEY = "pmt-demo-v8";
 const HEAD = "Project Head";
@@ -696,7 +696,7 @@ function createProject(u, name, priority = "Normal", deadline = "", start = "", 
   start = start || isoDay(now());   // no start date given: the day it is created
   checkDates(start, deadline, "end date");
   const code = genCode(type);
-  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, type, deadline, deadlines: [deadline], start, overview: {},
+  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${fileRoot()}\\${code}`, priority, type, deadline, deadlines: [deadline], start, overview: {},
     members: S.users.filter(x => x.cto).map(x => ({uid: x.id, roles: [HEAD]}))};
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
@@ -1042,9 +1042,10 @@ function upload(u, id, filename) {
   const folder = stageFolder(r.stage);
   const base0 = clean(filename.split(/[\\/]/).pop(), 80), dot = base0.lastIndexOf(".");
   const base = dot > 0 ? base0.slice(0, dot) : base0, ext = dot > 0 ? base0.slice(dot) : "";
-  const taken = new Set(S.files.filter(f => f.rid === id && f.folder === folder).map(f => f.name));
+  const taken = new Set(S.files.concat(S.removedFiles || []).filter(f => f.rid === id && f.folder === folder).map(f => f.name));   // never overwrite a file on the share
   let name = base0, n = 1; while (taken.has(name)) name = `${base}_v${++n}${ext}`;
-  S.files.push({id: nextId("f"), rid: id, stage: r.stage, folder, name, uid: u.id, at: now()});
+  const st0 = S.storage || {}, path = st0.enabled && st0.path ? [st0.path.replace(/[\\/]+$/, ""), proj(r.pid).code, reqCode(r), folder, name].join("\\") : "";
+  S.files.push({id: nextId("f"), rid: id, stage: r.stage, folder, name, uid: u.id, at: now(), path});
   log(r.pid, u, `Uploaded ${name}`, {rid: id, override: ov});
   return name;
 }
@@ -1074,8 +1075,9 @@ function removeItem(u, kind, xid) {
   const ov = require_(u, st === "Active", `Project is ${st}; changes are blocked.`, r.pid);
   if (r.stage === 8) throw new RuleError("This requirement is Closed.");
   if (!canRemoveItem(u, r, x)) throw new Forbidden("Only the person who added it, or the Project Head, Project Lead or Dev Lead, can remove it.");
-  if (kind === "file") S.files = S.files.filter(y => y !== x); else S.links = S.links.filter(y => y !== x);
-  log(r.pid, u, `Removed ${kind === "file" ? "file " + x.name : "link " + (x.label || x.url)}`, {rid: r.id, override: ov});
+  if (kind === "file") { S.files = S.files.filter(y => y !== x); (S.removedFiles = S.removedFiles || []).push({...x, removedBy: u.id, removedAt: now()}); }
+  else S.links = S.links.filter(y => y !== x);
+  log(r.pid, u, kind === "file" ? `Removed file ${x.name} from the requirement${x.path ? " (it stays on the folder share)" : ""}` : `Removed link ${x.label || x.url}`, {rid: r.id, override: ov});
   return kind === "file" ? x.name : (x.label || x.url);
 }
 const linkRow = (l, extra = "") => `<li class="file"><span class="ext" aria-hidden="true">${linkKind(l.url)}</span><span class="file-main">
@@ -1241,8 +1243,12 @@ function ensureAuthData() {
   if (!S.users.some(x => x.sysadmin)) S.users.push({id: nextId("u"), username: "admin", name: "System Admin", email: "admin@example.com", cto: false, sysadmin: true, pw: hashPw("admin"), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
   if (!S.mail) S.mail = {enabled: true, host: "smtp.example.com", port: 587, security: "STARTTLS", user: "streams@example.com", passSet: true, from: "streams@example.com", fromName: "IDLC Streams"};
   if (!S.integrations) S.integrations = [
-    {id: nextId("in"), name: "Company directory sign-in", type: INT_TYPES[1], url: "ldaps://ad.example.com", key: "saved", enabled: false, at: Date.now()},
-    {id: nextId("in"), name: "Network file share", type: "File storage", url: "\\\\fs01\\IDLC_Streams", key: "", enabled: true, at: Date.now()}];
+    {id: nextId("in"), name: "Company directory sign-in", type: INT_TYPES[1], url: "ldaps://ad.example.com", key: "saved", enabled: false, at: Date.now()}];
+  if (!S.storage) {
+    S.storage = {enabled: true, path: "\\\\fs01\\IDLC_Streams", user: "svc_streams", passSet: true};
+    S.integrations = S.integrations.filter(x => !(x.type === "File storage" && x.name === "Network file share"));
+  }
+  if (!S.removedFiles) S.removedFiles = [];
   if (!S.integrations.some(x => x.type === INT_TYPES[0])) S.integrations.unshift({id: nextId("in"), name: "HR system (staff list)", type: INT_TYPES[0], url: "https://hr.example.com/api/staff", key: "saved", enabled: true, at: Date.now()});
 }
 // Username is made from the name: first name, then first.last, then first.last2, 3…
@@ -1407,7 +1413,7 @@ function reqCard(id, keepComment) {
       <section class="card-section"><h3 class="fl">Requirement title</h3><p class="title-view">${h(r.title)}</p>
         <p class="meta">${stageLabel(r.stage)}${priLabel(r.priority + " priority")}${r.start ? `<span>Starts ${r.start}</span>` : ""}${r.due ? `<span>Due ${r.due}</span>` : ""}<span>${holdersOf(r).length > 1 ? "Assigned to" : "Holder"}: ${h(holderNames(r))}</span><span>Created by ${h(uname(r.createdBy))}</span>${r.dues && r.dues.length > 1 ? `<span>End date moved ${r.dues.length - 1}×</span>` : ""}</p></section>
       <section class="card-section"><h3 class="fl">Uploaded files</h3>
-        ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span></span>${!ro && canRemoveItem(u, r, f) ? `<button type="button" class="linkish" data-act="rm-item" data-kind="file" data-id="${f.id}" data-rid="${id}" aria-label="Remove ${h(f.name)}">Remove</button>` : ""}</li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
+        ${files.length ? `<ul class="files">${files.map(f => `<li class="file"><span class="ext" aria-hidden="true">${extOf(f.name)}</span><span class="file-main"><button type="button" class="linkish file-name" data-act="download" data-name="${h(f.name)}">${h(f.name)}</button><span class="file-meta">${f.folder} · ${h(uname(f.uid))} · ${fmt(f.at)}</span>${f.path ? `<span class="file-meta file-path" title="${h(f.path)}">On folder share: ${h(f.path)}</span>` : ""}</span>${!ro && canRemoveItem(u, r, f) ? `<button type="button" class="linkish" data-act="rm-item" data-kind="file" data-id="${f.id}" data-rid="${id}" aria-label="Remove ${h(f.name)} from this requirement" title="${f.path ? "Hides it here; the file stays on the folder share" : "Remove from this requirement"}">Remove</button>` : ""}</li>`).join("")}</ul>` : `<p class="note">No files yet.</p>`}
         ${ro ? "" : `<div class="row" style="margin:0"><label for="cd-dummy">Dummy file name<input id="cd-dummy" placeholder="e.g. test_plan.xlsx" autocomplete="off"></label>
           <button type="button" class="btn secondary" data-act="add-dummy" data-rid="${id}">Add dummy file</button></div>
         <p class="note">For testing: adds a file name only, no real file. It goes into ${stageFolder(r.stage)}; the same name again becomes _v2, _v3.</p>`}
@@ -1500,7 +1506,7 @@ function projectDialog() {
           <label for="np-deadline">End date (required)<input id="np-deadline" type="date" name="deadline" required></label></div>
         <p class="note">No start date? The day you create the project is used. The Project Lead and Dev Lead can extend the end date later; every extension is kept in the Timeline.</p>
         <dl class="kv"><dt>Code</dt><dd><output id="np-code">${genCode("Internal")}</output> <span class="note">(automatic, from the project type)</span></dd>
-          <dt>Folder</dt><dd><code id="np-folder">${h(FILE_ROOT)}\\${genCode("Internal")}</code></dd></dl>
+          <dt>Folder</dt><dd><code id="np-folder">${h(fileRoot())}\\${genCode("Internal")}</code></dd></dl>
       </section>
       <section data-step="2" class="stack" hidden>
         <p class="note">${h(heads)} joins every project as Project Head. Add the other people and their roles.</p>
@@ -1557,7 +1563,7 @@ function wizGo(step) {
     const team = teamPicks(f).map(t => `${h(uname(t.uid))} (${h(t.roles.join(", "))})`);
     const heads = S.users.filter(x => x.cto).map(x => `${h(x.name)} (Project Head)`);
     modal.querySelector("#np-review").innerHTML = `<dl class="kv"><dt>Name</dt><dd>${h(name)}</dd><dt>Code</dt><dd>${genCode(f.querySelector("#np-type").value)}</dd>
-      <dt>Folder</dt><dd><code>${h(FILE_ROOT)}\\${genCode(f.querySelector("#np-type").value)}</code></dd><dt>Type</dt><dd>${h(f.querySelector("#np-type").value)}</dd><dt>Status</dt><dd>${label("Active")}</dd>
+      <dt>Folder</dt><dd><code>${h(fileRoot())}\\${genCode(f.querySelector("#np-type").value)}</code></dd><dt>Type</dt><dd>${h(f.querySelector("#np-type").value)}</dd><dt>Status</dt><dd>${label("Active")}</dd>
       <dt>Priority</dt><dd>${priLabel(f.querySelector("#np-pri").value)}</dd><dt>Start date</dt><dd>${h(startV) || `${isoDay(now())} (today)`}</dd><dt>End date</dt><dd>${h(endV)}</dd>
       <dt>Team</dt><dd>${heads.concat(team).join("<br>")}</dd></dl>`;
     f.querySelector("#np-create").focus();
@@ -2089,7 +2095,7 @@ function viewHowTo() {
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
   ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): set the folder share where uploaded files are saved (files are only ever added, never deleted), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
 function importPanel() {
   const srcs = (S.integrations || []).filter(x => x.type === INT_TYPES[0]);
@@ -2140,6 +2146,18 @@ function viewAdmin(u) {
         <label for="ml-name">From name<input id="ml-name" name="fromName" value="${h(ml.fromName || "IDLC Streams")}"></label></div>
       <div class="row" style="margin:0"><button class="btn primary">Save mail settings</button><button type="button" class="btn secondary" data-act="mail-test">Send test email</button></div>
     </form></section>
+  <section><h2>Folder share (file storage)</h2>
+    ${(() => { const st = S.storage || {}; return `<p class="note" style="margin-bottom:.5rem">Uploaded files are saved to an internal server folder share. ${st.enabled && st.path ? label("On", "st-ap") : label("Off", "pr-low")} In this demo nothing is written.</p>
+    <form data-form="storagecfg" class="stack panel" style="margin:0">
+      <label class="check"><input type="checkbox" id="fs-on" name="enabled" value="yes" ${st.enabled ? "checked" : ""}> Save uploaded files to the folder share</label>
+      <label for="fs-path">Folder share link<input id="fs-path" name="path" value="${h(st.path || "")}" placeholder="\\\\server\\share\\IDLC_Streams" autocomplete="off" spellcheck="false"></label>
+      <div class="row" style="margin:0"><label for="fs-user">Service account<input id="fs-user" name="user" value="${h(st.user || "")}" placeholder="DOMAIN\\svc_streams" autocomplete="off"></label>
+        <label for="fs-pass">Password<input id="fs-pass" type="password" name="pass" placeholder="${st.passSet ? "Saved. Leave blank to keep" : "Not set"}" autocomplete="new-password"></label></div>
+      <div class="panel" style="margin:0"><strong>Delete: never.</strong> IDLC Streams only adds files. It never deletes or overwrites anything on the share: a file with the same name is saved as _v2, _v3, and <strong>Remove</strong> on a requirement only hides the file there; it stays on the share.
+        <br><span class="note">Folder layout: share \\ project code \\ requirement code \\ stage folder \\ file. Give the service account permission to create folders and write files, but not to delete or change permissions.</span>
+        ${(S.removedFiles || []).length ? `<br><span class="note">${S.removedFiles.length} file${S.removedFiles.length > 1 ? "s" : ""} removed from requirements and still kept on the share.</span>` : ""}</div>
+      <div class="row" style="margin:0"><button class="btn primary">Save folder share</button><button type="button" class="btn secondary" data-act="fs-test">Test access</button></div>
+    </form>`; })()}</section>
   <section><h2>Integrations with other sites</h2>
     <p class="note" style="margin-bottom:.5rem">Connect IDLC Streams to other systems, for example company directory sign-in, a file share, or a webhook to another tool. In this demo nothing is contacted.</p>
     ${(S.integrations || []).length ? tbl(`<thead><tr><th>Name</th><th>Type</th><th>Address</th><th>Key</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${S.integrations.map(x => `<tr>
@@ -2209,6 +2227,8 @@ document.addEventListener("click", e => {
     catch (err) { if (!(err instanceof RuleError)) throw err; const el = modal.querySelector("#modal-error"); el.textContent = "Cannot do that: " + err.message; el.hidden = false; }
     return;
   }
+  if (act === "fs-test") { const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return; const st = S.storage || {};
+    flash(st.enabled && st.path ? "ok" : "error", st.enabled && st.path ? `Demo: would check ${st.path} as ${st.user || "the service account"}: create folder ✓, write file ✓, delete ✗ (blocked, as required).` : "Turn on the folder share and enter its link first."); render(); return; }
   if (act === "imp-fetch" || act === "imp-cancel") {
     const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
     if (act === "imp-cancel") { importRows = null; S.flash = null; render(); return; }
@@ -2327,6 +2347,13 @@ document.addEventListener("submit", e => {
           S.users.push({id: nextId("u"), username: un, name: r.name, cif: r.cif, email: "", cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
           return `${r.name} (${un})`; });
         importRows = null; flash("ok", `Imported ${names.length}: ${names.join(", ")}.`); break;
+      }
+      case "storagecfg": {
+        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin set up file storage.");
+        const path = (d.path || "").trim();
+        if (d.enabled === "yes" && !/^(\\\\[^\\\s]+\\[^\\]+|smb:\/\/\S+\/\S+)/i.test(path)) throw new RuleError("Enter a folder share link like \\\\server\\share\\folder (or smb://server/share/folder).");
+        S.storage = {enabled: d.enabled === "yes", path, user: (d.user || "").trim(), passSet: !!(d.pass || (S.storage && S.storage.passSet))};
+        flash("ok", `Folder share saved. Saving files there is ${S.storage.enabled ? "on" : "off"}. Delete stays blocked.`); break;
       }
       case "intadd": {
         if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin manage integrations.");
@@ -2452,7 +2479,7 @@ document.addEventListener("input", e => {
   }
   if (e.target.id === "np-name" || e.target.id === "np-type") {
     const c = genCode(document.getElementById("np-type").value); document.getElementById("np-code").textContent = c;
-    document.getElementById("np-folder").textContent = `${FILE_ROOT}\\${c}`;
+    document.getElementById("np-folder").textContent = `${fileRoot()}\\${c}`;
   }
 });
 // Dummy files: a name only, for trying the flow without real files.
