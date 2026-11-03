@@ -37,7 +37,7 @@
 - Text boxes, comments, file rows and emails are inverted panels with a brushed-metal rim: dark in Light mode, bright in Dark mode. All colour pairs meet WCAG AA.
 - Under the files, a requirement can hold repository and reference links (URL plus optional label). Repository hosts (GitHub, GitLab, Bitbucket, Azure DevOps) are tagged REPO; links open in a new tab.
 - Files are added as dummy files (a typed name only, no real file) so the flow can be tried without uploads.
-- iOS-style look: translucent sticky nav bar, large titles, grouped rounded cards, pill buttons, iOS switches, a segmented Light/Dark control, a red accent colour, outlined cards, and the iOS system font by default. Dark mode (true black, white text) is the default; Light mode uses a beige background with dark text. Stages, priorities and comment types use high-contrast colour chips.
+- iOS-style look: translucent top bar, large titles, grouped rounded cards, pill buttons, iOS switches, a segmented Light/Dark control, a red accent colour and outlined cards. Dark mode (true black, white text) is the default; Light mode uses an IBM-style beige with dark text. Fonts: Century Gothic (default; Questrial is used where Century Gothic is not installed), Poppins, Atkinson Hyperlegible, Merriweather. Settings also have Brightness and Contrast sliders (5 levels each, level 3 is normal), saved per person.
 
 
 FastAPI + SQLite + Jinja templates. Files live on a mounted network share; only names and paths are stored in the DB.

@@ -2,28 +2,28 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Poppins:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&family=Questrial&family=Merriweather:wght@400;700&family=Poppins:wght@400;600&display=swap">
 <style>
 /* Layout: iOS-style app shell. Translucent sticky nav bar, large titles, grouped inset cards on warm beige (light)
    or true black (dark). Text boxes, comments, file rows and emails are inverted panels with a brushed-metal rim. */
 :root {
-  --bg: #F3EDE2;
-  --surface: #FBF8F2;
-  --surface-2: #EAE2D4;
+  --bg: #E2DED0;
+  --surface: #EEEBE2;
+  --surface-2: #D5D0C1;
   --text: #1C1A17;
-  --muted: #4A4339;
+  --muted: #47413A;
   --sep: rgba(60, 50, 35, .18);
-  --sep-strong: #857A69;
-  --accent: #B0121B;
-  --btn: #B0121B;
+  --sep-strong: #7A7462;
+  --accent: #A8101A;
+  --btn: #A8101A;
   --on-btn: #FFFFFF;
   --tint: rgba(176, 18, 27, .12);
-  --glass: rgba(243, 237, 226, .8);
+  --glass: rgba(226, 222, 208, .85);
   --shadow: 0 12px 32px rgba(60, 45, 20, .2);
   --card-shadow: 0 1px 2px rgba(60, 45, 20, .08), 0 0 0 1px rgba(60, 45, 20, .07);
   --error: #A3141D;
-  --ok: #1B6B34;
-  --demo: #E8DCC2;
+  --ok: #17602F;
+  --demo: #D3CDB9;
   --int: #8A5A00;
   --inv-bg: #23262B;
   --inv-fg: #F5F5F7;
@@ -31,7 +31,7 @@
   --inv-link: #FF9A9A;
   --inv-int: #FFC65C;
   --metal: linear-gradient(135deg, #fbfbfa 0%, #aeb3ba 22%, #ffffff 42%, #868b93 68%, #e1e3e6 100%);
-  --switch-off: #8F8574;
+  --switch-off: #857D6C;
   --switch-on: #248A3D;
   --an-bg: #dbeeff;
   --an-fg: #0b4a85;
@@ -47,7 +47,7 @@
   --cl-fg: #2f3a48;
   --new-bg: #d5f3f1;
   --new-fg: #0b5e59;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font: "Century Gothic", "CenturyGothic", "Questrial", "AppleGothic", "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --size: 16px; --space: 1rem; --radius: .875rem; --radius-sm: .625rem;
 }
@@ -137,23 +137,23 @@
   color-scheme: dark; }
 /* The app's own per-user Appearance setting (default Dark) wins over the viewer theme. */
 :root[data-appearance="light"] {
-  --bg: #F3EDE2;
-  --surface: #FBF8F2;
-  --surface-2: #EAE2D4;
+  --bg: #E2DED0;
+  --surface: #EEEBE2;
+  --surface-2: #D5D0C1;
   --text: #1C1A17;
-  --muted: #4A4339;
+  --muted: #47413A;
   --sep: rgba(60, 50, 35, .18);
-  --sep-strong: #857A69;
-  --accent: #B0121B;
-  --btn: #B0121B;
+  --sep-strong: #7A7462;
+  --accent: #A8101A;
+  --btn: #A8101A;
   --on-btn: #FFFFFF;
   --tint: rgba(176, 18, 27, .12);
-  --glass: rgba(243, 237, 226, .8);
+  --glass: rgba(226, 222, 208, .85);
   --shadow: 0 12px 32px rgba(60, 45, 20, .2);
   --card-shadow: 0 1px 2px rgba(60, 45, 20, .08), 0 0 0 1px rgba(60, 45, 20, .07);
   --error: #A3141D;
-  --ok: #1B6B34;
-  --demo: #E8DCC2;
+  --ok: #17602F;
+  --demo: #D3CDB9;
   --int: #8A5A00;
   --inv-bg: #23262B;
   --inv-fg: #F5F5F7;
@@ -161,7 +161,7 @@
   --inv-link: #FF9A9A;
   --inv-int: #FFC65C;
   --metal: linear-gradient(135deg, #fbfbfa 0%, #aeb3ba 22%, #ffffff 42%, #868b93 68%, #e1e3e6 100%);
-  --switch-off: #8F8574;
+  --switch-off: #857D6C;
   --switch-on: #248A3D;
   --an-bg: #dbeeff;
   --an-fg: #0b4a85;
@@ -220,6 +220,7 @@
   --new-bg: #0d3533;
   --new-fg: #8ce8e0;
   color-scheme: dark; }
+:root[data-font="century"] { --font: "Century Gothic", "CenturyGothic", "Questrial", "AppleGothic", "Segoe UI", sans-serif; }
 :root[data-font="system"] { --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif; }
 :root[data-font="poppins"] { --font: "Poppins", system-ui, sans-serif; }
 :root[data-font="atkinson"] { --font: "Atkinson Hyperlegible", system-ui, sans-serif; }
@@ -503,6 +504,11 @@ tr.tl-project td { background: var(--surface-2); }
 .howto h2 { margin-top: 1.6rem; }
 .howto .who { margin: -.2rem 0 .4rem; }
 .howto ol, .howto ul { margin: .3rem 0 0; padding-left: 1.4rem; display: grid; gap: .35rem; }
+/* Brightness and contrast: applied to everything on the page */
+:root { --bri: 1; --con: 1; }
+.demo, .topbar, .shell, dialog.card { filter: brightness(var(--bri)) contrast(var(--con)); }
+.shell { min-height: calc(100dvh - var(--topbar-h, 3.5rem)); }
+input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn); }
 /* Card outlines */
 .card-section, .panel, .tbl, .flash, .menu-body, dialog.card { border: 1px solid var(--sep-strong); }
 .topbar-in > .brand { display: inline-flex; align-items: center; gap: .45rem; font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; }
@@ -1022,7 +1028,7 @@ function seed() {
   [["jewel", "Nurul Alam (Jewel)", 1], ["saifuddin", "Mohammad Saifuddin"], ["nafis", "Nafis Ahmed"], ["shahriar", "Mohammad Shahriar Hossain"],
    ["alvi", "Alvi Zaman"], ["ehsanul", "Ehsanul Hassan"], ["sazzadur", "Sazzadur Rahman"], ["kawshik", "Kawshik Barua"],
    ["mashequr", "Mashequr Rahman Khan"], ["imam", "Imam"], ["sayem", "Nakib Uddin M Sayem"]].forEach(([un, name, cto]) =>
-    S.users.push({id: nextId("u"), username: un, name, email: `${un}@example.com`, cto: !!cto, theme: "dark", font: "system", size: 2}));
+    S.users.push({id: nextId("u"), username: un, name, email: `${un}@example.com`, cto: !!cto, theme: "dark", font: "century", size: 2, bri: 3, con: 3}));
   const U = n => S.users.find(x => x.username === n), id = n => U(n).id;
   const at = d => { CLOCK = base - d * DAY; }, day = d => isoDay(base + d * DAY);
   const head = U("jewel");
@@ -1415,9 +1421,12 @@ async function offerDownload(act, pid) {
 
 // ---------- rendering ----------
 const main = document.getElementById("main");
+const BRI = [0.8, 0.9, 1, 1.1, 1.2], CON = [0.85, 0.93, 1, 1.12, 1.25];   // level 3 = normal
+function setLight(bri, con) { const d = document.documentElement.style; d.setProperty("--bri", BRI[(bri || 3) - 1]); d.setProperty("--con", CON[(con || 3) - 1]); }
 function applyPrefs() {
   const u = me(), d = document.documentElement;
-  d.dataset.appearance = u.theme; d.dataset.font = u.font; d.dataset.size = u.size;
+  d.dataset.appearance = u.theme; d.dataset.font = u.font === "system" ? "century" : u.font; d.dataset.size = u.size;
+  setLight(u.bri, u.con);
 }
 function go(name, id) { S.view = {name, id}; S.flash = null; render(); window.scrollTo(0, 0); main.focus({preventScroll: true}); }
 function flash(type, text) { S.flash = {type, text}; }
@@ -1445,8 +1454,10 @@ function renderTop() {
         <fieldset><legend>Appearance</legend><div class="segmented">
           <label class="seg" for="pref-dark"><input class="sr-only" type="radio" id="pref-dark" name="theme" value="dark" ${u.theme === "dark" ? "checked" : ""}>Dark</label>
           <label class="seg" for="pref-light"><input class="sr-only" type="radio" id="pref-light" name="theme" value="light" ${u.theme === "light" ? "checked" : ""}>Light</label></div></fieldset>
-        <label for="pref-font">Font<select id="pref-font" name="font">${[["system", "iOS System (default)"], ["poppins", "Poppins"], ["atkinson", "Atkinson Hyperlegible"], ["merriweather", "Merriweather"]]
+        <label for="pref-font">Font<select id="pref-font" name="font">${[["century", "Century Gothic (default)"], ["poppins", "Poppins"], ["atkinson", "Atkinson Hyperlegible"], ["merriweather", "Merriweather"]]
           .map(([k, t]) => `<option value="${k}" ${u.font === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label for="pref-bri">Brightness <span class="note" id="pref-bri-v">${u.bri || 3} of 5</span><input id="pref-bri" name="bri" type="range" min="1" max="5" step="1" value="${u.bri || 3}" class="lvl"></label>
+        <label for="pref-con">Contrast <span class="note" id="pref-con-v">${u.con || 3} of 5</span><input id="pref-con" name="con" type="range" min="1" max="5" step="1" value="${u.con || 3}" class="lvl"></label>
         <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
           .map(([k, t]) => `<option value="${k}" ${+u.size === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <button class="btn primary">Save settings</button></form></div></details>`;
@@ -1899,7 +1910,7 @@ document.addEventListener("submit", e => {
   if (f.dataset.form === "newproject" && f.dataset.step !== "3") { wizGo(+f.dataset.step + 1); return; }
   run(() => {
     switch (f.dataset.form) {
-      case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: +d.size}); flash("ok", "Settings saved to your account."); break;
+      case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: +d.size, bri: +d.bri || 3, con: +d.con || 3}); flash("ok", "Settings saved to your account."); break;
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
@@ -1961,7 +1972,7 @@ document.addEventListener("submit", e => {
       case "newuser": {
         const un = d.username.trim(); if (!un || !d.name.trim()) throw new RuleError("Name and username are required.");
         if (S.users.some(x => x.username === un)) throw new RuleError("That username already exists.");
-        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, theme: "dark", font: "system", size: 2});
+        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, theme: "dark", font: "century", size: 2, bri: 3, con: 3});
         flash("ok", "User added."); break;
       }
     }
@@ -1989,6 +2000,10 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("click", e => { if (!e.target.closest(".tsearch")) { const box = document.getElementById("top-q-results"); if (box) box.hidden = true; } });
 document.addEventListener("input", e => {
+  if (e.target.id === "pref-bri" || e.target.id === "pref-con") {   // live preview; Save settings keeps it
+    document.getElementById(e.target.id + "-v").textContent = `${e.target.value} of 5`;
+    setLight(+document.getElementById("pref-bri").value, +document.getElementById("pref-con").value); return;
+  }
   if (e.target.id === "top-q") { topSearch(e.target.value); return; }
   if (e.target.id === "arc-q") {
     const q = e.target.value.trim().toLowerCase(); let shown = 0;
@@ -2071,7 +2086,8 @@ S.projects.forEach(p => { if (!p.deadlines) p.deadlines = p.deadline ? [p.deadli
 S.reqs.forEach(r => { if (!r.dues) r.dues = r.due ? [r.due] : []; if (!r.fbReqs) r.fbReqs = []; });
 if (S.view && S.view.name === "project") S.view = {name: "projects"};
 S.projects.forEach(p => p.members.forEach(m => { if (!m.roles) { m.roles = [m.role]; delete m.role; } }));
-if (!S.iosDefault) { S.users.forEach(x => { if (x.font === "poppins") x.font = "system"; }); S.iosDefault = true; }
+if (!S.iosDefault) { S.iosDefault = true; }
+if (!S.cgDefault) { S.users.forEach(x => { if (!x.font || x.font === "system") x.font = "century"; }); S.cgDefault = true; }
 if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
 S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Viewing as" above to switch person.`
   : `No projects yet. You are viewing as ${me().name} (CTO): press New project to start. Use "Viewing as" above to switch person.`};
