@@ -427,6 +427,13 @@ details.arc { margin: .75rem 0; }
 .mail pre { white-space: pre-wrap; font-family: var(--mono); font-size: .85rem; margin: .3rem 0 0; }
 /* Top bar project search */
 .tsearch { position: relative; }
+.combo { position: relative; }
+.combo input { width: 100%; }
+.combo-list { position: absolute; left: 0; right: 0; top: calc(100% + .3rem); z-index: 30; margin: 0; padding: .35rem; max-height: 15rem; overflow-y: auto; min-width: 14rem;
+  list-style: none; background: var(--surface); border: 1px solid var(--sep-strong); border-radius: var(--radius); box-shadow: var(--shadow); font-weight: 400; }
+.combo-list [role=option] { display: flex; justify-content: space-between; gap: .75rem; padding: .5rem .6rem; border-radius: .6rem; cursor: pointer; color: var(--text); }
+.combo-list [role=option].on, .combo-list [role=option]:hover { background: var(--tint); }
+.combo-list .none { padding: .5rem .6rem; color: var(--muted); }
 .tsearch input { width: 13rem; min-height: 2.3rem; padding: .35em .8em; border-radius: 999px; }
 .tsearch-results { position: absolute; right: 0; top: calc(100% + .45rem); z-index: 26; width: min(22rem, calc(100vw - 32px)); margin: 0; padding: .35rem;
   list-style: none; background: var(--surface); border: 1px solid var(--sep-strong); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -1574,11 +1581,56 @@ function projectDialog(pre) {
     </div>
   </form>`);
 }
+// Type-to-search person picker. The visible box filters a suggestion list; a hidden <select> keeps the chosen id for the form.
+function personPicker(id, people, {name = "", cls = "", tag = () => ""} = {}) {
+  return `<div class="combo"><input type="text" id="${id}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-list" autocomplete="off" spellcheck="false" placeholder="Type a name">
+    <ul class="combo-list" id="${id}-list" role="listbox" hidden></ul>
+    <select class="${cls}" ${name ? `name="${name}"` : ""} hidden tabindex="-1" aria-hidden="true"><option value=""></option>${people.map(x => `<option value="${x.id}" data-name="${h(x.name)}" data-user="${h(x.username || "")}" data-tag="${h(tag(x))}">${h(x.name)}</option>`).join("")}</select></div>`;
+}
+function comboOpen(input, all) {
+  const box = input.closest(".combo"), list = box.querySelector(".combo-list"), sel = box.querySelector("select");
+  const q = all ? "" : input.value.trim().toLowerCase();
+  const opts = [...sel.options].filter(o => o.value && (!q || o.dataset.name.toLowerCase().includes(q) || o.dataset.user.toLowerCase().includes(q)));
+  list.innerHTML = opts.length ? opts.map((o, i) => `<li role="option" id="${input.id}-o${o.value}" data-v="${o.value}" aria-selected="${i === 0 ? "true" : "false"}" class="${i === 0 ? "on" : ""}">
+    <span>${h(o.dataset.name)}</span><span class="file-meta">${h(o.dataset.user)}${h(o.dataset.tag)}</span></li>`).join("") : `<li class="none">No one matches “${h(input.value.trim())}”.</li>`;
+  list.hidden = false; input.setAttribute("aria-expanded", "true");
+  const first = list.querySelector("[role=option]"); if (first) input.setAttribute("aria-activedescendant", first.id); else input.removeAttribute("aria-activedescendant");
+}
+function comboClose(input) { const list = input.closest(".combo").querySelector(".combo-list"); list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); }
+function comboPick(input, v) {
+  const sel = input.closest(".combo").querySelector("select"); sel.value = v;
+  const o = sel.selectedOptions[0]; input.value = o && o.value ? o.dataset.name : ""; comboClose(input);
+  sel.dispatchEvent(new Event("change", {bubbles: true}));
+}
+function comboSet(sel, v) { sel.value = String(v); const input = sel.closest(".combo").querySelector("input"); const o = sel.selectedOptions[0]; input.value = o && o.value ? o.dataset.name : ""; }
+document.addEventListener("focusin", e => { if (e.target.matches(".combo input")) comboOpen(e.target, true); });
+document.addEventListener("focusout", e => {
+  if (!e.target.matches(".combo input")) return;
+  const input = e.target, sel = input.closest(".combo").querySelector("select"), t = input.value.trim().toLowerCase();
+  comboClose(input);
+  const cur = sel.selectedOptions[0];
+  if (cur && cur.value && cur.dataset.name.toLowerCase() === t) return;
+  const hit = [...sel.options].filter(o => o.value && (o.dataset.name.toLowerCase() === t || o.dataset.user.toLowerCase() === t));
+  if (hit.length === 1) comboPick(input, hit[0].value); else { sel.value = ""; if (!t) input.value = ""; }
+});
+document.addEventListener("mousedown", e => { const li = e.target.closest(".combo-list [role=option]"); if (!li) return; e.preventDefault(); comboPick(li.closest(".combo").querySelector("input"), li.dataset.v); });
+document.addEventListener("keydown", e => {
+  if (!e.target.matches(".combo input")) return;
+  const input = e.target, list = input.closest(".combo").querySelector(".combo-list"), opts = [...list.querySelectorAll("[role=option]")];
+  if (e.key === "Escape" && !list.hidden) { e.preventDefault(); e.stopPropagation(); comboClose(input); return; }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault(); if (list.hidden) { comboOpen(input, false); return; }
+    let i = opts.findIndex(o => o.classList.contains("on")); i = Math.max(0, Math.min(opts.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
+    opts.forEach((o, j) => { o.classList.toggle("on", j === i); o.setAttribute("aria-selected", j === i ? "true" : "false"); });
+    if (opts[i]) { input.setAttribute("aria-activedescendant", opts[i].id); opts[i].scrollIntoView({block: "nearest"}); } return;
+  }
+  if (e.key === "Enter" && !list.hidden) { e.preventDefault(); const on = list.querySelector(".on"); if (on) comboPick(input, on.dataset.v); }
+});
 let teamSeq = 0;
 function teamRow() {
   const i = ++teamSeq, people = S.users.filter(x => !x.cto && !x.sysadmin);
   return `<div class="team-row wiz">
-    <label for="tu-${i}">User<select id="tu-${i}" class="np-user"><option value="">Choose person</option>${people.map(x => `<option value="${x.id}">${h(x.name)}${loadTag(x.id)}</option>`).join("")}</select></label>
+    <label for="tu-${i}">User${personPicker(`tu-${i}`, people, {cls: "np-user", tag: x => loadTag(x.id)})}</label>
     <div class="role-picks"><label for="tr-${i}">Role<select id="tr-${i}" class="np-role">${ROLES.map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button type="button" class="btn secondary" data-act="team-remove" aria-label="Remove this person">Remove</button></div>`;
 }
@@ -1831,7 +1883,7 @@ function projectPrimary(u, pid) {
   ${tbl(`<thead><tr><th>Name</th><th>Roles</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
     <tr><td>${h(uname(m.uid))}</td><td><div class="chips" style="margin:0">${m.roles.map(r => `<span class="label">${h(r)}${manage && canRemoveRole(u, pid, r) && m.roles.length > 1 ? `<button type="button" class="chip-x" data-act="remove-role" data-pid="${pid}" data-uid="${m.uid}" data-role="${h(r)}" aria-label="Remove the ${h(r)} role from ${h(uname(m.uid))}">×</button>` : ""}</span>`).join("")}</div></td>${manage ? `<td>${m.roles.every(r => canRemoveRole(u, pid, r)) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
   ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row team-row">
-    <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}${role(pid, x.id) ? " (member)" : ""}${loadTag(x.id)}</option>`).join("")}</select></label>
+    <label for="am-user">Person${personPicker("am-user", others, {name: "uid", tag: x => (role(pid, x.id) ? " · member" : "") + loadTag(x.id)})}</label>
     <div class="role-picks"><label for="am-role">Role<select id="am-role" class="np-role">${ROLES.filter(r => canAddRole(u, pid, r) && !typeBlocks(p.type, r)).map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button class="btn primary">Add member</button></form>
     <p class="note">Pick someone who is already a member to give them another role. Only the CTO can remove a Project Lead or Dev Lead.</p>` : ""}
@@ -2352,7 +2404,7 @@ document.addEventListener("click", e => {
     projectDialog(pr);
     const set = (id, v) => { const el = modal.querySelector(id); if (el && v) { el.value = v; el.dispatchEvent(new Event("input", {bubbles: true})); el.dispatchEvent(new Event("change", {bubbles: true})); } };
     set("#np-type", pr.type); set("#np-name", pr.name); set("#np-pri", pr.priority); set("#np-start", pr.start); set("#np-deadline", pr.deadline);
-    const sel = modal.querySelector(".np-user"); if (sel) { sel.value = String(pr.by); sel.dispatchEvent(new Event("change", {bubbles: true})); }
+    const sel = modal.querySelector(".np-user"); if (sel) { comboSet(sel, pr.by); sel.dispatchEvent(new Event("change", {bubbles: true})); }
     return;
   }
   if (act === "pr-decline") {
@@ -2495,7 +2547,8 @@ document.addEventListener("submit", e => {
         }
         return {reopenProject: pid};
       }
-      case "addmember": addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); return {reopenProject: pid};
+      case "addmember": if (!+d.uid) throw new RuleError("Type a name and pick the person from the list.");
+        addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); return {reopenProject: pid};
       case "plan": setPlan(u, pid, d.priority, proj(pid).start); flash("ok", "Project priority saved."); return {reopenProject: pid, tab: "overview"};
       case "extreq": {
         const [kind, xid] = (d.item || "").split(":"), res = requestExt(u, kind, +xid, d.date, d.reason, d.field);
@@ -2575,6 +2628,7 @@ document.addEventListener("input", e => {
   }
   if (e.target.name === "accent") { document.documentElement.dataset.accent = e.target.value; return; }   // live preview
   if (e.target.id === "top-q") { topSearch(e.target.value); return; }
+  if (e.target.matches(".combo input")) { e.target.closest(".combo").querySelector("select").value = ""; comboOpen(e.target, false); return; }
   if (e.target.id === "nu-name") { document.getElementById("nu-username").value = genUsername(e.target.value); return; }
   if (e.target.id === "arc-q") {
     const q = e.target.value.trim().toLowerCase(); let shown = 0;
