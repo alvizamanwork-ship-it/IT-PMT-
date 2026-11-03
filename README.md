@@ -4,7 +4,7 @@
 
 ## Clickable demo (latest design)
 
-`demo/index.html` is a browser-only mock-up of the latest agreed design, for approval. Open it in any browser; no server needed. It starts empty (users only), and data stays in that browser. It reflects these design changes, which are **not yet in the FastAPI app below**:
+`demo/index.html` is a browser-only mock-up of the latest agreed design, for approval. Open it in any browser; no server needed. It opens with sample data (the IT team and five dummy projects); data stays in that browser and "Reset sample data" restores it. It reflects these design changes, which are **not yet in the FastAPI app below**:
 
 - Project codes are generated from the name (e.g. "Help Desk Portal" → HDP-001); the CTO joins every project as Project Head.
 - Team members are added as User + Role dropdown rows. One person can hold several roles in a project ("+ Add role"); single roles can be removed from the Members list. Only the CTO can remove a Project Lead or Dev Lead.
@@ -26,6 +26,7 @@
 - Approval stage: a requirement can only be sent to Approval to the Project Head, Project Lead or Dev Lead, and only they close it from Approval. The Project Head can approve everything (overview, extensions, feedback requests).
 - Request feedback: the person a requirement is assigned to asks for feedback with a reason. Only the Project Head, Project Lead or Dev Lead can accept (choosing the Feedback stage and who gives feedback) or decline. Pending requests show in their My Queue and in the project card. Regular members can no longer send straight to a Feedback stage.
 - The main menu is a fixed left sidebar (a row of links on phone-width screens); every page starts at the same left edge beside it.
+- Projects have a type: Vendor (no Developers), Internal, or Integration (no Project Analysts). Project codes come from the type: VND-001, INT-002, ITG-003.
 - Requirements get codes from their project code, e.g. HDP-001-R01. The top-bar search finds projects (by code or name) and requirements (by code or title) that the person is allowed to open.
 - Side menu order: My Queue, Notifications, Projects, On Hold & Cancelled (Head), Sent Requests, Archive, Admin (Head), How To. How To is a short text manual for the essential tasks.
 - Sent Requests for everyone: every requirement the person sent, with status (Waiting with …, Moved on, Unsent). Unsend returns it to the sender at the previous stage, as long as the recipient has not sent it on and the project is Active; recipients are notified.

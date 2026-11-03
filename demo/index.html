@@ -515,9 +515,9 @@ tr.tl-project td { background: var(--surface-2); }
   <span>Nothing is sent or saved to a server. Data stays in this browser.</span>
   <label class="check" for="as-user">Viewing as
     <select id="as-user"></select></label>
-  <button class="btn secondary" id="reset-demo" type="button">Clear data</button>
-  <span id="reset-confirm" hidden>Delete all projects and requirements?
-    <button class="btn primary" id="reset-yes" type="button">Yes, delete</button>
+  <button class="btn secondary" id="reset-demo" type="button">Reset sample data</button>
+  <span id="reset-confirm" hidden>Go back to the sample projects? Your changes are lost.
+    <button class="btn primary" id="reset-yes" type="button">Yes, reset</button>
     <button class="btn secondary" id="reset-no" type="button">Cancel</button></span>
 </div></div>
 <header class="topbar"><div class="topbar-in gutter" id="topbar"></div></header>
@@ -555,7 +555,7 @@ const LEADS = ["Project Lead", "Dev Lead"];
 const SH = "Business Stakeholder", AN = "Project Analyst";
 const FILE_ROOT = "\\\\fs01\\IDLC_Streams";
 const DAY = 864e5;
-const KEY = "pmt-demo-v5";
+const KEY = "pmt-demo-v6";
 const HEAD = "Project Head";
 
 let S, CLOCK = null;
@@ -599,22 +599,28 @@ const stakeholderView = (u, pid) => !isHead(u, pid) && has(pid, u.id, SH);
 
 // ---------- projects & members ----------
 // Code = initials of the name (up to 4) + running number, e.g. "Customer Portal Revamp" -> CPR-001.
-function genCode(name) {
-  const ini = (name || "").split(/[^A-Za-z0-9]+/).filter(Boolean).map(w => w[0].toUpperCase()).join("").slice(0, 4) || "PRJ";
-  return `${ini}-${String((S.seq.p || 0) + 1).padStart(3, "0")}`;
+// Project code = type prefix + running number, e.g. VND-001 (Vendor), INT-002 (Internal), ITG-003 (Integration).
+const TYPE_CODE = {Vendor: "VND", Internal: "INT", Integration: "ITG"};
+function genCode(type) {
+  return `${TYPE_CODE[type] || "PRJ"}-${String((S.seq.p || 0) + 1).padStart(3, "0")}`;
 }
 function checkDates(start, end, endName) {
   if (start && end && start > end) throw new RuleError(`The start date must be on or before the ${endName}.`);
 }
-function createProject(u, name, priority = "Normal", deadline = "", start = "") {
+// Project types: Vendor projects have no Developers; Integration projects have no Project Analysts.
+const PROJECT_TYPES = ["Vendor", "Internal", "Integration"];
+const TYPE_BLOCKS = {Vendor: ["Developer"], Integration: ["Project Analyst"]};
+const typeBlocks = (type, r) => (TYPE_BLOCKS[type] || []).includes(r);
+function createProject(u, name, priority = "Normal", deadline = "", start = "", type = "Internal") {
+  if (!PROJECT_TYPES.includes(type)) throw new RuleError("Choose the project type.");
   if (!u.cto) throw new Forbidden("Only the CTO creates projects.");
   name = name.trim(); if (!name) throw new RuleError("Give the project a name.");
   if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
   if (!deadline) throw new RuleError("Set the project end date. It is required.");
   start = start || isoDay(now());   // no start date given: the day it is created
   checkDates(start, deadline, "end date");
-  const code = genCode(name);
-  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, deadline, deadlines: [deadline], start, overview: {},
+  const code = genCode(type);
+  const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${FILE_ROOT}\\${code}`, priority, type, deadline, deadlines: [deadline], start, overview: {},
     members: S.users.filter(x => x.cto).map(x => ({uid: x.id, roles: [HEAD]}))};
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
@@ -755,6 +761,8 @@ function addMember(u, pid, uid, roles) {
   });
   const p = proj(pid); let m = p.members.find(x => x.uid === uid);
   if (m && m.roles.includes(HEAD)) throw new RuleError("The Project Head already has full access.");
+  const blocked = roles.find(r => typeBlocks(p.type, r));
+  if (blocked) throw new RuleError(`${p.type} projects do not have a ${blocked}.`);
   const fresh = roles.filter(r => !(m && m.roles.includes(r)));
   if (!fresh.length) throw new RuleError(`${uname(uid)} already has ${roles.length > 1 ? "these roles" : "that role"}.`);
   const isNew = !m; if (isNew) { m = {uid, roles: []}; p.members.push(m); }
@@ -993,15 +1001,108 @@ function handoff(actor, r, action, to, comment, internal) {
   return rec.name;
 }
 // ---------- sample data ----------
+// Sample data: the IDLC IT team and five dummy projects. Each project's lead follows the hierarchy:
+// Saifuddin leads when on the project; otherwise Shahriar, then Alvi; Sayem occasionally leads.
 function seed() {
   const base = Date.now();
-  S = {seq: {}, users: [], projects: [], reqs: [], history: [], comments: [], files: [], outbox: [], stallDays: 5,
-       me: 1, view: {name: "projects"}, flash: null};
-  [["naj", "NAJ", 1], ["mds", "MDS"], ["nafisl", "Naf.Isl."], ["alvi", "Alvi"], ["bs1", "BS1"],
-   ["eh", "EH"], ["kb", "KB"], ["sazh", "Saz.H"], ["qa1", "QA1"]].forEach(([un, name, cto]) =>
-    S.users.push({id: nextId("u"), username: un, name, email: `${un}@corp.example`, cto: !!cto, theme: "dark", font: "system", size: 2}));
+  S = {seq: {}, users: [], projects: [], reqs: [], history: [], comments: [], files: [], links: [], outbox: [], stallDays: 5,
+       me: 1, view: {name: "queue"}, flash: null, iosDefault: true, darkDefault: true};
+  syncLists();
+  [["jewel", "Nurul Alam (Jewel)", 1], ["saifuddin", "Mohammad Saifuddin"], ["nafis", "Nafis Ahmed"], ["shahriar", "Mohammad Shahriar Hossain"],
+   ["alvi", "Alvi Zaman"], ["ehsanul", "Ehsanul Hassan"], ["sazzadur", "Sazzadur Rahman"], ["kawshik", "Kawshik Barua"],
+   ["mashequr", "Mashequr Rahman Khan"], ["imam", "Imam"], ["sayem", "Nakib Uddin M Sayem"]].forEach(([un, name, cto]) =>
+    S.users.push({id: nextId("u"), username: un, name, email: `${un}@example.com`, cto: !!cto, theme: "dark", font: "system", size: 2}));
+  const U = n => S.users.find(x => x.username === n), id = n => U(n).id;
+  const at = d => { CLOCK = base - d * DAY; }, day = d => isoDay(base + d * DAY);
+  const head = U("jewel");
+  const mk = (name, type, start, end, pri, team) => { const pid = createProject(head, name, pri, day(end), day(start), type); team.forEach(([n, roles]) => addMember(head, pid, id(n), roles)); return pid; };
+  const rq = (who, pid, title, desc, due, pri) => createReq(U(who), pid, title, desc, due === null ? "" : day(due), pri, "");
+  const send = (who, rid, to, stage, c = "", internal = false) => proceed(U(who), rid, [].concat(to).map(id), c, internal, stage);
+  const AN = 1, DEV = 3, QA = 5, APPR = 7, CLOSED = 8;
+
+  // 1. Vendor project (no Developers)
+  at(40);
+  const p1 = mk("Dummy Vend. Proj 1", "Vendor", -40, 35, "High", [["saifuddin", ["Project Lead"]], ["nafis", ["Dev Lead"]], ["shahriar", ["Project Analyst"]],
+    ["alvi", ["Project Analyst"]], ["imam", ["QA"]], ["sayem", ["Business Stakeholder"]]]);
+  at(39); submitOverview(U("shahriar"), p1, {summary: "Onboard a payment gateway vendor and agree service levels.", desc: "Select, contract and integrate an external payment gateway for card and mobile wallet payments.", analysis: "Two shortlisted vendors. Vendor A meets 99.9% uptime; Vendor B is cheaper but has no local support.", cost: "BDT 4,800,000"});
+  at(38.5); decideOverview(U("saifuddin"), p1, true, "Approved. Go with Vendor A.");
+  at(38); const r11 = rq("sayem", p1, "Vendor SLA review", "Check the vendor's service levels against our uptime and support needs.", 10, "High");
+  send("sayem", r11, "shahriar", AN, "Please map the SLA clauses to our requirements.");
+  at(30); send("shahriar", r11, "imam", QA, "SLA clauses mapped. Please verify penalties and response times.");
+  at(36); const r12 = rq("shahriar", p1, "Payment gateway vendor onboarding", "Collect documents, security checklist and sandbox access.", 5, "High");
+  send("shahriar", r12, "imam", QA, "Security checklist attached.");
+  at(20); send("imam", r12, "saifuddin", APPR, "Security checklist passed. Ready for approval.");
+  at(36.5); const r13 = rq("saifuddin", p1, "Vendor API documentation", "Get the full API reference and error codes from the vendor.", -5, "Normal");
+  send("saifuddin", r13, "shahriar", AN);
+  at(25); send("shahriar", r13, "imam", QA, "Docs received. Please check examples against the sandbox.");
+  at(15); send("imam", r13, "nafis", APPR, "All documented endpoints answer as described.");
+  at(12); send("nafis", r13, "nafis", CLOSED, "Approved.");
+  at(14); requestExt(U("nafis"), "project", p1, day(50), "Vendor needs two more weeks to give sandbox access.", "end");
+  at(13); decideExt(U("saifuddin"), "project", p1, true);
+  at(0.6); addComment(U("imam"), r11, "Two SLA penalties are missing from the draft contract.", false);
+
+  // 2. Internal project
+  at(25);
+  const p2 = mk("Dummy Internal Proj 2", "Internal", -25, 60, "Normal", [["saifuddin", ["Project Lead"]], ["nafis", ["Dev Lead"]], ["alvi", ["Project Analyst"]],
+    ["ehsanul", ["Developer"]], ["sazzadur", ["Developer"]], ["kawshik", ["Developer"]], ["mashequr", ["QA"]], ["sayem", ["Business Stakeholder"]]]);
+  at(24); const r21 = rq("alvi", p2, "Employee leave portal", "Staff apply for leave online; managers approve in one click.", 20, "High");
+  at(20); send("alvi", r21, "nafis", DEV, "Analysis done. Leave types and approval rules are in the description.");
+  at(18); send("nafis", r21, ["ehsanul", "sazzadur"], DEV, "Ehsanul: API. Sazzadur: screens.");
+  at(2); requestExt(U("ehsanul"), "req", r21, day(27), "HR changed the leave rules last week; approval flow must be redone.", "end");
+  at(22); const r22 = rq("saifuddin", p2, "Asset tracking dashboard", "One dashboard for laptops, phones and licences with their owners.", 30, "Normal");
+  send("saifuddin", r22, "alvi", AN, "Please analyse with Finance.");
+  at(19); send("alvi", r22, "kawshik", DEV, "Asset list from Finance attached.");
+  at(1); requestFeedback(U("kawshik"), r22, "Asset categories from Finance are unclear; licences and devices are mixed.");
+  at(20.5); const r23 = rq("alvi", p2, "Helpdesk ticket form", "A web form for staff to raise IT tickets.", 8, "Normal");
+  at(17); send("alvi", r23, "nafis", DEV);
+  at(16); send("nafis", r23, "sazzadur", DEV);
+  at(4); send("sazzadur", r23, "mashequr", QA, "Ready for testing on staging.");
+  at(0.8); addComment(U("mashequr"), r23, "Found two validation bugs; logging them before sending back.", true);
+  at(3); const r24 = rq("sayem", p2, "Password reset self-service", "Staff reset their own passwords after an OTP check.", 40, "High");
+  at(2.5); send("sayem", r24, "alvi", AN, "Requested by Branch Operations.");
+  at(0.4); submitOverview(U("alvi"), p2, {summary: "Small internal tools that save the IT helpdesk time.", desc: "Leave portal, asset dashboard, ticket form and password self-service.", analysis: "About 40% of helpdesk calls are password resets and leave questions.", cost: "BDT 1,200,000"});
+
+  // 3. Integration project (no Project Analyst; Shahriar leads because Saifuddin is not on it)
+  at(20);
+  const p3 = mk("Dummy Integration Proj 3", "Integration", -20, 40, "High", [["shahriar", ["Project Lead"]], ["nafis", ["Dev Lead"]], ["kawshik", ["Developer"]],
+    ["mashequr", ["Developer"]], ["imam", ["QA"]], ["sayem", ["Business Stakeholder"]]]);
+  at(19.5); submitOverview(U("sayem"), p3, {summary: "Connect core banking with the SMS gateway and the credit bureau.", desc: "Two-way integrations with real-time alerts and nightly data sync.", analysis: "Core banking exposes REST APIs; the bureau only accepts SFTP batch files.", cost: "BDT 2,600,000"});
+  at(19); decideOverview(U("shahriar"), p3, true, "");
+  at(19); const r31 = rq("shahriar", p3, "Core banking API integration", "Read balances and post transactions through the core banking API.", 15, "High");
+  at(18); send("shahriar", r31, "nafis", DEV, "Please split the work.");
+  at(15); send("nafis", r31, ["kawshik", "mashequr"], DEV, "Kawshik: read APIs. Mashequr: posting.");
+  at(17); const r32 = rq("sayem", p3, "SMS gateway integration", "Send transaction alerts through the telco SMS gateway.", -1, "Normal");
+  send("sayem", r32, "shahriar", AN);
+  at(14); send("shahriar", r32, "kawshik", DEV);
+  at(10); requestExt(U("kawshik"), "req", r32, day(3), "Telco sandbox was down for four days.", "end");
+  at(9.5); decideExt(U("shahriar"), "req", r32, true);
+  at(3); send("kawshik", r32, "imam", QA, "Delivery reports wired up.");
+  at(16); const r33 = rq("shahriar", p3, "Credit bureau data sync", "Nightly SFTP upload of loan data to the credit bureau.", 12, "High");
+  at(15); send("shahriar", r33, "mashequr", DEV);
+  at(8); send("mashequr", r33, "imam", QA, "Batch file passes the bureau's validator.");
+  at(0.7); send("imam", r33, "nafis", APPR, "All test cases passed.");
+
+  // 4. Vendor project led by Sayem (Saifuddin and Shahriar not on it); currently On Hold
+  at(15);
+  const p4 = mk("Dummy Vend. Proj 4", "Vendor", -15, 75, "Low", [["sayem", ["Project Lead", "Business Stakeholder"]], ["nafis", ["Dev Lead"]], ["alvi", ["Project Analyst"]], ["mashequr", ["QA"]]]);
+  at(14); const r41 = rq("alvi", p4, "Card printer vendor evaluation", "Compare three instant card printer vendors.", 20, "Low");
+  at(9); send("alvi", r41, "mashequr", QA, "Test cards from two vendors arrived.");
+  at(6); setStatus(head, p4, "On Hold");
+
+  // 5. Internal project led by Alvi (Saifuddin and Shahriar not on it)
+  at(10);
+  const p5 = mk("Dummy Internal Proj 5", "Internal", -10, 50, "Normal", [["alvi", ["Project Lead", "Project Analyst"]], ["nafis", ["Dev Lead"]], ["ehsanul", ["Developer"]],
+    ["sazzadur", ["Developer"]], ["imam", ["QA"]], ["mashequr", ["QA"]], ["sayem", ["Business Stakeholder"]]]);
+  at(9); const r51 = rq("sayem", p5, "Internal audit tracker", "Track audit findings and their fixes by branch.", 25, "Normal");
+  at(8.5); send("sayem", r51, "alvi", AN, "Audit team will share last year's findings.");
+  at(8); const r52 = rq("alvi", p5, "Branch visit scheduler", "Plan and record IT visits to branches.", 30, "Normal");
+  at(7); send("alvi", r52, "nafis", DEV);
+  at(6); send("nafis", r52, "ehsanul", DEV);
+  at(4); rq("alvi", p5, "Staff training calendar", "Publish IT training sessions and sign-ups.", null, "Low");
+  at(0.3); requestExt(U("ehsanul"), "req", r52, day(7), "Branch list arrives next week, so work starts later.", "start");
+
   CLOCK = null;
-  S.outbox = [];
+  S.outbox = S.outbox.slice(0, 30);
 }
 
 // ---------- persistence (per viewer, optional) ----------
@@ -1166,12 +1267,14 @@ function projectDialog() {
     <div class="card-body">
       <section data-step="1" class="stack">
         <label for="np-name">Project name<input id="np-name" name="name" required autocomplete="off"></label>
+        <label for="np-type" class="narrow">Project type<select id="np-type" name="type">${PROJECT_TYPES.map(t => `<option ${t === "Internal" ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <p class="note">Vendor projects have no Developers. Integration projects have no Project Analysts.</p>
         <div class="row" style="margin:0"><label for="np-pri">Project priority<select id="np-pri" name="priority">${PRIORITIES.map(x => `<option ${x === "Normal" ? "selected" : ""}>${x}</option>`).join("")}</select></label>
           <label for="np-start">Start date (optional)<input id="np-start" type="date" name="start"></label>
           <label for="np-deadline">End date (required)<input id="np-deadline" type="date" name="deadline" required></label></div>
         <p class="note">No start date? The day you create the project is used. The Project Lead and Dev Lead can extend the end date later; every extension is kept in the Timeline.</p>
-        <dl class="kv"><dt>Code</dt><dd><output id="np-code">${genCode("")}</output> <span class="note">(automatic)</span></dd>
-          <dt>Folder</dt><dd><code id="np-folder">${h(FILE_ROOT)}\\${genCode("")}</code></dd></dl>
+        <dl class="kv"><dt>Code</dt><dd><output id="np-code">${genCode("Internal")}</output> <span class="note">(automatic, from the project type)</span></dd>
+          <dt>Folder</dt><dd><code id="np-folder">${h(FILE_ROOT)}\\${genCode("Internal")}</code></dd></dl>
       </section>
       <section data-step="2" class="stack" hidden>
         <p class="note">${h(heads)} joins every project as Project Head. Add the other people and their roles.</p>
@@ -1214,6 +1317,8 @@ function wizGo(step) {
   if (step > 1 && !name) { wizErr("Give the project a name first.", f.querySelector("#np-name")); return; }
   if (step > 1 && !endV) { wizErr("Set the project end date. It is required.", f.querySelector("#np-deadline")); return; }
   if (step > 1 && (startV || isoDay(now())) > endV) { wizErr("The end date must be on or after the start date.", f.querySelector("#np-deadline")); return; }
+  if (step === 3) { const ty = f.querySelector("#np-type").value, bad = teamPicks(f).flatMap(t => t.roles).find(r => typeBlocks(ty, r));
+    if (bad) { wizErr(`${ty} projects do not have a ${bad}. Change that role or the project type.`); return; } }
   if (step === 3) { try { teamPicks(f); } catch (err) { const e = modal.querySelector("#modal-error"); e.textContent = "Cannot do that: " + err.message; e.hidden = false; return; } }
   modal.querySelector("#modal-error").hidden = true;
   f.dataset.step = step;
@@ -1225,8 +1330,8 @@ function wizGo(step) {
   if (step === 3) {
     const team = teamPicks(f).map(t => `${h(uname(t.uid))} (${h(t.roles.join(", "))})`);
     const heads = S.users.filter(x => x.cto).map(x => `${h(x.name)} (Project Head)`);
-    modal.querySelector("#np-review").innerHTML = `<dl class="kv"><dt>Name</dt><dd>${h(name)}</dd><dt>Code</dt><dd>${genCode(name)}</dd>
-      <dt>Folder</dt><dd><code>${h(FILE_ROOT)}\\${genCode(name)}</code></dd><dt>Status</dt><dd>${label("Active")}</dd>
+    modal.querySelector("#np-review").innerHTML = `<dl class="kv"><dt>Name</dt><dd>${h(name)}</dd><dt>Code</dt><dd>${genCode(f.querySelector("#np-type").value)}</dd>
+      <dt>Folder</dt><dd><code>${h(FILE_ROOT)}\\${genCode(f.querySelector("#np-type").value)}</code></dd><dt>Type</dt><dd>${h(f.querySelector("#np-type").value)}</dd><dt>Status</dt><dd>${label("Active")}</dd>
       <dt>Priority</dt><dd>${priLabel(f.querySelector("#np-pri").value)}</dd><dt>Start date</dt><dd>${h(startV) || `${isoDay(now())} (today)`}</dd><dt>End date</dt><dd>${h(endV)}</dd>
       <dt>Team</dt><dd>${heads.concat(team).join("<br>")}</dd></dl>`;
     f.querySelector("#np-create").focus();
@@ -1263,7 +1368,7 @@ th,td{border:1px solid #c9c0b0;padding:.35rem .5rem;text-align:left;vertical-ali
 ol{padding-left:1.5rem}li{margin-bottom:.3rem}.label{font-weight:600}blockquote{margin:.2rem 0 0;padding-left:.6rem;border-left:3px solid #c9c0b0}</style></head><body>
 <h1>${esc(p.code)} · ${esc(p.name)}</h1>
 <p class="muted">IDLC Streams project overview · generated ${fmt(now())} by ${esc(u.name)}</p>
-<dl><dt>Status</dt><dd>${esc(p.status)}</dd><dt>Priority</dt><dd>${esc(p.priority || "Normal")}</dd><dt>Start date</dt><dd>${p.start || "None"}</dd>
+<dl><dt>Type</dt><dd>${esc(p.type || "Internal")}</dd><dt>Status</dt><dd>${esc(p.status)}</dd><dt>Priority</dt><dd>${esc(p.priority || "Normal")}</dd><dt>Start date</dt><dd>${p.start || "None"}</dd>
 <dt>End date</dt><dd>${p.deadline || "None"}</dd><dt>Project cost</dt><dd>${esc(ov.cost || "Not set")}</dd>
 <dt>Overview</dt><dd>${p.ovApprovedAt ? `Approved by ${esc(uname(p.ovApprovedBy))} on ${fmt(p.ovApprovedAt)}` : "Not approved yet"}${ovPending(p) ? " (a change is waiting for approval)" : ""}</dd><dt>Team</dt><dd>${memberSort(p).map(m => `${esc(uname(m.uid))} (${esc(m.roles.join(", "))})`).join(", ")}</dd></dl>
 <h2>Summary</h2>${para(ov.summary)}<h2>Description</h2>${para(ov.desc)}<h2>Analysis</h2>${para(ov.analysis)}
@@ -1323,7 +1428,7 @@ function renderTop() {
         <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
           .map(([k, t]) => `<option value="${k}" ${+u.size === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <button class="btn primary">Save settings</button></form></div></details>`;
-  document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.cto ? " (CTO)" : ""}</option>`).join("");
+  document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.cto ? " · CTO" : ""}</option>`).join("");
 }
 
 function historyList(rows, u, pid) {
@@ -1363,8 +1468,8 @@ function viewProjectList(u) {
   const list = S.projects.filter(p => canView(u, p.id) && p.status !== "Closed" && !(u.cto && PAUSED.includes(p.status)));
   const paused = u.cto ? S.projects.filter(p => PAUSED.includes(p.status)).length : 0;
   const archived = S.projects.filter(p => p.status === "Closed" && canView(u, p.id)).length;
-  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${paused ? `<p class="note" style="margin-bottom:.4rem">${paused} project${paused === 1 ? " is" : "s are"} on hold or cancelled: see <button class="linkish" data-go="paused">On Hold &amp; Cancelled</button>.</p>` : ""}${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Priority</th><th>Start date</th><th>End date</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
-    <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${label(p.status)}</td>
+  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${paused ? `<p class="note" style="margin-bottom:.4rem">${paused} project${paused === 1 ? " is" : "s are"} on hold or cancelled: see <button class="linkish" data-go="paused">On Hold &amp; Cancelled</button>.</p>` : ""}${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th>Priority</th><th>Start date</th><th>End date</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
+    <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${h(p.type || "Internal")}</td><td>${label(p.status)}</td>
     <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (seesAll(u, p.id) || holds(r, u.id))).length}</td></tr>`).join("")}</tbody>`)
     : `<p>${u.cto ? "No open projects. Press New project to start one." : "You are not a member of any open project."}</p>`}`;
 }
@@ -1397,7 +1502,7 @@ function projectPrimary(u, pid) {
   const reqs = S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id))).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
   const members = memberSort(p), others = S.users.filter(x => !has(pid, x.id, HEAD));
   const pending = all ? S.reqs.filter(r => r.pid === pid && pendingFb(r)) : [];
-  return `<p class="meta" style="margin:0">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Start: ${p.start || `<span class="note">None</span>`}</span><span>End date: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
+  return `<p class="meta" style="margin:0">${label(p.status)}${label(`${p.type || "Internal"} project`, "st-new")}${priLabel((p.priority || "Normal") + " priority")}<span>Start: ${p.start || `<span class="note">None</span>`}</span><span>End date: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
   ${pending.length ? `<section class="card-section fb-alert"><h3 class="sec-title">Feedback requests waiting for approval (${pending.length})</h3>${fbTable(pending, false)}</section>` : ""}
   ${canApproveOverview(u, pid) && ovPending(p) ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">Overview waiting for your approval</h3>
     <button type="button" class="btn secondary" data-act="ptab" data-tab="overview">Review in Overview</button></div></section>` : ""}
@@ -1417,7 +1522,7 @@ function projectPrimary(u, pid) {
     <tr><td>${h(uname(m.uid))}</td><td><div class="chips" style="margin:0">${m.roles.map(r => `<span class="label">${h(r)}${manage && canRemoveRole(u, pid, r) && m.roles.length > 1 ? `<button type="button" class="chip-x" data-act="remove-role" data-pid="${pid}" data-uid="${m.uid}" data-role="${h(r)}" aria-label="Remove the ${h(r)} role from ${h(uname(m.uid))}">×</button>` : ""}</span>`).join("")}</div></td>${manage ? `<td>${m.roles.every(r => canRemoveRole(u, pid, r)) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
   ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row team-row">
     <label for="am-user">Person<select id="am-user" name="uid">${others.map(x => `<option value="${x.id}">${h(x.name)}${role(pid, x.id) ? " (member)" : ""}${loadTag(x.id)}</option>`).join("")}</select></label>
-    <div class="role-picks"><label for="am-role">Role<select id="am-role" class="np-role">${ROLES.filter(r => canAddRole(u, pid, r)).map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
+    <div class="role-picks"><label for="am-role">Role<select id="am-role" class="np-role">${ROLES.filter(r => canAddRole(u, pid, r) && !typeBlocks(p.type, r)).map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button class="btn primary">Add member</button></form>
     <p class="note">Pick someone who is already a member to give them another role. Only the CTO can remove a Project Lead or Dev Lead.</p>` : ""}
   </section>
@@ -1807,7 +1912,7 @@ document.addEventListener("submit", e => {
         flash("ok", ok ? "Overview approved. It is now read-only." : "Overview declined. It went back to the person who sent it."); return {reopenProject: pid, tab: "overview"}; }
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", d.status === "Closed" ? "Project closed. It is now in the Archive." : `Project status is now ${d.status}.`); return {reopenProject: pid};
       case "newproject": {
-        const np = createProject(u, d.name, d.priority, d.deadline, d.start);
+        const np = createProject(u, d.name, d.priority, d.deadline, d.start, d.type);
         teamPicks(f).forEach(t => addMember(u, np, t.uid, t.roles));
         S.view = {name: "projects"}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); return {reopenProject: np};
       }
@@ -1864,8 +1969,8 @@ document.addEventListener("input", e => {
     document.querySelectorAll("tr.arc-row").forEach(tr => { if (tr.closest("details.arc")) return; const on = !q || tr.dataset.q.includes(q); tr.hidden = !on; if (on) shown++; });
     document.getElementById("arc-none").hidden = shown > 0;
   }
-  if (e.target.id === "np-name") {
-    const c = genCode(e.target.value); document.getElementById("np-code").textContent = c;
+  if (e.target.id === "np-name" || e.target.id === "np-type") {
+    const c = genCode(document.getElementById("np-type").value); document.getElementById("np-code").textContent = c;
     document.getElementById("np-folder").textContent = `${FILE_ROOT}\\${c}`;
   }
 });
@@ -1928,12 +2033,13 @@ const rc = document.getElementById("reset-confirm"), rb = document.getElementByI
 rb.addEventListener("click", () => { rc.hidden = false; rb.hidden = true; });
 document.getElementById("reset-no").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; });
 document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; const keep = {roles: S.roles, stages: S.stages}; seed(); Object.assign(S, keep); syncLists();
-  flash("ok", "All projects and requirements were deleted. Roles and stages were kept."); render(); });
+  flash("ok", "Sample data restored. Roles and stages you added were kept."); render(); });
 
 if (!load()) seed();
 syncLists();
 S.reqs.forEach(r => { if (!r.holders) r.holders = r.holder ? [r.holder] : []; delete r.holder; });
 S.projects.forEach(p => S.reqs.filter(r => r.pid === p.id).sort((a, b) => a.id - b.id).forEach((r, i) => { if (!r.code) r.code = `${p.code}-R${String(i + 1).padStart(2, "0")}`; }));
+S.projects.forEach(p => { if (!p.type) p.type = "Internal"; });
 S.projects.forEach(p => { if (!p.deadlines) p.deadlines = p.deadline ? [p.deadline] : []; if (!p.overview) p.overview = {}; });
 S.reqs.forEach(r => { if (!r.dues) r.dues = r.due ? [r.due] : []; if (!r.fbReqs) r.fbReqs = []; });
 if (S.view && S.view.name === "project") S.view = {name: "projects"};
