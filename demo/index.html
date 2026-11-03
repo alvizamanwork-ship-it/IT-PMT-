@@ -1332,6 +1332,24 @@ function closeModal() { if (modal.open) modal.close(); }
 modal.addEventListener("close", () => { modal.dataset.back = ""; modal.classList.remove("wide"); });
 const cardHead = t => `<div class="card-head"><h2 id="modal-title">${h(t)}</h2><button type="button" class="x" data-act="close" aria-label="Close">×</button></div>`;
 const modalError = `<p id="modal-error" class="flash error" role="alert" hidden></p>`;
+// Change password card. mode "change": current + new; mode "code": code from the email + new.
+function pwCard(mode, info) {
+  const u = me(), canMail = mailOn() && !!u.email;
+  const pwFields = `<label for="cp-new">New password<input id="cp-new" type="password" name="pw" required autocomplete="new-password"></label>
+    <label for="cp-new2">Repeat new password<input id="cp-new2" type="password" name="pw2" required autocomplete="new-password"></label>`;
+  const body = mode === "code"
+    ? `${info ? `<p class="flash ok" role="status">${h(info)}</p>` : ""}
+      <label for="cp-code">Code from the email<input id="cp-code" name="code" required inputmode="numeric" autocomplete="one-time-code"></label>${pwFields}
+      <p class="note"><button type="button" class="linkish" data-act="chpw-open">Back: I remember my password</button></p>`
+    : `<label for="cp-old">Current password<input id="cp-old" type="password" name="old" required autocomplete="current-password"></label>${pwFields}
+      <div class="note"><strong>Forgot password?</strong> ${canMail
+        ? `<button type="button" class="linkish" data-act="chpw-forgot">Send a reset code to ${h(u.email)}</button>`
+        : `Contact the system admin to reset your password.`}</div>`;
+  openModal(`${cardHead("Change password")}<form data-form="${mode === "code" ? "chpwcode" : "chpw"}">
+    <div class="card-body"><section class="card-section stack">${body}</section>${modalError}</div>
+    <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Cancel</button><span class="spacer"></span>
+      <button class="btn primary">Change password</button></div></form>`);
+}
 const memberSort = p => p.members.slice().sort((a, b) => a.roles.includes(HEAD) - b.roles.includes(HEAD) || uname(a.uid).localeCompare(uname(b.uid)));
 
 const WIZ = ["Details", "Team", "Review"];
@@ -1639,11 +1657,7 @@ function renderTop() {
         <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
           .map(([k, t]) => `<option value="${k}" ${+u.size === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <button class="btn primary">Save settings</button></form>
-        <form data-form="chpw" class="stack"><fieldset><legend>Change password</legend>
-          <label for="cp-old">Current password<input id="cp-old" type="password" name="old" required autocomplete="current-password"></label>
-          <label for="cp-new">New password<input id="cp-new" type="password" name="pw" required autocomplete="new-password"></label>
-          <label for="cp-new2">Repeat new password<input id="cp-new2" type="password" name="pw2" required autocomplete="new-password"></label>
-          <button class="btn secondary">Change password</button></fieldset></form>
+        <button type="button" class="btn secondary" data-act="chpw-open">Change password</button>
         <button type="button" class="btn secondary" data-act="logout">Sign out</button></div></details>`;
   document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.sysadmin ? " · Admin" : ""}${x.cto ? " · CTO" : ""}</option>`).join("");
 }
@@ -2060,7 +2074,7 @@ function viewHowTo() {
   ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
   ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
-  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password in the Settings menu (top right): enter your current password and the new one twice.", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
+  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
   ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
@@ -2176,6 +2190,12 @@ document.addEventListener("click", e => {
   if (act === "ptab") { setTab(a.dataset.tab); return; }
   if (act === "auth-step") { const un = (main.querySelector("[name=username], [name=who]") || {}).value; if (un) auth.username = un; auth.step = a.dataset.step; S.flash = null; render(); return; }
   if (act === "logout") { closeMenus(); S.me = null; S.view = {name: "queue"}; auth = {step: "login", username: ""}; flash("ok", "You are signed out."); render(); return; }
+  if (act === "chpw-open") { closeMenus(); pwCard("change"); return; }
+  if (act === "chpw-forgot") {
+    const u = me(); try { const code = sendResetCode(u); pwCard("code", `A reset code was emailed to ${u.email}. Demo: the code is ${code}.`); }
+    catch (err) { if (!(err instanceof RuleError)) throw err; const el = modal.querySelector("#modal-error"); el.textContent = "Cannot do that: " + err.message; el.hidden = false; }
+    return;
+  }
   if (act === "imp-fetch" || act === "imp-cancel") {
     const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
     if (act === "imp-cancel") { importRows = null; S.flash = null; render(); return; }
@@ -2273,7 +2293,14 @@ document.addEventListener("submit", e => {
         if ((d.pw || "").length < 4) throw new RuleError("The new password needs at least 4 characters.");
         if (d.pw !== d.pw2) throw new RuleError("The two new passwords are not the same.");
         if (d.pw === d.old) throw new RuleError("Choose a password different from the current one.");
-        u.pw = hashPw(d.pw); closeMenus(); flash("ok", "Password changed. Use it next time you sign in."); break;
+        u.pw = hashPw(d.pw); delete u.reset; flash("ok", "Password changed. Use it next time you sign in."); break;
+      }
+      case "chpwcode": {
+        if (!u.reset || u.reset.code !== (d.code || "").trim()) throw new RuleError("That code is not right. Check the email.");
+        if (u.reset.expires < now()) throw new RuleError("That code has expired. Send a new one.");
+        if ((d.pw || "").length < 4) throw new RuleError("The new password needs at least 4 characters.");
+        if (d.pw !== d.pw2) throw new RuleError("The two new passwords are not the same.");
+        u.pw = hashPw(d.pw); delete u.reset; flash("ok", "Password changed. Use it next time you sign in."); break;
       }
       case "impusers": {
         if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin import users.");
