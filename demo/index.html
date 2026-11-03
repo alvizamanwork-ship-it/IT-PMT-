@@ -284,7 +284,7 @@ legend { font-weight: 600; font-size: .95rem; padding: 0 0 .35rem; }
 /* Form controls */
 label { display: grid; gap: .3rem; font-weight: 600; font-size: .95rem; }
 input, select, textarea { font: inherit; font-size: 1rem; max-width: 100%; min-height: 2.75rem; border-radius: var(--radius-sm); }
-select, input[type="date"], input[type="number"] { color: var(--text); background: var(--surface-2); border: 1px solid var(--sep-strong); padding: .45em .6em; }
+select, input[type="date"], input[type="time"], input[type="number"] { color: var(--text); background: var(--surface-2); border: 1px solid var(--sep-strong); padding: .45em .6em; }
 /* Text boxes are inverted panels with a metal rim: dark in Light mode, bright in Dark mode. */
 textarea, input:not([type]), input[type="text"], input[type="email"], input[type="url"], input[type="search"] {
   color: var(--inv-fg); caret-color: var(--inv-link); padding: .55em .8em; border: 2px solid transparent;
@@ -509,6 +509,42 @@ tr.tl-project td { background: var(--surface-2); }
 .demo, .topbar, .shell, dialog.card { filter: brightness(var(--bri)) contrast(var(--con)); }
 .shell { min-height: calc(100dvh - var(--topbar-h, 3.5rem)); }
 input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn); }
+/* Reminders: calendar, day panel, lists and notes */
+.org-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.org-grid .panel { margin: 0; }
+@media (max-width: 60rem) { .org-grid { grid-template-columns: 1fr; } }
+.cal-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.cal-head h2 { margin: 0; flex: 1; text-align: center; font-size: 1.15rem; }
+.cal-nav { min-height: 2.2rem; padding: .2em .9em; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-wd { text-align: center; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: .2rem 0; }
+.cal-cell { min-height: 5.2rem; display: flex; flex-direction: column; gap: 2px; align-items: stretch; text-align: left; padding: .3rem; border-radius: .55rem;
+  background: var(--surface-2); border: 1px solid transparent; color: var(--text); font: inherit; font-size: .78rem; cursor: pointer; overflow: hidden; min-width: 0; }
+.cal-cell:hover { border-color: var(--sep-strong); }
+.cal-cell.is-empty { background: none; cursor: default; }
+.cal-cell.is-today .cal-num { background: var(--btn); color: var(--on-btn); }
+.cal-cell.is-sel { border: 2px solid var(--accent); }
+.cal-num { align-self: flex-start; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 1.5rem; height: 1.5rem; display: grid; place-items: center; border-radius: 999px; }
+.cal-item { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 .3rem; border-radius: .3rem; background: var(--an-bg); color: var(--an-fg); }
+.cal-item.is-late { background: var(--fb-bg); color: var(--fb-fg); }
+.cal-item.is-done { background: var(--cl-bg); color: var(--cl-fg); text-decoration: line-through; }
+.cal-more { color: var(--muted); padding: 0 .3rem; }
+@media (max-width: 40rem) { .cal-cell { min-height: 3rem; } .cal-item, .cal-more { display: none; } .cal-cell:has(.cal-item) .cal-num::after { content: ""; } }
+.rem-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.rem { display: flex; align-items: flex-start; gap: .7rem; padding: .6rem .7rem; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--sep-strong); }
+.rem.is-late { box-shadow: inset 4px 0 0 var(--fb-fg); }
+.rem.is-done .rem-title { text-decoration: line-through; color: var(--muted); }
+.rem-check { display: block; padding-top: .15rem; }
+.rem-check input { width: 1.3rem; height: 1.3rem; min-height: 0; margin: 0; accent-color: var(--btn); cursor: pointer; }
+.rem-main { flex: 1; min-width: 0; }
+.rem-title { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rem-main .file-meta, .rem-note { margin: .15rem 0 0; }
+.notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .6rem; margin-top: .9rem; }
+.note-card { padding: .7rem .9rem; border-radius: var(--radius); color: var(--inv-fg); border: 1.5px solid transparent;
+  background: linear-gradient(var(--inv-bg), var(--inv-bg)) padding-box, var(--metal) border-box; }
+.note-card .cmt-head { justify-content: space-between; }
+.note-card .file-meta { color: var(--inv-muted); flex: 1; }
+.note-card .x { background: transparent; color: var(--inv-fg); }
 /* Card outlines */
 .card-section, .panel, .tbl, .flash, .menu-body, dialog.card { border: 1px solid var(--sep-strong); }
 .topbar-in > .brand { display: inline-flex; align-items: center; gap: .45rem; font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; }
@@ -1123,6 +1159,26 @@ function seed() {
 
   CLOCK = null;
   S.outbox = S.outbox.slice(0, 30);
+  seedOrganizer();
+}
+// Sample reminders and notes (private to each person).
+function seedOrganizer() {
+  const base = Date.now(), day = d => isoDay(base + d * DAY), uid = n => (S.users.find(x => x.username === n) || {}).id;
+  S.reminders = []; S.notes = [];
+  const rem = (who, d, time, title, note, done) => { if (uid(who)) S.reminders.push({id: nextId("rm"), uid: uid(who), date: day(d), time, title, note, done: !!done, at: Date.now()}); };
+  const note = (who, title, body) => { if (uid(who)) S.notes.push({id: nextId("nt"), uid: uid(who), title, body, at: Date.now()}); };
+  rem("jewel", -1, "", "Submit Q4 IT budget", "Finance needs the final figures.", false);
+  rem("jewel", 0, "15:00", "Review vendor contract with Legal", "VND-001 payment gateway. Bring the SLA review notes.");
+  rem("jewel", 3, "10:30", "Monthly IT steering meeting", "Agenda: project status, approvals, hiring.");
+  rem("jewel", 8, "", "Check Proj 4 hold status", "Decide whether to resume or cancel VND-004.");
+  rem("jewel", -4, "11:00", "Call Saifuddin about leave portal scope", "", true);
+  rem("saifuddin", 1, "09:30", "Follow up on overview approval for INT-002", "");
+  rem("alvi", 1, "12:00", "Meet Finance about asset categories", "Kawshik asked for clearer categories on INT-002-R02.");
+  rem("alvi", 5, "", "Draft overview for Proj 5", "");
+  rem("ehsanul", 2, "16:00", "Demo leave portal API to Nafis", "");
+  note("jewel", "Q4 priorities", "1. Payment gateway go-live\n2. Credit bureau sync\n3. Helpdesk tools");
+  note("jewel", "Ideas", "Quarterly review of vendor SLAs.");
+  note("alvi", "Questions for Finance", "Are software licences assets or expenses?");
 }
 
 // ---------- persistence (per viewer, optional) ----------
@@ -1436,7 +1492,9 @@ window.addEventListener("resize", setTopbarHeight);
 function renderTop() {
   const u = me(), v = S.view.name;
   const unread = notifications(u).filter(n => n.at > (u.notifSeen || 0)).length;
-  const nav = [["queue", "My Queue"], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`], ["projects", "Projects"]]
+  const dueRem = dueReminders(u);
+  const nav = [["queue", "My Queue"], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
+    ["reminders", `Reminders${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
     .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], u.cto ? [["admin", "Admin"]] : [], [["howto", "How To"]]);
   const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
   document.documentElement.dataset.nav = side ? "side" : "top";
@@ -1720,6 +1778,66 @@ function viewSent(u) {
   }).join("")}</tbody>`) : `<p style="margin-top:1rem">You have not sent any requirements yet.</p>`}`;
 }
 
+// Reminders and notes: a private self-organizer for each person.
+let calYM = null, calDay = null;   // month on screen (YYYY-MM) and selected day (YYYY-MM-DD)
+const myReminders = u => (S.reminders || []).filter(r => r.uid === u.id);
+const dueReminders = u => myReminders(u).filter(r => !r.done && r.date <= isoDay(now())).length;
+const longDate = d => new Date(d + "T00:00").toLocaleDateString("en-GB", {weekday: "long", day: "numeric", month: "long", year: "numeric"});
+const remSort = (a, b) => a.date.localeCompare(b.date) || (a.time || "99").localeCompare(b.time || "99");
+function remRow(r, showDate) {
+  const late = !r.done && r.date < isoDay(now());
+  return `<li class="rem${r.done ? " is-done" : ""}${late ? " is-late" : ""}">
+    <label class="rem-check"><input type="checkbox" data-act="rem-done" data-id="${r.id}" ${r.done ? "checked" : ""} aria-label="Mark ${h(r.title)} as done"></label>
+    <div class="rem-main"><p class="rem-title">${h(r.title)}</p>
+      <p class="file-meta">${showDate ? `<button type="button" class="linkish" data-act="cal-day" data-date="${r.date}">${r.date}</button>` : ""}${showDate && r.time ? " · " : ""}${r.time || (showDate ? "" : "All day")}${late ? ` · ${label("Overdue", "st-fb")}` : ""}${r.done ? ` · ${label("Done", "st-ap")}` : ""}</p>
+      ${r.note ? `<p class="pre rem-note">${h(r.note)}</p>` : ""}</div>
+    <button type="button" class="x" data-act="rem-del" data-id="${r.id}" aria-label="Delete reminder ${h(r.title)}">×</button></li>`;
+}
+function viewReminders(u) {
+  const today = isoDay(now()); calYM = calYM || today.slice(0, 7); calDay = calDay || today;
+  const [y, m] = calYM.split("-").map(Number), first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate(), lead = first.getDay();
+  const mine = myReminders(u), byDay = {}; mine.forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(`<div class="cal-cell is-empty" aria-hidden="true"></div>`);
+  for (let d = 1; d <= days; d++) {
+    const ds = `${calYM}-${String(d).padStart(2, "0")}`, list = (byDay[ds] || []).sort(remSort), open = list.filter(r => !r.done);
+    cells.push(`<button type="button" class="cal-cell${ds === today ? " is-today" : ""}${ds === calDay ? " is-sel" : ""}" data-act="cal-day" data-date="${ds}" aria-label="${longDate(ds)}, ${list.length} reminder${list.length === 1 ? "" : "s"}" ${ds === calDay ? 'aria-current="date"' : ""}>
+      <span class="cal-num">${d}</span>${list.slice(0, 2).map(r => `<span class="cal-item${r.done ? " is-done" : !r.done && ds < today ? " is-late" : ""}">${h(r.time ? r.time + " " : "")}${h(r.title)}</span>`).join("")}${list.length > 2 ? `<span class="cal-more">+${list.length - 2} more</span>` : ""}${open.length && list.length <= 2 ? "" : ""}</button>`);
+  }
+  const dayList = (byDay[calDay] || []).sort(remSort);
+  const upcoming = mine.filter(r => !r.done && r.date <= isoDay(now() + 14 * DAY)).sort(remSort);
+  const notes = (S.notes || []).filter(n => n.uid === u.id).sort((a, b) => b.at - a.at);
+  return `<h1>Reminders</h1><p class="note" style="margin-bottom:1rem">Your private organizer. Only you see your reminders and notes.</p>
+  <div class="org-grid">
+    <section class="panel cal">
+      <div class="cal-head"><button type="button" class="btn secondary cal-nav" data-act="cal-move" data-d="-1" aria-label="Previous month">‹</button>
+        <h2>${first.toLocaleDateString("en-GB", {month: "long", year: "numeric"})}</h2>
+        <button type="button" class="btn secondary cal-nav" data-act="cal-move" data-d="1" aria-label="Next month">›</button>
+        <button type="button" class="btn secondary cal-nav" data-act="cal-day" data-date="${today}">Today</button></div>
+      <div class="cal-grid" role="group" aria-label="Calendar">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(w => `<div class="cal-wd" aria-hidden="true">${w}</div>`).join("")}${cells.join("")}</div>
+    </section>
+    <section class="panel day-panel">
+      <h2 style="margin-top:0">${longDate(calDay)}</h2>
+      ${dayList.length ? `<ul class="rem-list">${dayList.map(r => remRow(r, false)).join("")}</ul>` : `<p class="note">No reminders on this day.</p>`}
+      <form data-form="remadd" class="stack" style="margin-top:.9rem">
+        <label for="rm-title">New reminder<input id="rm-title" name="title" required placeholder="What to remember" autocomplete="off"></label>
+        <div class="row" style="margin:0"><label for="rm-date">Date<input id="rm-date" type="date" name="date" value="${calDay}" required></label>
+          <label for="rm-time">Time (optional)<input id="rm-time" type="time" name="time"></label></div>
+        <label for="rm-note">Note (optional)<textarea id="rm-note" name="note" rows="2"></textarea></label>
+        <button class="btn primary">Add reminder</button></form>
+    </section>
+  </div>
+  <section class="panel"><h2 style="margin-top:0">Overdue and next 14 days</h2>
+    ${upcoming.length ? `<ul class="rem-list">${upcoming.map(r => remRow(r, true)).join("")}</ul>` : `<p class="note">Nothing coming up.</p>`}</section>
+  <section class="panel"><h2 style="margin-top:0">Notes</h2>
+    <form data-form="noteadd" class="stack">
+      <label for="nt-title">Title<input id="nt-title" name="title" placeholder="e.g. Meeting points" autocomplete="off"></label>
+      <label for="nt-body">Note<textarea id="nt-body" name="body" rows="3" required></textarea></label>
+      <button class="btn primary">Add note</button></form>
+    ${notes.length ? `<div class="notes-grid">${notes.map(n => `<article class="note-card"><div class="cmt-head"><strong>${h(n.title || "Note")}</strong><span class="file-meta">${fmt(n.at)}</span>
+      <button type="button" class="x" data-act="note-del" data-id="${n.id}" aria-label="Delete note ${h(n.title || "")}">×</button></div><p class="pre cmt-text">${h(n.body)}</p></article>`).join("")}</div>` : `<p class="note" style="margin-top:.75rem">No notes yet.</p>`}</section>`;
+}
+
 // On Hold & Cancelled (Project Head / CTO only)
 function viewPaused(u) {
   if (!u.cto) return "<h1>Not allowed</h1><p>This page is for the Project Head only.</p>";
@@ -1815,6 +1933,7 @@ function viewHowTo() {
   ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
   ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
+  ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
   ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head): add users, new role names and new stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
 function viewAdmin(u) {
@@ -1848,7 +1967,7 @@ function render() {
   const u = me(), v = S.view;
   const body = v.name === "projects" || v.name === "project" ? viewProjects(u)
     : v.name === "admin" ? viewAdmin(u) : v.name === "archive" ? viewArchive(u)
-    : v.name === "paused" ? viewPaused(u) : v.name === "howto" ? viewHowTo() : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
+    : v.name === "paused" ? viewPaused(u) : v.name === "howto" ? viewHowTo() : v.name === "reminders" ? viewReminders(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
   renderTop(); setTopbarHeight();
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
   save();
@@ -1871,6 +1990,11 @@ document.addEventListener("click", e => {
     reqCard(+a.dataset.id); return;
   }
   if (act === "ptab") { setTab(a.dataset.tab); return; }
+  if (act === "cal-day") { calDay = a.dataset.date; calYM = calDay.slice(0, 7); S.flash = null; render(); return; }
+  if (act === "cal-move") { const [y, m] = calYM.split("-").map(Number), d = new Date(y, m - 1 + +a.dataset.d, 1); calYM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; S.flash = null; render(); return; }
+  if (act === "rem-done") { const r = S.reminders.find(x => x.id === +a.dataset.id && x.uid === me().id); if (r) r.done = a.checked; S.flash = null; render(); return; }
+  if (act === "rem-del") { S.reminders = S.reminders.filter(x => !(x.id === +a.dataset.id && x.uid === me().id)); flash("ok", "Reminder deleted."); render(); return; }
+  if (act === "note-del") { S.notes = S.notes.filter(x => !(x.id === +a.dataset.id && x.uid === me().id)); flash("ok", "Note deleted."); render(); return; }
   if (act === "dl-report" || act === "dl-csv") { offerDownload(act, +a.dataset.pid); return; }
   if (act === "back-project") { S.flash = null; projectCard(+modal.dataset.back); return; }
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
@@ -1910,6 +2034,16 @@ document.addEventListener("submit", e => {
   if (f.dataset.form === "newproject" && f.dataset.step !== "3") { wizGo(+f.dataset.step + 1); return; }
   run(() => {
     switch (f.dataset.form) {
+      case "remadd": {
+        if (!d.title.trim()) throw new RuleError("Write what to remember.");
+        if (!d.date) throw new RuleError("Pick a date.");
+        (S.reminders = S.reminders || []).push({id: nextId("rm"), uid: u.id, date: d.date, time: d.time || "", title: d.title.trim(), note: (d.note || "").trim(), done: false, at: now()});
+        calDay = d.date; calYM = d.date.slice(0, 7); flash("ok", `Reminder added for ${d.date}${d.time ? " at " + d.time : ""}.`); break;
+      }
+      case "noteadd": {
+        if (!d.body.trim()) throw new RuleError("Write the note first.");
+        (S.notes = S.notes || []).push({id: nextId("nt"), uid: u.id, title: (d.title || "").trim(), body: d.body.trim(), at: now()}); flash("ok", "Note added."); break;
+      }
       case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: +d.size, bri: +d.bri || 3, con: +d.con || 3}); flash("ok", "Settings saved to your account."); break;
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
@@ -2066,7 +2200,7 @@ function run(fn, form) {
   if (S.flash && S.flash.type === "error") window.scrollTo(0, 0);
 }
 document.getElementById("as-user").addEventListener("change", e => {
-  S.me = +e.target.value; const u = me();
+  S.me = +e.target.value; const u = me(); calDay = null; calYM = null;
   if (((S.view.name === "admin" || S.view.name === "paused") && !u.cto) || S.view.name === "notifications") S.view = {name: "queue"};
   flash("ok", `Now viewing as ${u.name}${u.cto ? " (CTO)" : ""}. Roles: ${S.projects.filter(p => role(p.id, u.id)).map(p => `${p.code} ${role(p.id, u.id)}`).join(", ") || (u.cto ? "CTO on all projects" : "none")}.`);
   render();
@@ -2087,6 +2221,7 @@ S.reqs.forEach(r => { if (!r.dues) r.dues = r.due ? [r.due] : []; if (!r.fbReqs)
 if (S.view && S.view.name === "project") S.view = {name: "projects"};
 S.projects.forEach(p => p.members.forEach(m => { if (!m.roles) { m.roles = [m.role]; delete m.role; } }));
 if (!S.iosDefault) { S.iosDefault = true; }
+if (!S.reminders) seedOrganizer();
 if (!S.cgDefault) { S.users.forEach(x => { if (!x.font || x.font === "system") x.font = "century"; }); S.cgDefault = true; }
 if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
 S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Viewing as" above to switch person.`
