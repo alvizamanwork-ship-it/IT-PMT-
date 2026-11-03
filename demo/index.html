@@ -428,6 +428,7 @@ details.arc { margin: .75rem 0; }
 /* Top bar project search */
 .tsearch { position: relative; }
 .combo { position: relative; }
+.added-ack { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; }
 .combo input { width: 100%; }
 .combo-list { position: absolute; left: 0; right: 0; top: calc(100% + .3rem); z-index: 30; margin: 0; padding: .35rem; max-height: 15rem; overflow-y: auto; min-width: 14rem;
   list-style: none; background: var(--surface); border: 1px solid var(--sep-strong); border-radius: var(--radius); box-shadow: var(--shadow); font-weight: 400; }
@@ -882,6 +883,8 @@ function addMember(u, pid, uid, roles) {
   const isNew = !m; if (isNew) { m = {uid, roles: []}; p.members.push(m); }
   m.roles.push(...fresh);
   log(pid, u, isNew ? `Added member as ${fresh.join(", ")}` : `Added role ${fresh.join(", ")}`, {to: uid});
+  // "Added to project" notice in the person's My Queue; it stays until they press Acknowledge.
+  if (uid !== u.id) (S.addedNotices = S.addedNotices || []).push({id: nextId("an"), uid, pid, by: u.id, roles: fresh, isNew, at: now(), ack: null});
 }
 function checkNotHolding(pid, uid) {
   if (S.reqs.some(x => x.pid === pid && holds(x, uid) && x.stage !== 8)) throw new RuleError(`${uname(uid)} holds open requirements. Send them on first.`);
@@ -1246,7 +1249,7 @@ function seed() {
   CLOCK = null;
   S.outbox = S.outbox.slice(0, 30);
   seedOrganizer();
-  ensureAuthData(); S.authV = 1;
+  S.addedNotices = null; ensureAuthData(); S.authV = 1;
 }
 // Sample reminders and notes (private to each person).
 function seedOrganizer() {
@@ -1294,6 +1297,12 @@ function ensureAuthData() {
       reason: "Branch teams need a simple leave-request tracker. Today it is done by email and spreadsheets.", status: "Pending", at: Date.now() - 3 * 3600e3}] : [];
   }
   if (!S.projReqs) S.projReqs = [];
+  if (!S.addedNotices) {
+    S.addedNotices = [];
+    const al = S.users.find(x => x.username === "alvi"), sf = S.users.find(x => x.username === "saifuddin");
+    const pp = al && S.projects.find(x => x.status === "Active" && (x.members || []).some(m => m.uid === al.id && !m.roles.includes(HEAD)));
+    if (pp && sf) S.addedNotices.push({id: nextId("an"), uid: al.id, pid: pp.id, by: sf.id, roles: pp.members.find(m => m.uid === al.id).roles.slice(), isNew: true, at: Date.now() - 2 * 3600e3, ack: null});
+  }
   if (!S.integrations.some(x => x.type === INT_TYPES[0])) S.integrations.unshift({id: nextId("in"), name: "HR system (staff list)", type: INT_TYPES[0], url: "https://hr.example.com/api/staff", key: "saved", enabled: true, at: Date.now()});
 }
 // Username is made from the name: first name, then first.last, then first.last2, 3…
@@ -1750,7 +1759,8 @@ function renderTop() {
   const u = me(), v = S.view.name;
   const unread = notifications(u).filter(n => n.at > (u.notifSeen || 0)).length;
   const dueRem = dueReminders(u);
-  const nav = [["queue", "My Queue"], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
+  const addedN = myAdded(u).length;
+  const nav = [["queue", `My Queue${addedN ? ` <span class="badge" aria-label="${addedN} added to project">${addedN}</span>` : ""}`], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
     ["reminders", `Reminders${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
     .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], [["howto", "How To"]]);
   if (isSysAdmin(u)) nav.splice(0, nav.length, ["admin", "Admin"]);
@@ -1792,6 +1802,17 @@ function historyList(rows, u, pid) {
   }).join("")}</ol>`;
 }
 
+const myAdded = u => (S.addedNotices || []).filter(x => x.uid === u.id && !x.ack && proj(x.pid)).sort((a, b) => b.at - a.at);
+function addedSection(u) {
+  const list = myAdded(u); if (!list.length) return "";
+  return `<section class="panel added-panel"><h2 style="margin-top:0">Added to project (${list.length})</h2>
+    <p class="note" style="margin-bottom:.5rem">You were added to these projects. Open one to see it, then press Acknowledge to clear the notice.</p>
+    <ul class="notifs">${list.map(x => { const pp = proj(x.pid); return `<li class="notif is-new">
+      <div class="notif-main"><p class="notif-text"><strong>${h(uname(x.by))}</strong> ${x.isNew ? "added you to" : "gave you another role in"} <strong>${h(pp.code)} · ${h(pp.name)}</strong> as ${h(x.roles.join(", "))}.</p>
+        <p class="file-meta"><time>${fmt(x.at)}</time> · ${h(pp.type || "")} project${pp.status !== "Active" ? ` · ${h(pp.status)}` : ""}</p></div>
+      <div class="extend"><button type="button" class="btn secondary" data-go="project" data-id="${pp.id}">Open project</button>
+        <button type="button" class="btn primary" data-act="ack-added" data-id="${x.id}">Acknowledge</button></div></li>`; }).join("")}</ul></section>`;
+}
 function viewQueue(u) {
   const order = {High: 0, Normal: 1, Low: 2};
   // The CTO's queue holds only requirements sent to him for approval; everything else is in each project's card.
@@ -1818,7 +1839,8 @@ function viewQueue(u) {
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td>
     <td>${r.stage === APPROVAL && isApprover(r.pid, u.id) ? `<button type="button" class="btn primary qbtn" data-act="approve-close" data-id="${r.id}">Approve and close</button>` : ""}</td></tr>`).join("")}</tbody>`)
     : `<p>${u.cto ? "No approval requests waiting for you." : "Nothing waiting for you."}</p>`}
-    <p class="note">Requirements in On Hold or Cancelled projects are hidden here.</p>`;
+    <p class="note">Requirements in On Hold or Cancelled projects are hidden here.</p>
+  ${addedSection(u)}`;
 }
 
 function viewProjects(u) {
@@ -1845,6 +1867,8 @@ function projectCard(pid, tab = "primary") {
   openModal(`<div class="pwrap" data-pid="${pid}">${cardHead(`${p.code} · ${p.name}`)}
     <div class="card-tabs"><div class="tabs" role="tablist" aria-label="Project">${tabBtn("primary", "Primary")}${tabBtn("overview", "Overview")}</div></div>
     <div class="card-body">${modalError}${fl}
+      ${myAdded(u).filter(x => x.pid === pid).map(x => `<div class="flash ok added-ack" role="status"><span>${h(uname(x.by))} ${x.isNew ? "added you to this project" : "gave you another role here"} as ${h(x.roles.join(", "))} · ${fmt(x.at)}</span>
+        <button type="button" class="btn primary qbtn" data-act="ack-added" data-id="${x.id}">Acknowledge</button></div>`).join("")}
       <div role="tabpanel" id="panel-primary" aria-labelledby="tab-primary" data-tab="primary" class="stack" ${tab === "primary" ? "" : "hidden"}>${projectPrimary(u, pid)}</div>
       <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" data-tab="overview" class="stack" ${tab === "overview" ? "" : "hidden"}>${projectOverview(u, pid)}</div>
     </div>
@@ -2399,6 +2423,8 @@ document.addEventListener("click", e => {
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
   if (act === "open-project") { projectDialog(); return; }
   if (act === "open-projreq") { projReqDialog(); return; }
+  if (act === "ack-added") { const x = (S.addedNotices || []).find(y => y.id === +a.dataset.id && y.uid === me().id); if (!x) return;
+    x.ack = now(); flash("ok", `Acknowledged: ${proj(x.pid).code} · ${proj(x.pid).name}.`); const inCard = modal.open && modal.querySelector(".pwrap"); render(); if (inCard) projectCard(x.pid); return; }
   if (act === "pr-approve") {
     const pr = S.projReqs.find(x => x.id === +a.dataset.id); if (!pr || !me().cto) return;
     projectDialog(pr);

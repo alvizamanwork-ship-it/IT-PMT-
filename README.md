@@ -37,6 +37,7 @@
 - Change password: Settings → Change password opens a card (current, new, repeat). "Forgot password?" emails a reset code to use in the same card, or says to contact the system admin when email is off or the account has no email.
 - Usernames are made automatically from the full name (first name, then first.last, then a number). Each user has a CIF (ID number), which must be unique.
 - User import integration: Admin → Users → Import users fetches Name, Username, CIF and Email from an HR / core-system integration; a blank or taken username is made from the name, and people whose CIF already exists are skipped.
+- "Added to project": when someone adds you to a project (or gives you another role), a notice appears in My Queue below your tasks, with Open project and Acknowledge buttons (also shown inside the project card). It stays until you press Acknowledge; the My Queue menu item shows the count.
 - Requirement and project cards open wide (landscape).
 - Choosing members (New project team step and Add member): type part of a name or username and pick from the suggestion list (arrow keys and Enter work).
 - Start or request a project: the Project Head and people the system admin allows press New project (a non-Head starter joins as Project Lead). Everyone else presses Request project (name, type, priority, dates, why); the Project Head approves it (the New project form opens pre-filled) or declines it with a reason. Requests are tracked in Sent Requests and can be withdrawn while waiting.
