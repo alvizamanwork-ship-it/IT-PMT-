@@ -459,6 +459,8 @@ dialog.card > .pwrap { display: flex; flex-direction: column; min-height: 0; fle
 .extend input { min-height: 2.2rem; padding: .25em .4em; }
 .extend .btn { min-height: 2.2rem; padding: .25em .9em; font-size: .9rem; }
 tr.tl-project td { background: var(--surface-2); }
+.tl-why { display: block; max-width: 14rem; white-space: normal; font-size: .78rem; color: var(--muted); font-family: var(--font); }
+.dl-bar .extend { flex-wrap: wrap; }
 .pwrap [role=tabpanel] { grid-template-columns: minmax(0, 1fr); }
 .pwrap [role=tabpanel] > * { min-width: 0; }
 /* Card outlines */
@@ -598,24 +600,68 @@ function deviation(ends) {
   const d = dayDiff(ends[0], ends[ends.length - 1]);
   return d === 0 ? label("0 days", "st-ap") : d > 0 ? label(`+${dayWord(d)}`, "st-fb") : label(`${dayWord(-d)} earlier`, "st-an");
 }
-function extendProject(u, pid, date) {
-  if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead change the project end date.");
-  const p = proj(pid), old = p.deadline;
-  if (!date) throw new RuleError("Pick the new end date first.");
-  checkDates(p.start, date, "end date");
-  if (date === old) throw new RuleError("That is already the end date.");
-  (p.deadlines = p.deadlines || (old ? [old] : [])).push(date); p.deadline = date;
-  log(pid, u, old ? `Project end date extended: ${old} to ${date} (${dayDiff(old, date) > 0 ? "+" : ""}${dayWord(dayDiff(old, date))})` : `Project end date set: ${date}`);
+// End date extensions: anyone allowed asks with a reason; the Project Lead (or the Project Head) accepts or declines.
+const canApproveExt = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
+const extTarget = (kind, id) => kind === "project" ? proj(id) : req(id);
+const extPid = (kind, id) => kind === "project" ? id : req(id).pid;
+const extName = (kind, id) => kind === "project" ? "Whole project" : `#${id} ${req(id).title}`;
+const pendingExt = t => (t.extReqs || []).find(x => x.status === "pending");
+function canRequestExt(u, kind, id) {
+  if (kind === "project") return canPlan(u, id);
+  const r = req(id); return r.stage !== 8 && (canPlan(u, r.pid) || holds(r, u.id));
 }
-function extendReq(u, rid, date) {
-  const r = req(rid);
-  if (!canPlan(u, r.pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead change requirement end dates.");
-  if (r.stage === 8) throw new RuleError("This requirement is Closed.");
-  if (!date) throw new RuleError("Pick the new end date first.");
-  checkDates(r.start, date, "end date");
-  const old = r.due; if (date === old) throw new RuleError("That is already the end date.");
-  (r.dues = r.dues || (old ? [old] : [])).push(date); r.due = date;
-  log(r.pid, u, old ? `Due date extended: ${old} to ${date} (${dayDiff(old, date) > 0 ? "+" : ""}${dayWord(dayDiff(old, date))})` : `Due date set: ${date}`, {rid});
+function applyExt(u, kind, id, date, reason, by) {
+  const t = extTarget(kind, id), pid = extPid(kind, id), proj_ = kind === "project";
+  const old = proj_ ? t.deadline : t.due;
+  if (proj_) { (t.deadlines = t.deadlines || (old ? [old] : [])).push(date); t.deadline = date; (t.endWhy = t.endWhy || {})[t.deadlines.length - 1] = reason; }
+  else { (t.dues = t.dues || (old ? [old] : [])).push(date); t.due = date; (t.endWhy = t.endWhy || {})[t.dues.length - 1] = reason; }
+  const change = old ? `${old} to ${date} (${dayDiff(old, date) > 0 ? "+" : ""}${dayWord(dayDiff(old, date))})` : date;
+  log(pid, u, `Approved end date extension${proj_ ? "" : ` for #${id}`}: ${change}`, {rid: proj_ ? null : id, to: by, comment: reason});
+}
+function requestExt(u, kind, id, date, reason) {
+  const t = extTarget(kind, id); if (!t) throw new RuleError("Choose what needs more time.");
+  const pid = extPid(kind, id), st = proj(pid).status;
+  if (!canRequestExt(u, kind, id)) throw new Forbidden("Only the Project Head, Project Lead, Dev Lead or the people a requirement is assigned to can ask for more time.");
+  if (st !== "Active") throw new RuleError(`Project is ${st}; nothing can be changed.`);
+  reason = (reason || "").trim();
+  if (!date) throw new RuleError("Pick the new end date.");
+  if (!reason) throw new RuleError("Write the reason for the extension. It is required.");
+  checkDates(t.start, date, "end date");
+  if (date === (kind === "project" ? t.deadline : t.due)) throw new RuleError("That is already the end date.");
+  if (pendingExt(t)) throw new RuleError("An extension request for this is already waiting for the Project Lead.");
+  if (canApproveExt(u, pid)) { (t.extReqs = t.extReqs || []).push({id: nextId("ex"), by: u.id, date, reason, at: now(), status: "accepted", decidedBy: u.id, decidedAt: now()}); applyExt(u, kind, id, date, reason, u.id); return "applied"; }
+  (t.extReqs = t.extReqs || []).push({id: nextId("ex"), by: u.id, date, reason, at: now(), status: "pending"});
+  log(pid, u, `Requested end date extension${kind === "project" ? "" : ` for #${id}`} to ${date}`, {rid: kind === "project" ? null : id, comment: reason});
+  return "requested";
+}
+function decideExt(u, kind, id, ok) {
+  const t = extTarget(kind, id), pid = extPid(kind, id), x = pendingExt(t);
+  if (!canApproveExt(u, pid)) throw new Forbidden("Only the Project Lead (or the Project Head) accepts or declines extension requests.");
+  if (!x) throw new RuleError("There is no extension request waiting.");
+  const st = proj(pid).status; if (st !== "Active") throw new RuleError(`Project is ${st}; nothing can be changed.`);
+  x.status = ok ? "accepted" : "declined"; x.decidedBy = u.id; x.decidedAt = now();
+  if (ok) applyExt(u, kind, id, x.date, x.reason, x.by);
+  else log(pid, u, `Declined end date extension${kind === "project" ? "" : ` for #${id}`} to ${x.date}`, {rid: kind === "project" ? null : id, to: x.by, comment: x.reason});
+}
+// Every extension request visible to this person in a project, newest first.
+function extList(u, pid, status) {
+  const out = [];
+  const add = (kind, id, t) => (t.extReqs || []).forEach(x => { if (!status || x.status === status) out.push({kind, id, x}); });
+  add("project", pid, proj(pid));
+  S.reqs.filter(r => r.pid === pid && (seesAll(u, pid) || holds(r, u.id) || involved(r, u.id))).forEach(r => add("req", r.id, r));
+  return out.sort((a, b) => b.x.at - a.x.at);
+}
+function extTable(u, items, withProject, decide) {
+  return tbl(`<thead><tr>${withProject ? "<th>Project</th>" : ""}<th>For</th><th>Current end</th><th>Asked for</th><th>Change</th><th>Reason</th><th>Asked by</th><th>Status</th>${decide ? "<th><span class=\"sr-only\">Decision</span></th>" : ""}</tr></thead><tbody>${items.map(({kind, id, x}) => {
+    const t = extTarget(kind, id), cur = kind === "project" ? t.deadline : t.due, pid = extPid(kind, id);
+    const change = cur && x.status === "pending" ? dayDiff(cur, x.date) : null;
+    return `<tr>${withProject ? `<td><button class="linkish" data-go="project" data-tab="overview" data-id="${pid}">${h(proj(pid).code)}</button></td>` : ""}<td>${kind === "req" && canSeeReq(u, t) ? `<button class="linkish" data-act="open-card" data-id="${id}">${h(extName(kind, id))}</button>` : h(extName(kind, id))}</td>
+      <td class="num">${x.status === "pending" ? (cur || "none") : ""}</td><td class="num">${x.date}</td>
+      <td>${change === null ? "" : label(`${change > 0 ? "+" : ""}${dayWord(change)}`, change > 0 ? "st-fb" : "st-an")}</td>
+      <td class="pre">${h(x.reason)}</td><td>${h(uname(x.by))}<br><span class="file-meta">${fmt(x.at)}</span></td>
+      <td>${label(x.status === "pending" ? "Waiting" : x.status === "accepted" ? "Accepted" : "Declined", x.status === "pending" ? "st-qa" : x.status === "accepted" ? "st-ap" : "pr-low")}${x.decidedBy && x.decidedBy !== x.by ? `<br><span class="file-meta">by ${h(uname(x.decidedBy))}</span>` : ""}</td>
+      ${decide ? `<td>${x.status === "pending" && canApproveExt(u, pid) ? `<div class="extend"><button type="button" class="btn primary" data-act="ext-decide" data-ok="1" data-kind="${kind}" data-id="${id}" data-pid="${pid}">Accept</button><button type="button" class="btn secondary" data-act="ext-decide" data-ok="0" data-kind="${kind}" data-id="${id}" data-pid="${pid}">Decline</button></div>` : ""}</td>` : ""}</tr>`;
+  }).join("")}</tbody>`);
 }
 function setOverview(u, pid, d) {
   if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead edit the project overview.");
@@ -967,6 +1013,14 @@ function reqCard(id, keepComment) {
           <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Choose the stage and one or more people, then press Send. Everyone you add gets it in their queue, and any of them can send it on.${all ? "" : " To move it to a Feedback stage, use Request feedback below."}</p></section>
+      ${pendingExt(r) ? `<section class="card-section fb-alert"><h3 class="fl">End date extension · waiting for the Project Lead</h3>
+        <p style="margin:0">${h(uname(pendingExt(r).by))} asked for <strong>${pendingExt(r).date}</strong> (now ${r.due || "not set"})</p><p class="pre" style="margin:.3rem 0 0">${h(pendingExt(r).reason)}</p>
+        ${canApproveExt(u, r.pid) ? `<div class="extend" style="margin-top:.6rem"><button type="button" class="btn primary" data-act="ext-decide" data-ok="1" data-kind="req" data-id="${r.id}" data-pid="${r.pid}">Accept</button><button type="button" class="btn secondary" data-act="ext-decide" data-ok="0" data-kind="req" data-id="${r.id}" data-pid="${r.pid}">Decline</button></div>` : ""}</section>`
+      : canRequestExt(u, "req", r.id) && p.status === "Active" ? `<details class="card-section"><summary>Ask for more time</summary><div class="stack" style="margin-top:.75rem">
+        <p class="note">Current end date: ${r.due || "not set"}. The Project Lead accepts or declines the request.</p>
+        <label for="cd-extdate" class="narrow">New end date<input id="cd-extdate" type="date" name="extdate"></label>
+        <label for="cd-extreason">Reason (required)<textarea id="cd-extreason" name="extreason" rows="2"></textarea></label>
+        <button class="btn secondary" name="do" value="extreq">${canApproveExt(u, r.pid) ? "Extend now" : "Request extension"}</button></div></details>` : ""}
       ${pf || all ? "" : `<details class="card-section"><summary>Request feedback</summary><div class="stack" style="margin-top:.75rem">
         <p class="note">Ask for this requirement to go to a Feedback stage. The Project Head, Project Lead or Dev Lead accepts it and picks who gives the feedback.</p>
         <label for="cd-fbreason">Reason<textarea id="cd-fbreason" name="fbreason" rows="2"></textarea></label>
@@ -1090,6 +1144,57 @@ function wizGo(step) {
   } else { const first = f.querySelector(`section[data-step="${step}"] input, section[data-step="${step}"] select`); if (first) first.focus(); }
 }
 
+// ---------- downloads (claude.ai "downloads" capability; hidden when unavailable) ----------
+let downloadsCap = null;
+(async () => {
+  try { if (window.claude && window.claude.use) downloadsCap = await window.claude.use("downloads"); } catch (e) { downloadsCap = null; }
+  if (downloadsCap) document.querySelectorAll("[data-dl]").forEach(el => { el.hidden = false; });
+})();
+const csvCell = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+function timelineCsv(u, pid) {
+  const rows = timelineRows(u, pid), n = Math.max(1, ...rows.map(x => x.ends.length));
+  const head = ["List", "Requirement", "Start date"].concat(Array.from({length: n}, (_, i) => `End date ${i + 1}`), ["Days deviated", "Extension reasons"]);
+  const body = rows.map((x, i) => [x.kind === "project" ? "Project" : i, x.name, x.start || ""].concat(Array.from({length: n}, (_, k) => x.ends[k] || ""),
+    [x.ends.length ? dayDiff(x.ends[0], x.ends[x.ends.length - 1]) : "", Object.keys(x.why).map(k => `End date ${+k + 1}: ${x.why[k]}`).join(" | ")]));
+  return [head].concat(body).map(r => r.map(csvCell).join(",")).join("\r\n");
+}
+function reportHtml(u, pid) {
+  const p = proj(pid), ov = p.overview || {}, rows = timelineRows(u, pid), n = Math.max(1, ...rows.map(x => x.ends.length));
+  const all = seesAll(u, pid), hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^(Due date|Requested end date|Approved end date|Declined end date)/.test(x.action))));
+  const exts = extList(u, pid), esc = h, para = t => t ? `<p class="pre">${esc(t)}</p>` : `<p class="muted">Not filled in.</p>`;
+  const dev = ends => !ends.length ? "" : (d => d === 0 ? "0 days" : d > 0 ? `+${dayWord(d)}` : `${dayWord(-d)} earlier`)(dayDiff(ends[0], ends[ends.length - 1]));
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(p.code)} · ${esc(p.name)} · Overview</title>
+<style>body{font:14px/1.5 -apple-system,"Segoe UI",Inter,Arial,sans-serif;color:#1c1a17;max-width:62rem;margin:2rem auto;padding:0 1.25rem}
+h1{font-size:1.6rem;margin:0 0 .25rem}h2{font-size:1.1rem;margin:1.8rem 0 .5rem;border-bottom:2px solid #b0121b;padding-bottom:.25rem}
+.muted{color:#5b5348}.pre{white-space:pre-wrap;margin:.2rem 0 .6rem}table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #c9c0b0;padding:.35rem .5rem;text-align:left;vertical-align:top}th{background:#f1ece2}
+.why{display:block;color:#5b5348;font-size:12px}dl{display:grid;grid-template-columns:max-content 1fr;gap:.2rem 1rem}dt{font-weight:600}dd{margin:0}
+ol{padding-left:1.5rem}li{margin-bottom:.3rem}.label{font-weight:600}blockquote{margin:.2rem 0 0;padding-left:.6rem;border-left:3px solid #c9c0b0}</style></head><body>
+<h1>${esc(p.code)} · ${esc(p.name)}</h1>
+<p class="muted">IDLC Streams project overview · generated ${fmt(now())} by ${esc(u.name)}</p>
+<dl><dt>Status</dt><dd>${esc(p.status)}</dd><dt>Priority</dt><dd>${esc(p.priority || "Normal")}</dd><dt>Start date</dt><dd>${p.start || "None"}</dd>
+<dt>End date</dt><dd>${p.deadline || "None"}</dd><dt>Project cost</dt><dd>${esc(ov.cost || "Not set")}</dd><dt>Team</dt><dd>${memberSort(p).map(m => `${esc(uname(m.uid))} (${esc(m.roles.join(", "))})`).join(", ")}</dd></dl>
+<h2>Summary</h2>${para(ov.summary)}<h2>Description</h2>${para(ov.desc)}<h2>Analysis</h2>${para(ov.analysis)}
+<h2>Timeline</h2><table><thead><tr><th>List</th><th>Requirement</th><th>Start date</th>${Array.from({length: n}, (_, i) => `<th>End date ${i + 1}</th>`).join("")}<th>Days deviated</th></tr></thead><tbody>
+${rows.map((x, i) => `<tr><td>${x.kind === "project" ? "—" : i}</td><td>${esc(x.name)}${x.closed ? " (Closed)" : ""}</td><td>${x.start || ""}</td>${Array.from({length: n}, (_, k) => `<td>${x.ends[k] || ""}${k > 0 && x.why[k] ? `<span class="why">${esc(x.why[k])}</span>` : ""}</td>`).join("")}<td>${dev(x.ends)}</td></tr>`).join("")}</tbody></table>
+<h2>End date extension requests</h2>${exts.length ? `<table><thead><tr><th>For</th><th>Asked for</th><th>Reason</th><th>Asked by</th><th>Status</th></tr></thead><tbody>${exts.map(({kind, id, x}) => `<tr><td>${esc(extName(kind, id))}</td><td>${x.date}</td><td class="pre">${esc(x.reason)}</td><td>${esc(uname(x.by))}, ${fmt(x.at)}</td><td>${x.status === "pending" ? "Waiting" : x.status === "accepted" ? "Accepted" : "Declined"}${x.decidedBy && x.decidedBy !== x.by ? ` by ${esc(uname(x.decidedBy))}` : ""}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">None.</p>`}
+<h2>History</h2>${historyList(hist, u, pid)}
+</body></html>`;
+}
+async function offerDownload(act, pid) {
+  const status = document.getElementById("dl-status"), p = proj(pid), u = me();
+  if (!downloadsCap) { if (status) status.textContent = "Downloads are not available in this view."; return; }
+  const isCsv = act === "dl-csv";
+  try {
+    await downloadsCap.save({filename: `${p.code}_${isCsv ? "timeline.csv" : "overview.html"}`, data: isCsv ? timelineCsv(u, pid) : reportHtml(u, pid)});
+    if (status) status.textContent = isCsv ? "Timeline saved." : "Overview report saved.";
+  } catch (e) {
+    const code = e && e.code;
+    if (status) status.textContent = code === "declined" ? "Download cancelled." : code === "rate_limited" ? "A save prompt is already open. Try again in a moment." : "Downloads are not available in this view.";
+    if (code && !["declined", "rate_limited"].includes(code)) document.querySelectorAll("[data-dl]").forEach(el => { el.hidden = true; });
+  }
+}
+
 // ---------- rendering ----------
 const main = document.getElementById("main");
 function applyPrefs() {
@@ -1139,8 +1244,10 @@ function viewQueue(u) {
   const items = S.reqs.filter(r => holds(r, u.id) && r.stage !== 8 && proj(r.pid).status === "Active")
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
   const fbs = S.reqs.filter(r => pendingFb(r) && seesAll(u, r.pid) && proj(r.pid).status === "Active");
+  const exs = S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
   return `<div class="head-row"><h1>My Queue</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>
-  ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
+  ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}
+  ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">End date extension requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
     <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td></tr>`).join("")}</tbody>`)
@@ -1193,6 +1300,8 @@ function projectPrimary(u, pid) {
   const pending = all ? S.reqs.filter(r => r.pid === pid && pendingFb(r)) : [];
   return `<p class="meta" style="margin:0">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Start: ${p.start || `<span class="note">None</span>`}</span><span>End date: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
   ${pending.length ? `<section class="card-section fb-alert"><h3 class="sec-title">Feedback requests waiting for approval (${pending.length})</h3>${fbTable(pending, false)}</section>` : ""}
+  ${canApproveExt(u, pid) && extList(u, pid, "pending").length ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">End date extension requests waiting (${extList(u, pid, "pending").length})</h3>
+    <button type="button" class="btn secondary" data-act="ptab" data-tab="overview">Review in Overview</button></div></section>` : ""}
   <section class="card-section"><div class="head-row"><h3 class="sec-title">${all ? "All requirements" : "Requirements you hold"}</h3>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
   ${all ? "" : `<p class="note">You see a requirement only while you hold it. Only the Project Head, Project Lead and Dev Lead see all requirements and who holds them.</p>`}
   ${reqs.length ? tbl(`<thead><tr><th>Requirement</th><th>Stage</th>${all ? "<th>Assigned to</th>" : ""}<th>Priority</th><th>Start</th><th>End date</th></tr></thead><tbody>${reqs.map(r => `
@@ -1222,11 +1331,26 @@ function projectPrimary(u, pid) {
 function projectOverview(u, pid) {
   const p = proj(pid), plan = canPlan(u, pid), all = seesAll(u, pid), ov = p.overview || {};
   const field = (k, t) => `<dt>${t}</dt><dd class="pre">${ov[k] ? h(ov[k]) : `<span class="note">Not filled in yet.</span>`}</dd>`;
-  const rows = [{kind: "project", id: pid, name: "Whole project", start: p.start, ends: p.deadlines || (p.deadline ? [p.deadline] : []), closed: p.status === "Closed"}]
-    .concat(S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id) || involved(r, u.id))).sort((a, b) => a.id - b.id)
-      .map(r => ({kind: "req", id: r.id, name: `#${r.id} ${r.title}`, start: r.start || isoDay(r.created), ends: r.dues || (r.due ? [r.due] : []), closed: r.stage === 8})));
+  const rows = timelineRows(u, pid);
+  const approver = canApproveExt(u, pid), pendingX = extList(u, pid, "pending"), pastX = extList(u, pid).filter(e => e.x.status !== "pending");
+  const askable = rows.filter(x => !x.closed && canRequestExt(u, x.kind, x.id) && !pendingExt(extTarget(x.kind, x.id)));
   const n = Math.max(1, ...rows.map(x => x.ends.length));
-  const hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^Due date/.test(x.action))));
+  const hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^(Due date|Requested end date|Approved end date|Declined end date)/.test(x.action))));
+  return `<section class="card-section dl-bar" data-dl ${downloadsCap ? "" : "hidden"}><div class="head-row"><h3 class="sec-title">Download</h3>
+    <div class="extend"><button type="button" class="btn secondary" data-act="dl-report" data-pid="${pid}">Overview report (.html)</button>
+    <button type="button" class="btn secondary" data-act="dl-csv" data-pid="${pid}">Timeline (.csv)</button></div></div>
+    <p class="note" id="dl-status" style="margin-top:.4rem">The report has the overview, timeline, extension requests and history. Open it in a browser or Word, or print it to PDF.</p></section>
+  ${projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, askable)}`;
+}
+function timelineRows(u, pid) {
+  const p = proj(pid), all = seesAll(u, pid);
+  return [{kind: "project", id: pid, name: "Whole project", start: p.start, ends: p.deadlines || (p.deadline ? [p.deadline] : []), why: p.endWhy || {}, closed: p.status === "Closed"}]
+    .concat(S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id) || involved(r, u.id))).sort((a, b) => a.id - b.id)
+      .map(r => ({kind: "req", id: r.id, name: `#${r.id} ${r.title}`, start: r.start || isoDay(r.created), ends: r.dues || (r.due ? [r.due] : []), why: r.endWhy || {}, closed: r.stage === 8})));
+}
+function projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, askable) {
+  const p = proj(pid), plan = canPlan(u, pid), ov = p.overview || {};
+  const field = (k, t) => `<dt>${t}</dt><dd class="pre">${ov[k] ? h(ov[k]) : `<span class="note">Not filled in yet.</span>`}</dd>`;
   return `<section class="card-section"><h3 class="sec-title">Overview</h3>
   ${plan ? `<form data-form="overview" data-pid="${pid}" class="stack">
     <label for="ov-summary">Summary<input id="ov-summary" name="summary" value="${h(ov.summary || "")}" placeholder="One line about the project" autocomplete="off"></label>
@@ -1240,17 +1364,25 @@ function projectOverview(u, pid) {
     <label for="pp-pri">Project priority<select id="pp-pri" name="priority">${PRIORITIES.map(x => `<option ${x === (p.priority || "Normal") ? "selected" : ""}>${x}</option>`).join("")}</select></label>
     <label for="pp-start">Start date<input id="pp-start" type="date" name="start" value="${p.start || ""}" required></label>
     <button class="btn primary">Save</button></form>
-    <p class="note" style="margin-top:.6rem">Current end date: ${p.deadline || "none"}. To change it, use Extend in the Timeline below.</p>`
+    <p class="note" style="margin-top:.6rem">Current end date: ${p.deadline || "none"}. To change it, request an extension below; the Project Lead accepts it.</p>`
     : `<p style="margin:0">${priLabel((p.priority || "Normal") + " priority")} <span>Start ${p.start || "not set"} · End ${p.deadline || "not set"}</span></p>`}</section>
   <section class="card-section"><h3 class="sec-title">Timeline</h3>
-    <p class="note" style="margin-bottom:.5rem">Every end-date change is kept. End date 1 is the original; later columns are extensions. Days deviated compares the latest end date with the original.</p>
-    ${tbl(`<thead><tr><th>List</th><th>Requirement</th><th>Start date</th>${Array.from({length: n}, (_, i) => `<th>End date ${i + 1}</th>`).join("")}<th>Days deviated</th>${plan ? "<th>Extend</th>" : ""}</tr></thead><tbody>${rows.map((x, i) => `
+    <p class="note" style="margin-bottom:.5rem">Every accepted end-date change is kept, with its reason. End date 1 is the original; later columns are extensions. Days deviated compares the latest end date with the original.</p>
+    ${tbl(`<thead><tr><th>List</th><th>Requirement</th><th>Start date</th>${Array.from({length: n}, (_, i) => `<th>End date ${i + 1}</th>`).join("")}<th>Days deviated</th></tr></thead><tbody>${rows.map((x, i) => `
       <tr class="${x.kind === "project" ? "tl-project" : ""}"><td class="num">${x.kind === "project" ? "—" : i}</td>
       <td>${x.kind === "project" ? `<strong>${h(x.name)}</strong>` : canSeeReq(u, req(x.id)) ? `<button class="linkish" data-act="open-card" data-id="${x.id}">${h(x.name)}</button>` : h(x.name)}${x.closed ? " " + label("Closed", "st-cl") : ""}</td>
-      <td class="num">${x.start || ""}</td>${Array.from({length: n}, (_, k) => `<td class="num">${x.ends[k] ? (k === x.ends.length - 1 && k > 0 ? `<strong>${x.ends[k]}</strong>` : x.ends[k]) : ""}</td>`).join("")}
-      <td>${deviation(x.ends)}</td>
-      ${plan ? `<td>${x.closed ? "" : `<div class="extend"><label class="sr-only" for="ext-${x.kind}-${x.id}">New end date for ${h(x.name)}</label><input type="date" id="ext-${x.kind}-${x.id}">
-        <button type="button" class="btn secondary" data-act="extend" data-kind="${x.kind}" data-id="${x.id}" data-pid="${pid}">${x.ends.length ? "Extend" : "Set"}</button></div>`}</td>` : ""}</tr>`).join("")}</tbody>`)}
+      <td class="num">${x.start || ""}</td>${Array.from({length: n}, (_, k) => `<td class="num">${x.ends[k] ? `${k === x.ends.length - 1 && k > 0 ? `<strong>${x.ends[k]}</strong>` : x.ends[k]}${k > 0 && x.why[k] ? `<span class="tl-why">${h(x.why[k])}</span>` : ""}` : ""}</td>`).join("")}
+      <td>${deviation(x.ends)}${pendingExt(extTarget(x.kind, x.id)) ? `<br>${label("Extension waiting", "st-qa")}` : ""}</td></tr>`).join("")}</tbody>`)}
+  </section>
+  <section class="card-section${pendingX.length && approver ? " fb-alert" : ""}"><h3 class="sec-title">End date extensions</h3>
+    <p class="note" style="margin-bottom:.5rem">Ask for more time with a reason. The Project Lead accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
+    ${pendingX.length ? `<h4 class="fl">Waiting for the Project Lead (${pendingX.length})</h4>${extTable(u, pendingX, false, true)}` : `<p class="note">No requests waiting.</p>`}
+    ${askable.length ? `<form data-form="extreq" data-pid="${pid}" class="stack" style="margin-top:.8rem">
+      <div class="row" style="margin:0"><label for="ex-item">Needs more time<select id="ex-item" name="item">${askable.map(x => `<option value="${x.kind}:${x.id}">${h(x.name)} (ends ${x.ends[x.ends.length - 1] || "not set"})</option>`).join("")}</select></label>
+      <label for="ex-date">New end date<input id="ex-date" type="date" name="date" required></label></div>
+      <label for="ex-reason">Reason (required)<textarea id="ex-reason" name="reason" rows="2" required placeholder="Why more time is needed"></textarea></label>
+      <button class="btn primary">${approver ? "Extend now" : "Request extension"}</button></form>` : ""}
+    ${pastX.length ? `<details style="margin-top:.8rem"><summary>Past requests (${pastX.length})</summary>${extTable(u, pastX, false, false)}</details>` : ""}
   </section>
   <section class="card-section"><h3 class="sec-title">History</h3>${historyList(hist, u, pid)}</section>`;
 }
@@ -1343,6 +1475,9 @@ function notifText(x, u, p, r, toList) {
   if (a === "Send") return mine ? `assigned you requirement ${q} · ${STAGES[x.toStage]}${others.length ? ` (with ${others.join(", ")})` : ""}`
     : `sent requirement ${q} to ${toList.map(uname).join(", ") || "no one"} · ${STAGES[x.toStage]}`;
   if (a === "Created requirement") return `created requirement ${q}`;
+  if (a.startsWith("Requested end date extension")) return `${lower(a)}${r ? ` (“${r.title}”)` : ` in ${p.code}`}: “${x.comment}”`;
+  if (a.startsWith("Approved end date extension")) return `${mine ? "accepted your extension request" : lower(a)}${mine ? `${r ? ` for “${r.title}”` : ` in ${p.code}`}: ${a.replace(/^.*?: /, "")}` : r ? "" : ` in ${p.code}`}`;
+  if (a.startsWith("Declined end date extension")) return `${mine ? "declined your extension request" : lower(a)}${r ? ` (“${r.title}”)` : ` in ${p.code}`}`;
   if (a === "Requested feedback") return `requested feedback on ${q}${x.comment ? `: “${x.comment}”` : ""}`;
   if (a === "Declined feedback request") return mine ? `declined your feedback request on ${q}` : `declined a feedback request on ${q}`;
   if (a === "Feedback approved") return mine ? `accepted a feedback request and sent you requirement ${q} · ${STAGES[x.toStage]}`
@@ -1432,7 +1567,7 @@ function render() {
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]");
   if (g) {
-    if (g.dataset.go === "project") { const box = document.getElementById("top-q-results"); if (box) box.hidden = true; S.flash = null; projectCard(+g.dataset.id); return; }
+    if (g.dataset.go === "project") { const box = document.getElementById("top-q-results"); if (box) box.hidden = true; S.flash = null; projectCard(+g.dataset.id, g.dataset.tab || "primary"); return; }
     go(g.dataset.go, g.dataset.id ? +g.dataset.id : undefined); return;
   }
   if (e.target === modal) { closeModal(); return; }
@@ -1445,6 +1580,7 @@ document.addEventListener("click", e => {
     reqCard(+a.dataset.id); return;
   }
   if (act === "ptab") { setTab(a.dataset.tab); return; }
+  if (act === "dl-report" || act === "dl-csv") { offerDownload(act, +a.dataset.pid); return; }
   if (act === "back-project") { S.flash = null; projectCard(+modal.dataset.back); return; }
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
   if (act === "add-link" || act === "add-link-new") { addLinkUi(a); return; }
@@ -1467,10 +1603,11 @@ document.addEventListener("click", e => {
     if (act === "unsend") { const res = unsend(me(), +a.dataset.hid); flash("ok", `Unsent from ${res.names}. “${res.title}” is back in your queue at ${res.stage}.`); }
     if (act === "remove-role") { removeRole(me(), +a.dataset.pid, +a.dataset.uid, a.dataset.role); flash("ok", `Role ${a.dataset.role} removed.`); return {reopenProject: +a.dataset.pid}; }
     if (act === "remove") { removeMember(me(), +a.dataset.pid, +a.dataset.uid); flash("ok", "Member removed."); return {reopenProject: +a.dataset.pid}; }
-    if (act === "extend") {
-      const date = document.getElementById(`ext-${a.dataset.kind}-${a.dataset.id}`).value;
-      if (a.dataset.kind === "project") extendProject(me(), +a.dataset.id, date); else extendReq(me(), +a.dataset.id, date);
-      flash("ok", "End date saved. The Timeline keeps the earlier dates."); return {reopenProject: +a.dataset.pid, tab: "overview"};
+    if (act === "ext-decide") {
+      const ok = a.dataset.ok === "1"; decideExt(me(), a.dataset.kind, +a.dataset.id, ok);
+      flash("ok", ok ? "Extension accepted. The new end date is in the Timeline." : "Extension declined. The end date stays as it was.");
+      if (modal.open && modal.querySelector("form[data-form=card]")) return {reopen: +a.dataset.id};
+      if (modal.open) return {reopenProject: +a.dataset.pid, tab: modal.dataset.tab || "overview"};
     }
     if (act === "download") flash("ok", `${a.dataset.name} is a dummy file with no content. In the real app this downloads it from the network share.`);
   }, a);
@@ -1485,6 +1622,7 @@ document.addEventListener("submit", e => {
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
+        if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason); flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead can now accept or decline it."); return {reopen: id}; }
         if (doIt === "fbreq") { requestFeedback(u, id, d.fbreason); flash("ok", "Feedback requested. The Project Head, Project Lead and Dev Lead can now accept it."); return {reopen: id}; }
         if (doIt === "fbaccept") { const to = decideFeedback(u, id, true, +d.fbstage, +d.fbto, d.fbnote); flash("ok", `Feedback request accepted. Sent to ${to} in ${STAGES[+d.fbstage]}.`); break; }
         if (doIt === "fbdecline") { const who = decideFeedback(u, id, false, 0, 0, d.fbnote); flash("ok", `Feedback request declined. It stays with ${who}.`); return {reopen: id}; }
@@ -1509,6 +1647,11 @@ document.addEventListener("submit", e => {
       }
       case "addmember": addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); return {reopenProject: pid};
       case "plan": setPlan(u, pid, d.priority, d.start); flash("ok", "Project priority and start date saved."); return {reopenProject: pid, tab: "overview"};
+      case "extreq": {
+        const [kind, xid] = (d.item || "").split(":"), res = requestExt(u, kind, +xid, d.date, d.reason);
+        flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead can now accept or decline it.");
+        return {reopenProject: pid, tab: "overview"};
+      }
       case "overview": setOverview(u, pid, d); flash("ok", "Overview saved."); return {reopenProject: pid, tab: "overview"};
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", d.status === "Closed" ? "Project closed. It is now in the Archive." : `Project status is now ${d.status}.`); return {reopenProject: pid};
       case "newproject": {
