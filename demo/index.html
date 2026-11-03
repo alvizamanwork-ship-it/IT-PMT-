@@ -287,7 +287,7 @@ label { display: grid; gap: .3rem; font-weight: 600; font-size: .95rem; }
 input, select, textarea { font: inherit; font-size: 1rem; max-width: 100%; min-height: 2.75rem; border-radius: var(--radius-sm); }
 select, input[type="date"], input[type="time"], input[type="number"] { color: var(--text); background: var(--surface-2); border: 1px solid var(--sep-strong); padding: .45em .6em; }
 /* Text boxes are inverted panels with a metal rim: dark in Light mode, bright in Dark mode. */
-textarea, input:not([type]), input[type="text"], input[type="email"], input[type="url"], input[type="search"] {
+textarea, input:not([type]), input[type="text"], input[type="email"], input[type="url"], input[type="search"], input[type="password"] {
   color: var(--inv-fg); caret-color: var(--inv-link); padding: .55em .8em; border: 2px solid transparent;
   background: linear-gradient(var(--inv-bg), var(--inv-bg)) padding-box, var(--metal) border-box; }
 textarea { width: 100%; resize: vertical; }
@@ -562,6 +562,18 @@ input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn
 .sw-dot { width: 1.6rem; height: 1.6rem; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--sep-strong); }
 /* Selected side-menu tab gets an outline */
 .side-nav button[aria-current="page"] { box-shadow: inset 0 0 0 2px var(--accent); }
+/* Sign-in */
+.login-wrap { display: grid; place-items: start center; padding: 2.5rem 0 3rem; }
+.login-card { width: min(26rem, 100%); background: var(--surface); border: 1px solid var(--sep-strong); border-radius: 1.1rem; padding: 1.6rem 1.5rem; box-shadow: var(--shadow); }
+.login-card h1 { font-size: 1.6rem; margin: 1rem 0 .4rem; }
+.login-logo { display: flex; align-items: center; gap: .7rem; color: var(--text); }
+.login-logo .brand-mark { width: 4.2rem; height: 2.8rem; }
+.login-logo .brand-idlc { font-size: 2.1rem; }
+.login-logo .brand-streams { font-size: .8rem; }
+.login-card .stack { margin-top: .75rem; }
+.login-card .stack > .btn { justify-self: stretch; }
+.login-demo { margin-top: 1.2rem; padding-top: .9rem; border-top: 1px solid var(--sep); }
+.login-card .row { justify-content: space-between; }
 /* Card outlines */
 .card-section, .panel, .tbl, .flash, .menu-body, dialog.card { border: 1px solid var(--sep-strong); }
 /* Logo: red square with three flowing lines, plus the IDLC / STREAMS wordmark. Dark parts follow the text colour so they show in both themes. */
@@ -577,7 +589,7 @@ input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn
 <div class="demo"><div class="demo-in gutter">
   <strong>Demo</strong>
   <span>Nothing is sent or saved to a server. Data stays in this browser.</span>
-  <label class="check" for="as-user">Viewing as
+  <label class="check" for="as-user">Quick switch
     <select id="as-user"></select></label>
   <button class="btn secondary" id="reset-demo" type="button">Reset sample data</button>
   <span id="reset-confirm" hidden>Go back to the sample projects? Your changes are lost.
@@ -1080,7 +1092,7 @@ function handoff(actor, r, action, to, comment, internal) {
 function seed() {
   const base = Date.now();
   S = {seq: {}, users: [], projects: [], reqs: [], history: [], comments: [], files: [], links: [], outbox: [], stallDays: 5,
-       me: 1, view: {name: "queue"}, flash: null, iosDefault: true, darkDefault: true};
+       me: null, view: {name: "queue"}, flash: null, iosDefault: true, darkDefault: true};
   syncLists();
   [["jewel", "Nurul Alam (Jewel)", 1], ["saifuddin", "Mohammad Saifuddin"], ["nafis", "Nafis Ahmed"], ["shahriar", "Mohammad Shahriar Hossain"],
    ["alvi", "Alvi Zaman"], ["ehsanul", "Ehsanul Hassan"], ["sazzadur", "Sazzadur Rahman"], ["kawshik", "Kawshik Barua"],
@@ -1181,6 +1193,7 @@ function seed() {
   CLOCK = null;
   S.outbox = S.outbox.slice(0, 30);
   seedOrganizer();
+  ensureAuthData(); S.authV = 1;
 }
 // Sample reminders and notes (private to each person).
 function seedOrganizer() {
@@ -1206,6 +1219,64 @@ function seedOrganizer() {
 // ---------- persistence (per viewer, optional) ----------
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function load() { try { const v = localStorage.getItem(KEY); if (v) { S = JSON.parse(v); return true; } } catch (e) {} return false; }
+
+// ---------- sign-in ----------
+const INT_TYPES = ["Directory sign-in (LDAP / Active Directory)", "Single sign-on (SAML / OpenID Connect)", "Webhook", "REST API", "File storage"];
+function ensureAuthData() {
+  S.users.forEach(x => { if (!x.pw) x.pw = hashPw(x.sysadmin ? "admin" : "demo"); });
+  if (!S.users.some(x => x.sysadmin)) S.users.push({id: nextId("u"), username: "admin", name: "System Admin", email: "admin@example.com", cto: false, sysadmin: true, pw: hashPw("admin"), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+  if (!S.mail) S.mail = {enabled: true, host: "smtp.example.com", port: 587, security: "STARTTLS", user: "streams@example.com", passSet: true, from: "streams@example.com", fromName: "IDLC Streams"};
+  if (!S.integrations) S.integrations = [
+    {id: nextId("in"), name: "Company directory sign-in", type: INT_TYPES[0], url: "ldaps://ad.example.com", key: "saved", enabled: false, at: Date.now()},
+    {id: nextId("in"), name: "Network file share", type: "File storage", url: "\\\\fs01\\IDLC_Streams", key: "", enabled: true, at: Date.now()}];
+}
+// Demo only: passwords are scrambled with a simple hash and kept in this browser. The real app stores PBKDF2 hashes on the server.
+const hashPw = pw => { let a = 5381, b = 52711; for (const ch of String(pw)) { const k = ch.charCodeAt(0); a = Math.imul(a, 33) ^ k; b = Math.imul(b, 31) ^ k; } return "demo$" + (a >>> 0).toString(16) + (b >>> 0).toString(16); };
+let auth = {step: "login", username: ""};
+const isSysAdmin = u => !!(u && u.sysadmin);
+const mailOn = () => !!(S.mail && S.mail.enabled);
+function sendResetCode(x) {
+  if (!mailOn()) throw new RuleError("Password reset by email is turned off. Ask the system admin to turn on mail integration or to reset your password.");
+  if (!x.email) throw new RuleError("This account has no email address. Ask the system admin to add one.");
+  const code = String(100000 + Math.floor(Math.random() * 900000));
+  x.reset = {code, expires: now() + 15 * 60000};
+  S.outbox.unshift({at: now(), to: x.email, subject: "[IDLC Streams] Password reset code", body: `Hello ${x.name},\n\nYour password reset code is ${code}. It expires in 15 minutes.\nIf you did not ask for this, you can ignore this email.`});
+  S.outbox = S.outbox.slice(0, 40);
+  return code;
+}
+function viewLogin() {
+  const demoNote = `<p class="note login-demo">Demo sign-ins. People: <strong>jewel</strong>, saifuddin, nafis, shahriar, alvi, ehsanul, sazzadur, kawshik, mashequr, imam, sayem, all with password <strong>demo</strong>. System admin: <strong>admin</strong> / <strong>admin</strong>.</p>`;
+  const fl = S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "";
+  let body;
+  if (auth.step === "reset") body = `<h1>Reset password</h1><p class="note">Enter your username or email. We email you a 6-digit code.</p>${fl}
+    <form data-form="resetreq" class="stack"><label for="rs-who">Username or email<input id="rs-who" name="who" required autocomplete="username" value="${h(auth.username || "")}"></label>
+      <button class="btn primary">Email me a code</button></form>
+    <div class="row" style="margin:.75rem 0 0"><button type="button" class="linkish" data-act="auth-step" data-step="code">I already have a code</button><button type="button" class="linkish" data-act="auth-step" data-step="login">Back to sign in</button></div>`;
+  else if (auth.step === "code") body = `<h1>Choose a new password</h1><p class="note">Enter the code from the email and your new password.</p>${fl}
+    <form data-form="resetset" class="stack"><label for="rc-user">Username<input id="rc-user" name="username" required autocomplete="username" value="${h(auth.username || "")}"></label>
+      <label for="rc-code">Code from the email<input id="rc-code" name="code" required inputmode="numeric" autocomplete="one-time-code"></label>
+      <label for="rc-pw">New password<input id="rc-pw" type="password" name="pw" required autocomplete="new-password"></label>
+      <label for="rc-pw2">Repeat new password<input id="rc-pw2" type="password" name="pw2" required autocomplete="new-password"></label>
+      <button class="btn primary">Save new password</button></form>
+    <div class="row" style="margin:.75rem 0 0"><button type="button" class="linkish" data-act="auth-step" data-step="login">Back to sign in</button></div>`;
+  else body = `<h1>Sign in</h1>${fl}
+    <form data-form="login" class="stack"><label for="li-user">Username<input id="li-user" name="username" required autocomplete="username" value="${h(auth.username || "")}"></label>
+      <label for="li-pw">Password<input id="li-pw" type="password" name="password" required autocomplete="current-password"></label>
+      <button class="btn primary">Sign in</button></form>
+    <div class="row" style="margin:.75rem 0 0"><button type="button" class="linkish" data-act="auth-step" data-step="reset">Forgot password?</button></div>`;
+  return `<div class="login-wrap"><section class="login-card"><div class="login-logo">${BRAND_INNER}</div>${body}${demoNote}</section></div>`;
+}
+function renderLoggedOut() {
+  const d = document.documentElement;
+  Object.assign(d.dataset, {appearance: "dark", font: "century", size: "2", accent: "red", nav: "top"}); setLight(3, 3);
+  document.getElementById("sidenav").hidden = true;
+  document.getElementById("topbar").innerHTML = brandMarkup(false);
+  document.getElementById("as-user").innerHTML = `<option value="" selected>Signed out</option>` + S.users.map(x => `<option value="${x.id}">${h(x.name)}${x.cto ? " · CTO" : x.sysadmin ? " · Admin" : ""}</option>`).join("");
+  setTopbarHeight();
+  main.innerHTML = viewLogin();
+  save();
+  const f = main.querySelector("input:not([value]), input[value='']") || main.querySelector("input"); if (f) f.focus({preventScroll: true});
+}
 
 // ---------- popup cards ----------
 const modal = document.getElementById("modal");
@@ -1399,7 +1470,7 @@ function projectDialog() {
 }
 let teamSeq = 0;
 function teamRow() {
-  const i = ++teamSeq, people = S.users.filter(x => !x.cto);
+  const i = ++teamSeq, people = S.users.filter(x => !x.cto && !x.sysadmin);
   return `<div class="team-row wiz">
     <label for="tu-${i}">User<select id="tu-${i}" class="np-user"><option value="">Choose person</option>${people.map(x => `<option value="${x.id}">${h(x.name)}${loadTag(x.id)}</option>`).join("")}</select></label>
     <div class="role-picks"><label for="tr-${i}">Role<select id="tr-${i}" class="np-role">${ROLES.map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
@@ -1510,6 +1581,11 @@ function applyPrefs() {
 function go(name, id) { S.view = {name, id}; S.flash = null; render(); window.scrollTo(0, 0); main.focus({preventScroll: true}); }
 function flash(type, text) { S.flash = {type, text}; }
 
+const BRAND_INNER = `<svg class="brand-mark" viewBox="0 0 120 80" aria-hidden="true"><rect x="0" y="8" width="64" height="64" fill="#ED1C24"></rect>
+        <g fill="currentColor"><rect x="76" y="10" width="44" height="10" rx="5"></rect><rect x="76" y="35" width="32" height="10" rx="5"></rect><rect x="76" y="60" width="20" height="10" rx="5"></rect></g></svg>
+      <span class="brand-word"><span class="brand-streams">STREAMS</span><span class="brand-idlc">IDLC</span></span>`;
+const brandMarkup = clickable => clickable ? `<button type="button" class="brand" data-go="queue" aria-label="IDLC Streams, go to My Queue">${BRAND_INNER}</button>` : `<span class="brand" aria-label="IDLC Streams">${BRAND_INNER}</span>`;
+function closeMenus() { const m = document.getElementById("settings-menu"); if (m) m.open = false; }
 function setTopbarHeight() { const t = document.querySelector(".topbar"); if (t) document.documentElement.style.setProperty("--topbar-h", t.offsetHeight + "px"); }
 window.addEventListener("resize", setTopbarHeight);
 function renderTop() {
@@ -1519,15 +1595,12 @@ function renderTop() {
   const nav = [["queue", "My Queue"], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
     ["reminders", `Reminders${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
     .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], u.cto ? [["admin", "Admin"]] : [], [["howto", "How To"]]);
+  if (isSysAdmin(u)) nav.splice(0, nav.length, ["admin", "Admin"]);
   const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
   document.documentElement.dataset.nav = side ? "side" : "top";
   const aside = document.getElementById("sidenav"); aside.hidden = !side; aside.innerHTML = side ? `<nav aria-label="Main" class="side-nav">${links}</nav>` : "";
   document.getElementById("topbar").innerHTML = `
-    <button type="button" class="brand" data-go="queue" aria-label="IDLC Streams, go to My Queue">
-      <svg class="brand-mark" viewBox="0 0 120 80" aria-hidden="true"><rect x="0" y="8" width="64" height="64" fill="#ED1C24"></rect>
-        <g fill="currentColor"><rect x="76" y="10" width="44" height="10" rx="5"></rect><rect x="76" y="35" width="32" height="10" rx="5"></rect><rect x="76" y="60" width="20" height="10" rx="5"></rect></g></svg>
-      <span class="brand-word"><span class="brand-streams">STREAMS</span><span class="brand-idlc">IDLC</span></span>
-    </button>
+    ${brandMarkup(true)}
     ${side ? `<span class="tb-spacer"></span>` : `<nav aria-label="Main">${links}</nav>`}
     <div class="tsearch" role="search">
       <label for="top-q" class="sr-only">Search projects and requirements by code or name</label>
@@ -1546,8 +1619,9 @@ function renderTop() {
         <label for="pref-bri">Brightness <span class="note" id="pref-bri-v">${u.bri || 3} of 5</span><input id="pref-bri" name="bri" type="range" min="1" max="5" step="1" value="${u.bri || 3}" class="lvl"></label>
         <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
           .map(([k, t]) => `<option value="${k}" ${+u.size === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
-        <button class="btn primary">Save settings</button></form></div></details>`;
-  document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.cto ? " · CTO" : ""}</option>`).join("");
+        <button class="btn primary">Save settings</button></form>
+        <button type="button" class="btn secondary" data-act="logout">Sign out</button></div></details>`;
+  document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.sysadmin ? " · Admin" : ""}${x.cto ? " · CTO" : ""}</option>`).join("");
 }
 
 function historyList(rows, u, pid) {
@@ -1583,7 +1657,7 @@ function viewQueue(u) {
 
 function viewProjects(u) {
   return viewProjectList(u) + (u.cto ? `<section><h2>Team workload</h2><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each person across all active projects.</p>
-    ${workloadTable(S.users.filter(x => !x.cto).map(x => ({uid: x.id, roles: S.projects.filter(pp => pp.status === "Active" && role(pp.id, x.id)).map(pp => `${pp.code} · ${pp.name}`).join(", ") || "No active project", total: openLoad(x.id)}))
+    ${workloadTable(S.users.filter(x => !x.cto && !x.sysadmin).map(x => ({uid: x.id, roles: S.projects.filter(pp => pp.status === "Active" && role(pp.id, x.id)).map(pp => `${pp.code} · ${pp.name}`).join(", ") || "No active project", total: openLoad(x.id)}))
       .sort((a, b) => b.total - a.total || uname(a.uid).localeCompare(uname(b.uid))), false).replace("<th>Roles</th>", "<th>Active projects</th>")}</section>` : "");
 }
 function viewProjectList(u) {
@@ -1622,7 +1696,7 @@ function projectPrimary(u, pid) {
   const canCreate = (u.cto || rolesOf(pid, u.id).some(r => CREATORS.includes(r))) && (p.status === "Active" || head);
   const order = {High: 0, Normal: 1, Low: 2};
   const reqs = S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id))).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
-  const members = memberSort(p), others = S.users.filter(x => !has(pid, x.id, HEAD));
+  const members = memberSort(p), others = S.users.filter(x => !has(pid, x.id, HEAD) && !x.sysadmin);
   const pending = all ? S.reqs.filter(r => r.pid === pid && pendingFb(r)) : [];
   return `<p class="meta" style="margin:0">${label(p.status)}${label(`${p.type || "Internal"} project`, "st-new")}${priLabel((p.priority || "Normal") + " priority")}<span>Start: ${p.start || `<span class="note">None</span>`}</span><span>End date: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
   ${pending.length ? `<section class="card-section fb-alert"><h3 class="sec-title">Feedback requests waiting for approval (${pending.length})</h3>${fbTable(pending, false)}</section>` : ""}
@@ -1962,12 +2036,53 @@ function viewHowTo() {
   ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
   ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
+  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head): add users, new role names and new stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): add users and email them reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
 function viewAdmin(u) {
-  if (!u.cto) return "<h1>Not allowed</h1><p>Admin is for the CTO only.</p>";
+  if (!u.cto && !isSysAdmin(u)) return "<h1>Not allowed</h1><p>Admin is for the Project Head (CTO) and the system admin only.</p>";
+  const ml = S.mail || {};
   return `<h1>Admin</h1>
+  ${isSysAdmin(u) ? `<p class="note" style="margin-bottom:.5rem">You are signed in as the system admin. This account only has the Admin page.</p>` : ""}
+  <section><h2>Users</h2><form data-form="newuser" class="stack narrow">
+    <label for="nu-name">Full name<input id="nu-name" name="name" required></label>
+    <label for="nu-username">Username<input id="nu-username" name="username" required autocomplete="off"></label>
+    <label for="nu-email">Email<input id="nu-email" type="email" name="email"></label>
+    <label for="nu-pw">Temporary password<input id="nu-pw" type="password" name="pw" required autocomplete="new-password"></label>
+    <button class="btn primary">Add user</button></form>
+    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Access</th><th><span class="sr-only">Password</span></th></tr></thead><tbody>${S.users.map(x => `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td><td>${h(x.email)}</td>
+      <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head · Admin", "st-ap") : label("Staff", "st-cl")}</td>
+      <td>${x.email ? `<button type="button" class="btn secondary qbtn" data-act="admin-reset" data-id="${x.id}">Email reset code</button>` : ""}</td></tr>`).join("")}</tbody>`)}
+  </section>
+  <section><h2>Mail integration</h2>
+    <p class="note" style="margin-bottom:.5rem">Used for password reset codes and email notifications. ${mailOn() ? label("On", "st-ap") : label("Off", "pr-low")} In this demo nothing is actually sent; emails appear in the Email log below.</p>
+    <form data-form="mailcfg" class="stack panel" style="margin:0">
+      <label class="check"><input type="checkbox" id="ml-on" name="enabled" value="yes" ${ml.enabled ? "checked" : ""}> Send emails</label>
+      <div class="row" style="margin:0"><label for="ml-host">SMTP server<input id="ml-host" name="host" value="${h(ml.host || "")}" placeholder="smtp.example.com" autocomplete="off"></label>
+        <label for="ml-port">Port<input id="ml-port" type="number" name="port" value="${h(ml.port || 587)}" min="1" max="65535"></label>
+        <label for="ml-sec">Security<select id="ml-sec" name="security">${["None", "STARTTLS", "SSL/TLS"].map(x => `<option ${x === (ml.security || "STARTTLS") ? "selected" : ""}>${x}</option>`).join("")}</select></label></div>
+      <div class="row" style="margin:0"><label for="ml-user">SMTP username<input id="ml-user" name="user" value="${h(ml.user || "")}" autocomplete="off"></label>
+        <label for="ml-pass">SMTP password<input id="ml-pass" type="password" name="pass" placeholder="${ml.passSet ? "Saved. Leave blank to keep" : "Not set"}" autocomplete="new-password"></label></div>
+      <div class="row" style="margin:0"><label for="ml-from">From address<input id="ml-from" type="email" name="from" value="${h(ml.from || "")}"></label>
+        <label for="ml-name">From name<input id="ml-name" name="fromName" value="${h(ml.fromName || "IDLC Streams")}"></label></div>
+      <div class="row" style="margin:0"><button class="btn primary">Save mail settings</button><button type="button" class="btn secondary" data-act="mail-test">Send test email</button></div>
+    </form></section>
+  <section><h2>Integrations with other sites</h2>
+    <p class="note" style="margin-bottom:.5rem">Connect IDLC Streams to other systems, for example company directory sign-in, a file share, or a webhook to another tool. In this demo nothing is contacted.</p>
+    ${(S.integrations || []).length ? tbl(`<thead><tr><th>Name</th><th>Type</th><th>Address</th><th>Key</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${S.integrations.map(x => `<tr>
+      <td><strong>${h(x.name)}</strong></td><td>${h(x.type)}</td><td><code>${h(x.url)}</code></td><td>${x.key ? "Saved" : `<span class="note">None</span>`}</td>
+      <td>${x.enabled ? label("On", "st-ap") : label("Off", "pr-low")}</td>
+      <td><div class="extend"><button type="button" class="btn secondary qbtn" data-act="int-toggle" data-id="${x.id}">${x.enabled ? "Turn off" : "Turn on"}</button>
+        <button type="button" class="btn secondary qbtn" data-act="int-test" data-id="${x.id}">Test</button>
+        <button type="button" class="btn secondary qbtn" data-act="int-del" data-id="${x.id}">Remove</button></div></td></tr>`).join("")}</tbody>`) : `<p class="note">No integrations yet.</p>`}
+    <form data-form="intadd" class="stack panel" style="margin:.75rem 0 0">
+      <div class="row" style="margin:0"><label for="in-name">Name<input id="in-name" name="name" required placeholder="e.g. Company directory" autocomplete="off"></label>
+        <label for="in-type">Type<select id="in-type" name="type">${INT_TYPES.map(t => `<option>${t}</option>`).join("")}</select></label></div>
+      <div class="row" style="margin:0"><label for="in-url">Address (URL)<input id="in-url" name="url" required placeholder="https://… or ldaps://…" autocomplete="off"></label>
+        <label for="in-key">API key or secret (optional)<input id="in-key" type="password" name="key" autocomplete="new-password"></label></div>
+      <label class="check"><input type="checkbox" id="in-on" name="enabled" value="yes"> Turn on now</label>
+      <button class="btn primary">Add integration</button></form></section>
   <section><h2>Roles</h2>
     <p class="note">Built-in roles keep their permissions. A new role can be given to project members, who can then hold and send requirements.</p>
     <div class="chips">${[HEAD].concat(S.roles).map(r => label(r, DEFAULT_ROLES.includes(r) || r === HEAD ? "" : "st-new")).join("")}</div>
@@ -1979,19 +2094,14 @@ function viewAdmin(u) {
     <form data-form="newstage" class="row"><label for="new-stage">New stage name<input id="new-stage" name="name" required autocomplete="off" placeholder="e.g. UAT"></label>
       <label class="check"><input type="checkbox" id="new-stage-fb" name="feedback" value="yes"> Feedback stage (comment required)</label>
       <button class="btn primary">Add stage</button></form></section>
-  <section><h2>Users</h2><form data-form="newuser" class="stack narrow">
-    <label for="nu-name">Full name<input id="nu-name" name="name" required></label>
-    <label for="nu-username">Username<input id="nu-username" name="username" required></label>
-    <label for="nu-email">Email<input id="nu-email" type="email" name="email"></label>
-    <button class="btn primary">Add user</button></form>
-    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>Email</th></tr></thead><tbody>${S.users.map(x => `<tr><td>${h(x.name)}${x.cto ? " (CTO)" : ""}</td><td>${h(x.username)}</td><td>${h(x.email)}</td></tr>`).join("")}</tbody>`)}
-  </section>
-  <section><h2>Email log</h2><p class="note">Demo only: emails the app would send. Newest first.</p>
+  <section><h2>Email log</h2><p class="note">Demo only: emails the app would send${mailOn() ? "" : " once mail integration is on"}. Newest first.</p>
     ${S.outbox.length ? S.outbox.map(m => `<div class="mail"><strong>${h(m.subject)}</strong><br>To ${h(m.to)} · ${fmt(m.at)}<pre>${h(m.body)}</pre></div>`).join("") : "<p>No emails yet. Act on a requirement to see one.</p>"}
   </section>`;
 }
 
 function render() {
+  if (!me()) { renderLoggedOut(); return; }
+  if (isSysAdmin(me()) && S.view.name !== "admin") S.view = {name: "admin"};   // the system admin only has the Admin page
   applyPrefs();
   const u = me(), v = S.view;
   const body = v.name === "projects" || v.name === "project" ? viewProjects(u)
@@ -2019,6 +2129,20 @@ document.addEventListener("click", e => {
     reqCard(+a.dataset.id); return;
   }
   if (act === "ptab") { setTab(a.dataset.tab); return; }
+  if (act === "auth-step") { const un = (main.querySelector("[name=username], [name=who]") || {}).value; if (un) auth.username = un; auth.step = a.dataset.step; S.flash = null; render(); return; }
+  if (act === "logout") { closeMenus(); S.me = null; S.view = {name: "queue"}; auth = {step: "login", username: ""}; flash("ok", "You are signed out."); render(); return; }
+  if (act === "int-toggle" || act === "int-del" || act === "int-test" || act === "mail-test" || act === "admin-reset") {
+    const u = me(); if (!u || (!u.cto && !isSysAdmin(u))) return;
+    run(() => {
+      if (act === "admin-reset") { const x = user(+a.dataset.id), code = sendResetCode(x); flash("ok", `Reset code emailed to ${x.email}. Demo: the code is ${code}.`); }
+      if (act === "mail-test") { if (!mailOn()) throw new RuleError("Turn on Send emails and save first."); S.outbox.unshift({at: now(), to: u.email || S.mail.from, subject: "[IDLC Streams] Test email", body: `This is a test from ${S.mail.host}:${S.mail.port} (${S.mail.security}).`}); flash("ok", `Test email sent to ${u.email || S.mail.from}. See the Email log.`); }
+      const x = (S.integrations || []).find(y => y.id === +a.dataset.id);
+      if (act === "int-toggle" && x) { x.enabled = !x.enabled; flash("ok", `${x.name} is now ${x.enabled ? "on" : "off"}.`); }
+      if (act === "int-del" && x) { S.integrations = S.integrations.filter(y => y !== x); flash("ok", `${x.name} removed.`); }
+      if (act === "int-test" && x) flash("ok", x.enabled ? `Demo: a connection test to ${x.url} would run now.` : `${x.name} is off. Turn it on to test it.`);
+    }, a);
+    return;
+  }
   if (act === "cal-day") { calDay = a.dataset.date; calYM = calDay.slice(0, 7); S.flash = null; render(); return; }
   if (act === "cal-move") { const [y, m] = calYM.split("-").map(Number), d = new Date(y, m - 1 + +a.dataset.d, 1); calYM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; S.flash = null; render(); return; }
   if (act === "rem-done") { const r = S.reminders.find(x => x.id === +a.dataset.id && x.uid === me().id); if (r) r.done = a.checked; S.flash = null; render(); return; }
@@ -2063,6 +2187,42 @@ document.addEventListener("submit", e => {
   if (f.dataset.form === "newproject" && f.dataset.step !== "3") { wizGo(+f.dataset.step + 1); return; }
   run(() => {
     switch (f.dataset.form) {
+      case "login": {
+        const x = S.users.find(y => y.username.toLowerCase() === (d.username || "").trim().toLowerCase());
+        auth.username = (d.username || "").trim();
+        if (!x || x.pw !== hashPw(d.password || "")) throw new RuleError("Wrong username or password.");
+        S.me = x.id; S.view = {name: x.sysadmin ? "admin" : "queue"}; auth = {step: "login", username: ""}; calDay = calYM = null;
+        flash("ok", `Signed in as ${x.name}.`); break;
+      }
+      case "resetreq": {
+        const who = (d.who || "").trim().toLowerCase(), x = S.users.find(y => y.username.toLowerCase() === who || (y.email || "").toLowerCase() === who);
+        if (!x) throw new RuleError("No account has that username or email.");
+        const code = sendResetCode(x); auth = {step: "code", username: x.username};
+        flash("ok", `A reset code was emailed to ${x.email}. Demo: the code is ${code}; in the real app it is only in the email.`); break;
+      }
+      case "resetset": {
+        const x = S.users.find(y => y.username.toLowerCase() === (d.username || "").trim().toLowerCase());
+        auth.username = (d.username || "").trim();
+        if (!x || !x.reset || x.reset.code !== (d.code || "").trim()) throw new RuleError("That code is not right. Check the email or ask for a new code.");
+        if (x.reset.expires < now()) throw new RuleError("That code has expired. Ask for a new one.");
+        if ((d.pw || "").length < 4) throw new RuleError("The new password needs at least 4 characters.");
+        if (d.pw !== d.pw2) throw new RuleError("The two passwords are not the same.");
+        x.pw = hashPw(d.pw); delete x.reset; auth = {step: "login", username: x.username};
+        flash("ok", "Password changed. Sign in with your new password."); break;
+      }
+      case "mailcfg": {
+        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin change mail settings.");
+        if (d.enabled === "yes" && (!d.host.trim() || !d.from.trim())) throw new RuleError("Enter the SMTP server and the From address to turn email on.");
+        S.mail = {enabled: d.enabled === "yes", host: d.host.trim(), port: +d.port || 587, security: d.security, user: d.user.trim(), passSet: !!(d.pass || (S.mail && S.mail.passSet)),
+          from: d.from.trim(), fromName: d.fromName.trim() || "IDLC Streams"};
+        flash("ok", `Mail settings saved. Email is ${S.mail.enabled ? "on" : "off"}.`); break;
+      }
+      case "intadd": {
+        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin manage integrations.");
+        if (!d.name.trim() || !d.url.trim()) throw new RuleError("Enter a name and an address.");
+        (S.integrations = S.integrations || []).push({id: nextId("in"), name: d.name.trim(), type: d.type, url: d.url.trim(), key: d.key ? "saved" : "", enabled: d.enabled === "yes", at: now()});
+        flash("ok", `Integration "${d.name.trim()}" added.`); break;
+      }
       case "remadd": {
         if (!d.title.trim()) throw new RuleError("Write what to remember.");
         if (!d.date) throw new RuleError("Pick a date.");
@@ -2134,8 +2294,10 @@ document.addEventListener("submit", e => {
       }
       case "newuser": {
         const un = d.username.trim(); if (!un || !d.name.trim()) throw new RuleError("Name and username are required.");
-        if (S.users.some(x => x.username === un)) throw new RuleError("That username already exists.");
-        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+        if (S.users.some(x => x.username.toLowerCase() === un.toLowerCase())) throw new RuleError("That username already exists.");
+        if (!u.cto && !isSysAdmin(u)) throw new Forbidden("Only the Project Head or the system admin add users.");
+        if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
+        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), email: d.email.trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
         flash("ok", "User added."); break;
       }
     }
@@ -2229,7 +2391,9 @@ function run(fn, form) {
   if (S.flash && S.flash.type === "error") window.scrollTo(0, 0);
 }
 document.getElementById("as-user").addEventListener("change", e => {
-  S.me = +e.target.value; const u = me(); calDay = null; calYM = null;
+  if (!e.target.value) return;
+  S.me = +e.target.value; const u = me(); calDay = null; calYM = null; auth = {step: "login", username: ""};
+  if (isSysAdmin(u)) { S.view = {name: "admin"}; flash("ok", "Now signed in as the system admin (Admin page only)."); render(); return; }
   if (((S.view.name === "admin" || S.view.name === "paused") && !u.cto) || S.view.name === "notifications") S.view = {name: "queue"};
   flash("ok", `Now viewing as ${u.name}${u.cto ? " (CTO)" : ""}. Roles: ${S.projects.filter(p => role(p.id, u.id)).map(p => `${p.code} ${role(p.id, u.id)}`).join(", ") || (u.cto ? "CTO on all projects" : "none")}.`);
   render();
@@ -2237,7 +2401,8 @@ document.getElementById("as-user").addEventListener("change", e => {
 const rc = document.getElementById("reset-confirm"), rb = document.getElementById("reset-demo");
 rb.addEventListener("click", () => { rc.hidden = false; rb.hidden = true; });
 document.getElementById("reset-no").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; });
-document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; const keep = {roles: S.roles, stages: S.stages}; seed(); Object.assign(S, keep); syncLists();
+document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden = true; rb.hidden = false; const keep = {roles: S.roles, stages: S.stages}, who = S.me && user(S.me) ? user(S.me).username : null; seed(); Object.assign(S, keep); syncLists();
+  if (who) { const x = S.users.find(y => y.username === who); S.me = x ? x.id : null; }
   flash("ok", "Sample data restored. Roles and stages you added were kept."); render(); });
 
 if (!load()) seed();
@@ -2251,9 +2416,11 @@ if (S.view && S.view.name === "project") S.view = {name: "projects"};
 S.projects.forEach(p => p.members.forEach(m => { if (!m.roles) { m.roles = [m.role]; delete m.role; } }));
 if (!S.iosDefault) { S.iosDefault = true; }
 if (!S.reminders) seedOrganizer();
+ensureAuthData();
+if (!S.authV) { S.me = null; S.authV = 1; S.flash = null; }   // everyone starts at the sign-in page once
 if (!S.cgDefault) { S.users.forEach(x => { if (!x.font || x.font === "system") x.font = "century"; }); S.cgDefault = true; }
 if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
-S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Viewing as" above to switch person.`
-  : `No projects yet. You are viewing as ${me().name} (CTO): press New project to start. Use "Viewing as" above to switch person.`};
+if (me()) S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Quick switch" above to try another person.`
+  : `No projects yet. You are viewing as ${me().name} (CTO): press New project to start. Use "Quick switch" above to try another person.`};
 render();
 </script>
