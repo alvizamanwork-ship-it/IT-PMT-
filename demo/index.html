@@ -543,6 +543,8 @@ input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn
 .note-card { padding: .7rem .9rem; border-radius: var(--radius); color: var(--inv-fg); border: 1.5px solid transparent;
   background: linear-gradient(var(--inv-bg), var(--inv-bg)) padding-box, var(--metal) border-box; }
 .note-card .cmt-head { justify-content: space-between; }
+.note-proj { display: inline-block; margin-bottom: .35rem; padding: .1rem .6rem; border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700;
+  background: var(--inv-link); color: var(--inv-bg); }
 .note-card .file-meta { color: var(--inv-muted); flex: 1; }
 .note-card .x { background: transparent; color: var(--inv-fg); }
 /* Card outlines */
@@ -1166,7 +1168,8 @@ function seedOrganizer() {
   const base = Date.now(), day = d => isoDay(base + d * DAY), uid = n => (S.users.find(x => x.username === n) || {}).id;
   S.reminders = []; S.notes = [];
   const rem = (who, d, time, title, note, done) => { if (uid(who)) S.reminders.push({id: nextId("rm"), uid: uid(who), date: day(d), time, title, note, done: !!done, at: Date.now()}); };
-  const note = (who, title, body) => { if (uid(who)) S.notes.push({id: nextId("nt"), uid: uid(who), title, body, at: Date.now()}); };
+  const pidOf = name => (S.projects.find(x => x.name === name) || {}).id || null;
+  const note = (who, title, body, project) => { if (uid(who)) S.notes.push({id: nextId("nt"), uid: uid(who), pid: project ? pidOf(project) : null, title, body, at: Date.now()}); };
   rem("jewel", -1, "", "Submit Q4 IT budget", "Finance needs the final figures.", false);
   rem("jewel", 0, "15:00", "Review vendor contract with Legal", "VND-001 payment gateway. Bring the SLA review notes.");
   rem("jewel", 3, "10:30", "Monthly IT steering meeting", "Agenda: project status, approvals, hiring.");
@@ -1177,8 +1180,8 @@ function seedOrganizer() {
   rem("alvi", 5, "", "Draft overview for Proj 5", "");
   rem("ehsanul", 2, "16:00", "Demo leave portal API to Nafis", "");
   note("jewel", "Q4 priorities", "1. Payment gateway go-live\n2. Credit bureau sync\n3. Helpdesk tools");
-  note("jewel", "Ideas", "Quarterly review of vendor SLAs.");
-  note("alvi", "Questions for Finance", "Are software licences assets or expenses?");
+  note("jewel", "Ideas", "Quarterly review of vendor SLAs.", "Dummy Vend. Proj 1");
+  note("alvi", "Questions for Finance", "Are software licences assets or expenses?", "Dummy Internal Proj 2");
 }
 
 // ---------- persistence (per viewer, optional) ----------
@@ -1831,10 +1834,11 @@ function viewReminders(u) {
     ${upcoming.length ? `<ul class="rem-list">${upcoming.map(r => remRow(r, true)).join("")}</ul>` : `<p class="note">Nothing coming up.</p>`}</section>
   <section class="panel"><h2 style="margin-top:0">Notes</h2>
     <form data-form="noteadd" class="stack">
+      <label for="nt-project" class="narrow">Project<select id="nt-project" name="pid"><option value="">No project</option>${S.projects.filter(pp => canView(u, pp.id)).map(pp => `<option value="${pp.id}">${h(pp.code)} · ${h(pp.name)}</option>`).join("")}</select></label>
       <label for="nt-title">Title<input id="nt-title" name="title" placeholder="e.g. Meeting points" autocomplete="off"></label>
       <label for="nt-body">Note<textarea id="nt-body" name="body" rows="3" required></textarea></label>
       <button class="btn primary">Add note</button></form>
-    ${notes.length ? `<div class="notes-grid">${notes.map(n => `<article class="note-card"><div class="cmt-head"><strong>${h(n.title || "Note")}</strong><span class="file-meta">${fmt(n.at)}</span>
+    ${notes.length ? `<div class="notes-grid">${notes.map(n => `<article class="note-card">${n.pid && proj(n.pid) ? `<button type="button" class="note-proj" data-go="project" data-id="${n.pid}">${h(proj(n.pid).code)} · ${h(proj(n.pid).name)}</button>` : ""}<div class="cmt-head"><strong>${h(n.title || "Note")}</strong><span class="file-meta">${fmt(n.at)}</span>
       <button type="button" class="x" data-act="note-del" data-id="${n.id}" aria-label="Delete note ${h(n.title || "")}">×</button></div><p class="pre cmt-text">${h(n.body)}</p></article>`).join("")}</div>` : `<p class="note" style="margin-top:.75rem">No notes yet.</p>`}</section>`;
 }
 
@@ -2042,7 +2046,7 @@ document.addEventListener("submit", e => {
       }
       case "noteadd": {
         if (!d.body.trim()) throw new RuleError("Write the note first.");
-        (S.notes = S.notes || []).push({id: nextId("nt"), uid: u.id, title: (d.title || "").trim(), body: d.body.trim(), at: now()}); flash("ok", "Note added."); break;
+        (S.notes = S.notes || []).push({id: nextId("nt"), uid: u.id, pid: +d.pid || null, title: (d.title || "").trim(), body: d.body.trim(), at: now()}); flash("ok", "Note added."); break;
       }
       case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: +d.size, bri: +d.bri || 3, con: +d.con || 3}); flash("ok", "Settings saved to your account."); break;
       case "card": {
