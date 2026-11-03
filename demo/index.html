@@ -460,7 +460,36 @@ dialog.card > .pwrap { display: flex; flex-direction: column; min-height: 0; fle
 .extend .btn { min-height: 2.2rem; padding: .25em .9em; font-size: .9rem; }
 tr.tl-project td { background: var(--surface-2); }
 .file-plain { list-style: none; padding: .3rem 0; }
-.tl-why { display: block; max-width: 14rem; white-space: normal; font-size: .78rem; color: var(--muted); font-family: var(--font); }
+.tl-why { color: var(--muted); }
+.tl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.tl-item { border: 1px solid var(--sep-strong); border-radius: var(--radius); padding: .75rem 1rem; background: var(--surface-2); }
+.tl-item.tl-project { box-shadow: inset 4px 0 0 var(--btn); }
+.tl-head { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; font-size: 1.02rem; }
+.tl-num { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.tl-dates { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem 1rem; margin: .55rem 0 0 1.6rem; }
+.tl-dates dt { color: var(--muted); font-weight: 600; }
+.tl-dates dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 30rem) { .tl-dates { grid-template-columns: 1fr; margin-left: 0; } .tl-dates dd { margin-bottom: .3rem; } }
+/* Menu position: top bar (default) or side bar */
+.tb-spacer { flex: 1; }
+:root[data-nav="side"] .topbar-in { max-width: none; }
+.navtoggle { min-height: 2.3rem; padding: .3em .9em; font-size: .9rem; display: inline-flex; align-items: center; gap: .45rem; }
+.nt-ico { width: 1rem; height: .85rem; border: 2px solid currentColor; border-radius: 3px; position: relative; }
+.nt-ico::after { content: ""; position: absolute; background: currentColor; }
+.nt-ico.to-side::after { left: 0; top: 0; bottom: 0; width: 35%; }
+.nt-ico.to-top::after { left: 0; right: 0; top: 0; height: 35%; }
+:root[data-nav="side"] .shell { display: grid; grid-template-columns: 14rem minmax(0, 1fr); align-items: start; }
+.sidenav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--topbar-h, 3.5rem)); min-height: calc(100dvh - var(--topbar-h, 3.5rem));
+  max-height: calc(100dvh - var(--topbar-h, 3.5rem)); overflow-y: auto; padding: 1rem .75rem 1rem max(16px, env(safe-area-inset-left, 0px));
+  background: var(--surface); border-right: 1px solid var(--sep-strong); }
+.side-nav { display: flex; flex-direction: column; gap: .2rem; }
+.side-nav button { text-align: left; padding: .6rem .85rem; border-radius: .65rem; font-weight: 600; text-decoration: none; }
+.side-nav button:hover, .side-nav button[aria-current="page"] { background: var(--tint); text-decoration: none; }
+@media (max-width: 48rem) {
+  :root[data-nav="side"] .shell { display: block; }
+  .sidenav { position: static; min-height: 0; max-height: none; border-right: 0; border-bottom: 1px solid var(--sep-strong); padding: .5rem max(16px, env(safe-area-inset-left, 0px)); }
+  .side-nav { flex-direction: row; flex-wrap: wrap; }
+}
 .dl-bar .extend { flex-wrap: wrap; }
 .pwrap [role=tabpanel] { grid-template-columns: minmax(0, 1fr); }
 .pwrap [role=tabpanel] > * { min-width: 0; }
@@ -483,7 +512,7 @@ tr.tl-project td { background: var(--surface-2); }
     <button class="btn secondary" id="reset-no" type="button">Cancel</button></span>
 </div></div>
 <header class="topbar"><div class="topbar-in gutter" id="topbar"></div></header>
-<main id="main" class="gutter" tabindex="-1"></main>
+<div class="shell"><aside id="sidenav" class="sidenav" hidden></aside><main id="main" class="gutter" tabindex="-1"></main></div>
 <dialog id="modal" class="card" aria-labelledby="modal-title"></dialog>
 
 <script>
@@ -611,38 +640,48 @@ function canRequestExt(u, kind, id) {
   if (kind === "project") return canPlan(u, id);
   const r = req(id); return r.stage !== 8 && (canPlan(u, r.pid) || holds(r, u.id));
 }
-function applyExt(u, kind, id, date, reason, by) {
+const baseStart = (kind, t) => kind === "project" ? t.start : (t.start || isoDay(t.created));
+const fieldWord = f => f === "start" ? "start date change" : "end date extension";
+const forWord = (kind, id) => kind === "project" ? "" : ` for #${id}`;
+function applyExt(u, kind, id, date, reason, by, field = "end") {
   const t = extTarget(kind, id), pid = extPid(kind, id), proj_ = kind === "project";
-  const old = proj_ ? t.deadline : t.due;
-  if (proj_) { (t.deadlines = t.deadlines || (old ? [old] : [])).push(date); t.deadline = date; (t.endWhy = t.endWhy || {})[t.deadlines.length - 1] = reason; }
-  else { (t.dues = t.dues || (old ? [old] : [])).push(date); t.due = date; (t.endWhy = t.endWhy || {})[t.dues.length - 1] = reason; }
+  let old;
+  if (field === "start") {
+    old = baseStart(kind, t); t.starts = t.starts || (old ? [old] : []); t.starts.push(date); t.start = date; (t.startWhy = t.startWhy || {})[t.starts.length - 1] = reason;
+  } else {
+    old = proj_ ? t.deadline : t.due;
+    if (proj_) { (t.deadlines = t.deadlines || (old ? [old] : [])).push(date); t.deadline = date; (t.endWhy = t.endWhy || {})[t.deadlines.length - 1] = reason; }
+    else { (t.dues = t.dues || (old ? [old] : [])).push(date); t.due = date; (t.endWhy = t.endWhy || {})[t.dues.length - 1] = reason; }
+  }
   const change = old ? `${old} to ${date} (${dayDiff(old, date) > 0 ? "+" : ""}${dayWord(dayDiff(old, date))})` : date;
-  log(pid, u, `Approved end date extension${proj_ ? "" : ` for #${id}`}: ${change}`, {rid: proj_ ? null : id, to: by, comment: reason});
+  log(pid, u, `Approved ${fieldWord(field)}${forWord(kind, id)}: ${change}`, {rid: proj_ ? null : id, to: by, comment: reason});
 }
-function requestExt(u, kind, id, date, reason) {
-  const t = extTarget(kind, id); if (!t) throw new RuleError("Choose what needs more time.");
+function requestExt(u, kind, id, date, reason, field = "end") {
+  const t = extTarget(kind, id); if (!t) throw new RuleError("Choose what the date change is for.");
+  if (field !== "start") field = "end";
   const pid = extPid(kind, id), st = proj(pid).status;
-  if (!canRequestExt(u, kind, id)) throw new Forbidden("Only the Project Head, Project Lead, Dev Lead or the people a requirement is assigned to can ask for more time.");
+  if (!canRequestExt(u, kind, id)) throw new Forbidden("Only the Project Head, Project Lead, Dev Lead or the people a requirement is assigned to can ask for a date change.");
   if (st !== "Active") throw new RuleError(`Project is ${st}; nothing can be changed.`);
   reason = (reason || "").trim();
-  if (!date) throw new RuleError("Pick the new end date.");
-  if (!reason) throw new RuleError("Write the reason for the extension. It is required.");
-  checkDates(t.start, date, "end date");
-  if (date === (kind === "project" ? t.deadline : t.due)) throw new RuleError("That is already the end date.");
-  if (pendingExt(t)) throw new RuleError("An extension request for this is already waiting for approval.");
-  if (canApproveExt(u, pid)) { (t.extReqs = t.extReqs || []).push({id: nextId("ex"), by: u.id, date, reason, at: now(), status: "accepted", decidedBy: u.id, decidedAt: now()}); applyExt(u, kind, id, date, reason, u.id); return "applied"; }
-  (t.extReqs = t.extReqs || []).push({id: nextId("ex"), by: u.id, date, reason, at: now(), status: "pending"});
-  log(pid, u, `Requested end date extension${kind === "project" ? "" : ` for #${id}`} to ${date}`, {rid: kind === "project" ? null : id, comment: reason});
+  if (!date) throw new RuleError(`Pick the new ${field} date.`);
+  if (!reason) throw new RuleError("Write the reason for the date change. It is required.");
+  const curEnd = kind === "project" ? t.deadline : t.due;
+  if (field === "start") { checkDates(date, curEnd, "end date"); if (date === baseStart(kind, t)) throw new RuleError("That is already the start date."); }
+  else { checkDates(baseStart(kind, t), date, "end date"); if (date === curEnd) throw new RuleError("That is already the end date."); }
+  if (pendingExt(t)) throw new RuleError("A date change request for this is already waiting for approval.");
+  if (canApproveExt(u, pid)) { (t.extReqs = t.extReqs || []).push({id: nextId("ex"), field, by: u.id, date, reason, at: now(), status: "accepted", decidedBy: u.id, decidedAt: now()}); applyExt(u, kind, id, date, reason, u.id, field); return "applied"; }
+  (t.extReqs = t.extReqs || []).push({id: nextId("ex"), field, by: u.id, date, reason, at: now(), status: "pending"});
+  log(pid, u, `Requested ${fieldWord(field)}${forWord(kind, id)} to ${date}`, {rid: kind === "project" ? null : id, comment: reason});
   return "requested";
 }
 function decideExt(u, kind, id, ok) {
   const t = extTarget(kind, id), pid = extPid(kind, id), x = pendingExt(t);
-  if (!canApproveExt(u, pid)) throw new Forbidden("Only the Project Lead (or the Project Head) accepts or declines extension requests.");
-  if (!x) throw new RuleError("There is no extension request waiting.");
+  if (!canApproveExt(u, pid)) throw new Forbidden("Only the Project Lead or the Project Head accept or decline date change requests.");
+  if (!x) throw new RuleError("There is no date change request waiting.");
   const st = proj(pid).status; if (st !== "Active") throw new RuleError(`Project is ${st}; nothing can be changed.`);
   x.status = ok ? "accepted" : "declined"; x.decidedBy = u.id; x.decidedAt = now();
-  if (ok) applyExt(u, kind, id, x.date, x.reason, x.by);
-  else log(pid, u, `Declined end date extension${kind === "project" ? "" : ` for #${id}`} to ${x.date}`, {rid: kind === "project" ? null : id, to: x.by, comment: x.reason});
+  if (ok) applyExt(u, kind, id, x.date, x.reason, x.by, x.field || "end");
+  else log(pid, u, `Declined ${fieldWord(x.field || "end")}${forWord(kind, id)} to ${x.date}`, {rid: kind === "project" ? null : id, to: x.by, comment: x.reason});
 }
 // Every extension request visible to this person in a project, newest first.
 function extList(u, pid, status) {
@@ -653,11 +692,11 @@ function extList(u, pid, status) {
   return out.sort((a, b) => b.x.at - a.x.at);
 }
 function extTable(u, items, withProject, decide) {
-  return tbl(`<thead><tr>${withProject ? "<th>Project</th>" : ""}<th>For</th><th>Current end</th><th>Asked for</th><th>Change</th><th>Reason</th><th>Asked by</th><th>Status</th>${decide ? "<th><span class=\"sr-only\">Decision</span></th>" : ""}</tr></thead><tbody>${items.map(({kind, id, x}) => {
-    const t = extTarget(kind, id), cur = kind === "project" ? t.deadline : t.due, pid = extPid(kind, id);
+  return tbl(`<thead><tr>${withProject ? "<th>Project</th>" : ""}<th>For</th><th>Date</th><th>Current</th><th>Asked for</th><th>Change</th><th>Reason</th><th>Asked by</th><th>Status</th>${decide ? "<th><span class=\"sr-only\">Decision</span></th>" : ""}</tr></thead><tbody>${items.map(({kind, id, x}) => {
+    const t = extTarget(kind, id), fld = x.field || "end", cur = fld === "start" ? baseStart(kind, t) : kind === "project" ? t.deadline : t.due, pid = extPid(kind, id);
     const change = cur && x.status === "pending" ? dayDiff(cur, x.date) : null;
     return `<tr>${withProject ? `<td><button class="linkish" data-go="project" data-tab="overview" data-id="${pid}">${h(proj(pid).code)}</button></td>` : ""}<td>${kind === "req" && canSeeReq(u, t) ? `<button class="linkish" data-act="open-card" data-id="${id}">${h(extName(kind, id))}</button>` : h(extName(kind, id))}</td>
-      <td class="num">${x.status === "pending" ? (cur || "none") : ""}</td><td class="num">${x.date}</td>
+      <td>${label(fld === "start" ? "Start date" : "End date", fld === "start" ? "st-an" : "st-dev")}</td><td class="num">${x.status === "pending" ? (cur || "none") : ""}</td><td class="num">${x.date}</td>
       <td>${change === null ? "" : label(`${change > 0 ? "+" : ""}${dayWord(change)}`, change > 0 ? "st-fb" : "st-an")}</td>
       <td class="pre">${h(x.reason)}</td><td>${h(uname(x.by))}<br><span class="file-meta">${fmt(x.at)}</span></td>
       <td>${label(x.status === "pending" ? "Waiting" : x.status === "accepted" ? "Accepted" : "Declined", x.status === "pending" ? "st-qa" : x.status === "accepted" ? "st-ap" : "pr-low")}${x.decidedBy && x.decidedBy !== x.by ? `<br><span class="file-meta">by ${h(uname(x.decidedBy))}</span>` : ""}</td>
@@ -1050,14 +1089,15 @@ function reqCard(id, keepComment) {
           <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Choose the stage and one or more people, then press Send. Everyone you add gets it in their queue, and any of them can send it on.${all ? "" : " To move it to a Feedback stage, use Request feedback below."}</p></section>
-      ${pendingExt(r) ? `<section class="card-section fb-alert"><h3 class="fl">End date extension · waiting for the Project Lead or Project Head</h3>
-        <p style="margin:0">${h(uname(pendingExt(r).by))} asked for <strong>${pendingExt(r).date}</strong> (now ${r.due || "not set"})</p><p class="pre" style="margin:.3rem 0 0">${h(pendingExt(r).reason)}</p>
+      ${pendingExt(r) ? `<section class="card-section fb-alert"><h3 class="fl">${pendingExt(r).field === "start" ? "Start date change" : "End date extension"} · waiting for the Project Lead or Project Head</h3>
+        <p style="margin:0">${h(uname(pendingExt(r).by))} asked for <strong>${pendingExt(r).date}</strong> (now ${pendingExt(r).field === "start" ? (r.start || isoDay(r.created)) : (r.due || "not set")})</p><p class="pre" style="margin:.3rem 0 0">${h(pendingExt(r).reason)}</p>
         ${canApproveExt(u, r.pid) ? `<div class="extend" style="margin-top:.6rem"><button type="button" class="btn primary" data-act="ext-decide" data-ok="1" data-kind="req" data-id="${r.id}" data-pid="${r.pid}">Accept</button><button type="button" class="btn secondary" data-act="ext-decide" data-ok="0" data-kind="req" data-id="${r.id}" data-pid="${r.pid}">Decline</button></div>` : ""}</section>`
-      : canRequestExt(u, "req", r.id) && p.status === "Active" ? `<details class="card-section"><summary>Ask for more time</summary><div class="stack" style="margin-top:.75rem">
-        <p class="note">Current end date: ${r.due || "not set"}. The Project Lead or Project Head accepts or declines the request.</p>
-        <label for="cd-extdate" class="narrow">New end date<input id="cd-extdate" type="date" name="extdate"></label>
+      : canRequestExt(u, "req", r.id) && p.status === "Active" ? `<details class="card-section"><summary>Ask to change dates</summary><div class="stack" style="margin-top:.75rem">
+        <p class="note">Start ${r.start || isoDay(r.created)} · End ${r.due || "not set"}. The Project Lead or Project Head accepts or declines the request.</p>
+        <div class="row" style="margin:0"><label for="cd-extfield">Date to change<select id="cd-extfield" name="extfield"><option value="end">End date</option><option value="start">Start date</option></select></label>
+        <label for="cd-extdate">New date<input id="cd-extdate" type="date" name="extdate"></label></div>
         <label for="cd-extreason">Reason (required)<textarea id="cd-extreason" name="extreason" rows="2"></textarea></label>
-        <button class="btn secondary" name="do" value="extreq">${canApproveExt(u, r.pid) ? "Extend now" : "Request extension"}</button></div></details>` : ""}
+        <button class="btn secondary" name="do" value="extreq">${canApproveExt(u, r.pid) ? "Change now" : "Request date change"}</button></div></details>` : ""}
       ${pf || all ? "" : `<details class="card-section"><summary>Request feedback</summary><div class="stack" style="margin-top:.75rem">
         <p class="note">Ask for this requirement to go to a Feedback stage. The Project Head, Project Lead or Dev Lead accepts it and picks who gives the feedback.</p>
         <label for="cd-fbreason">Reason<textarea id="cd-fbreason" name="fbreason" rows="2"></textarea></label>
@@ -1190,14 +1230,16 @@ let downloadsCap = null;
 const csvCell = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
 function timelineCsv(u, pid) {
   const rows = timelineRows(u, pid), n = Math.max(1, ...rows.map(x => x.ends.length));
-  const head = ["List", "Requirement", "Start date"].concat(Array.from({length: n}, (_, i) => `End date ${i + 1}`), ["Days deviated", "Extension reasons"]);
-  const body = rows.map((x, i) => [x.kind === "project" ? "Project" : i, x.name, x.start || ""].concat(Array.from({length: n}, (_, k) => x.ends[k] || ""),
-    [x.ends.length ? dayDiff(x.ends[0], x.ends[x.ends.length - 1]) : "", Object.keys(x.why).map(k => `End date ${+k + 1}: ${x.why[k]}`).join(" | ")]));
+  const m = Math.max(1, ...rows.map(x => x.starts.length));
+  const head = ["List", "Item"].concat(Array.from({length: m}, (_, i) => `Start date ${i + 1}`), Array.from({length: n}, (_, i) => `End date ${i + 1}`), ["Days deviated", "Start moved (days)", "Change reasons"]);
+  const body = rows.map((x, i) => [i + 1, x.name].concat(Array.from({length: m}, (_, k) => x.starts[k] || ""), Array.from({length: n}, (_, k) => x.ends[k] || ""),
+    [x.ends.length ? dayDiff(x.ends[0], x.ends[x.ends.length - 1]) : "", x.starts.length > 1 ? dayDiff(x.starts[0], x.starts[x.starts.length - 1]) : 0,
+     Object.keys(x.startWhy).map(k => `Start date ${+k + 1}: ${x.startWhy[k]}`).concat(Object.keys(x.why).map(k => `End date ${+k + 1}: ${x.why[k]}`)).join(" | ")]));
   return [head].concat(body).map(r => r.map(csvCell).join(",")).join("\r\n");
 }
 function reportHtml(u, pid) {
   const p = proj(pid), ov = p.overview || {}, rows = timelineRows(u, pid), n = Math.max(1, ...rows.map(x => x.ends.length));
-  const all = seesAll(u, pid), hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^(Due date|Requested end date|Approved end date|Declined end date)/.test(x.action))));
+  const all = seesAll(u, pid), hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^(Due date|Requested (end|start) date|Approved (end|start) date|Declined (end|start) date)/.test(x.action))));
   const exts = extList(u, pid), esc = h, para = t => t ? `<p class="pre">${esc(t)}</p>` : `<p class="muted">Not filled in.</p>`;
   const dev = ends => !ends.length ? "" : (d => d === 0 ? "0 days" : d > 0 ? `+${dayWord(d)}` : `${dayWord(-d)} earlier`)(dayDiff(ends[0], ends[ends.length - 1]));
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(p.code)} · ${esc(p.name)} · Overview</title>
@@ -1205,7 +1247,7 @@ function reportHtml(u, pid) {
 h1{font-size:1.6rem;margin:0 0 .25rem}h2{font-size:1.1rem;margin:1.8rem 0 .5rem;border-bottom:2px solid #b0121b;padding-bottom:.25rem}
 .muted{color:#5b5348}.pre{white-space:pre-wrap;margin:.2rem 0 .6rem}table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border:1px solid #c9c0b0;padding:.35rem .5rem;text-align:left;vertical-align:top}th{background:#f1ece2}
-.why{display:block;color:#5b5348;font-size:12px}dl{display:grid;grid-template-columns:max-content 1fr;gap:.2rem 1rem}dt{font-weight:600}dd{margin:0}
+.why{color:#5b5348}ol.tl{list-style:none;padding:0}ol.tl>li{border:1px solid #c9c0b0;border-radius:8px;padding:.6rem .8rem;margin-bottom:.6rem}ol.tl dl{margin:.4rem 0 0 1.2rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.2rem 1rem}dt{font-weight:600}dd{margin:0}
 ol{padding-left:1.5rem}li{margin-bottom:.3rem}.label{font-weight:600}blockquote{margin:.2rem 0 0;padding-left:.6rem;border-left:3px solid #c9c0b0}</style></head><body>
 <h1>${esc(p.code)} · ${esc(p.name)}</h1>
 <p class="muted">IDLC Streams project overview · generated ${fmt(now())} by ${esc(u.name)}</p>
@@ -1213,9 +1255,8 @@ ol{padding-left:1.5rem}li{margin-bottom:.3rem}.label{font-weight:600}blockquote{
 <dt>End date</dt><dd>${p.deadline || "None"}</dd><dt>Project cost</dt><dd>${esc(ov.cost || "Not set")}</dd>
 <dt>Overview</dt><dd>${p.ovApprovedAt ? `Approved by ${esc(uname(p.ovApprovedBy))} on ${fmt(p.ovApprovedAt)}` : "Not approved yet"}${ovPending(p) ? " (a change is waiting for approval)" : ""}</dd><dt>Team</dt><dd>${memberSort(p).map(m => `${esc(uname(m.uid))} (${esc(m.roles.join(", "))})`).join(", ")}</dd></dl>
 <h2>Summary</h2>${para(ov.summary)}<h2>Description</h2>${para(ov.desc)}<h2>Analysis</h2>${para(ov.analysis)}
-<h2>Timeline</h2><table><thead><tr><th>List</th><th>Requirement</th><th>Start date</th>${Array.from({length: n}, (_, i) => `<th>End date ${i + 1}</th>`).join("")}<th>Days deviated</th></tr></thead><tbody>
-${rows.map((x, i) => `<tr><td>${x.kind === "project" ? "—" : i}</td><td>${esc(x.name)}${x.closed ? " (Closed)" : ""}</td><td>${x.start || ""}</td>${Array.from({length: n}, (_, k) => `<td>${x.ends[k] || ""}${k > 0 && x.why[k] ? `<span class="why">${esc(x.why[k])}</span>` : ""}</td>`).join("")}<td>${dev(x.ends)}</td></tr>`).join("")}</tbody></table>
-<h2>End date extension requests</h2>${exts.length ? `<table><thead><tr><th>For</th><th>Asked for</th><th>Reason</th><th>Asked by</th><th>Status</th></tr></thead><tbody>${exts.map(({kind, id, x}) => `<tr><td>${esc(extName(kind, id))}</td><td>${x.date}</td><td class="pre">${esc(x.reason)}</td><td>${esc(uname(x.by))}, ${fmt(x.at)}</td><td>${x.status === "pending" ? "Waiting" : x.status === "accepted" ? "Accepted" : "Declined"}${x.decidedBy && x.decidedBy !== x.by ? ` by ${esc(uname(x.decidedBy))}` : ""}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">None.</p>`}
+<h2>Timeline</h2><ol class="tl">${rows.map((x, i) => `<li><strong>${i + 1}. ${esc(x.name)}</strong>${x.closed ? " (Closed)" : ""}<dl>${timelineDates(x, "why", false)}<dt>Days deviated</dt><dd>${dev(x.ends) || "No end date"}${x.starts.length > 1 ? ` · start moved ${(d => `${d > 0 ? "+" : ""}${dayWord(d)}`)(dayDiff(x.starts[0], x.starts[x.starts.length - 1]))}` : ""}</dd></dl></li>`).join("")}</ol>
+<h2>Date change requests</h2>${exts.length ? `<table><thead><tr><th>For</th><th>Date</th><th>Asked for</th><th>Reason</th><th>Asked by</th><th>Status</th></tr></thead><tbody>${exts.map(({kind, id, x}) => `<tr><td>${esc(extName(kind, id))}</td><td>${x.field === "start" ? "Start date" : "End date"}</td><td>${x.date}</td><td class="pre">${esc(x.reason)}</td><td>${esc(uname(x.by))}, ${fmt(x.at)}</td><td>${x.status === "pending" ? "Waiting" : x.status === "accepted" ? "Accepted" : "Declined"}${x.decidedBy && x.decidedBy !== x.by ? ` by ${esc(uname(x.decidedBy))}` : ""}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">None.</p>`}
 <h2>History</h2>${historyList(hist, u, pid)}
 </body></html>`;
 }
@@ -1242,14 +1283,20 @@ function applyPrefs() {
 function go(name, id) { S.view = {name, id}; S.flash = null; render(); window.scrollTo(0, 0); main.focus({preventScroll: true}); }
 function flash(type, text) { S.flash = {type, text}; }
 
+function setTopbarHeight() { const t = document.querySelector(".topbar"); if (t) document.documentElement.style.setProperty("--topbar-h", t.offsetHeight + "px"); }
+window.addEventListener("resize", setTopbarHeight);
 function renderTop() {
   const u = me(), v = S.view.name;
   const unread = notifications(u).filter(n => n.at > (u.notifSeen || 0)).length;
   const nav = [["queue", "My Queue"], ["sent", "Sent Requests"], ["projects", "Projects"]].concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["archive", "Archive"]],
     [["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`]], u.cto ? [["admin", "Admin"]] : []);
+  const side = u.navPos === "side", links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
+  document.documentElement.dataset.nav = side ? "side" : "top";
+  const aside = document.getElementById("sidenav"); aside.hidden = !side; aside.innerHTML = side ? `<nav aria-label="Main" class="side-nav">${links}</nav>` : "";
   document.getElementById("topbar").innerHTML = `
     <strong class="brand">IDLC Streams</strong>
-    <nav aria-label="Main">${nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("")}</nav>
+    ${side ? `<span class="tb-spacer"></span>` : `<nav aria-label="Main">${links}</nav>`}
+    <button type="button" class="btn secondary navtoggle" data-act="nav-toggle" title="Move the menu to the ${side ? "top" : "side"}"><span class="nt-ico ${side ? "to-top" : "to-side"}" aria-hidden="true"></span>${side ? "Top menu" : "Side menu"}</button>
     <div class="tsearch" role="search">
       <label for="top-q" class="sr-only">Search projects by code or name</label>
       <input id="top-q" type="search" placeholder="Search project code" autocomplete="off" aria-controls="top-q-results">
@@ -1288,7 +1335,7 @@ function viewQueue(u) {
   ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}
   ${ovs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project overviews waiting for your approval (${ovs.length})</h2>
     <ul class="files">${ovs.map(pp => `<li class="file-plain"><button class="linkish" data-go="project" data-tab="overview" data-id="${pp.id}">${h(pp.code)} · ${h(pp.name)}</button> <span class="file-meta">${ovPending(pp).change ? "change requested" : "sent"} by ${h(uname(ovPending(pp).by))} · ${fmt(ovPending(pp).at)}</span></li>`).join("")}</ul></section>` : ""}
-  ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">End date extension requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
+  ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Date change requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
     <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td></tr>`).join("")}</tbody>`)
@@ -1343,7 +1390,7 @@ function projectPrimary(u, pid) {
   ${pending.length ? `<section class="card-section fb-alert"><h3 class="sec-title">Feedback requests waiting for approval (${pending.length})</h3>${fbTable(pending, false)}</section>` : ""}
   ${canApproveOverview(u, pid) && ovPending(p) ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">Overview waiting for your approval</h3>
     <button type="button" class="btn secondary" data-act="ptab" data-tab="overview">Review in Overview</button></div></section>` : ""}
-  ${canApproveExt(u, pid) && extList(u, pid, "pending").length ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">End date extension requests waiting (${extList(u, pid, "pending").length})</h3>
+  ${canApproveExt(u, pid) && extList(u, pid, "pending").length ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">Date change requests waiting (${extList(u, pid, "pending").length})</h3>
     <button type="button" class="btn secondary" data-act="ptab" data-tab="overview">Review in Overview</button></div></section>` : ""}
   <section class="card-section"><div class="head-row"><h3 class="sec-title">${all ? "All requirements" : "Requirements you hold"}</h3>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
   ${all ? "" : `<p class="note">You see a requirement only while you hold it. Only the Project Head, Project Lead and Dev Lead see all requirements and who holds them.</p>`}
@@ -1378,18 +1425,32 @@ function projectOverview(u, pid) {
   const approver = canApproveExt(u, pid), pendingX = extList(u, pid, "pending"), pastX = extList(u, pid).filter(e => e.x.status !== "pending");
   const askable = rows.filter(x => !x.closed && canRequestExt(u, x.kind, x.id) && !pendingExt(extTarget(x.kind, x.id)));
   const n = Math.max(1, ...rows.map(x => x.ends.length));
-  const hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^(Due date|Requested end date|Approved end date|Declined end date)/.test(x.action))));
+  const hist = S.history.filter(x => x.pid === pid && (!x.rid || (all && /^(Due date|Requested (end|start) date|Approved (end|start) date|Declined (end|start) date)/.test(x.action))));
   return `<section class="card-section dl-bar" data-dl ${downloadsCap ? "" : "hidden"}><div class="head-row"><h3 class="sec-title">Download</h3>
     <div class="extend"><button type="button" class="btn secondary" data-act="dl-report" data-pid="${pid}">Overview report (.html)</button>
     <button type="button" class="btn secondary" data-act="dl-csv" data-pid="${pid}">Timeline (.csv)</button></div></div>
-    <p class="note" id="dl-status" style="margin-top:.4rem">The report has the overview, timeline, extension requests and history. Open it in a browser or Word, or print it to PDF.</p></section>
+    <p class="note" id="dl-status" style="margin-top:.4rem">The report has the overview, timeline, date change requests and history. Open it in a browser or Word, or print it to PDF.</p></section>
   ${projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, askable)}`;
+}
+function timelineDates(x, why, bold) {
+  const line = (t, list, notes) => list.map((d, k) => `<dt>${t}${k ? ` ${k + 1}` : ""}</dt><dd><span class="num">${k === list.length - 1 && k > 0 && bold ? `<strong>${d}</strong>` : d}</span>${k && notes[k] ? ` <span class="${why}">– ${h(notes[k])}</span>` : ""}</dd>`).join("");
+  return line("Start date", x.starts, x.startWhy) + (x.ends.length ? line("End date", x.ends, x.why) : `<dt>End date</dt><dd>Not set</dd>`);
+}
+function timelineList(u, rows) {
+  return `<ol class="tl-list">${rows.map((x, i) => {
+    const t = extTarget(x.kind, x.id), pend = pendingExt(t), sm = x.starts.length > 1 ? dayDiff(x.starts[0], x.starts[x.starts.length - 1]) : 0;
+    return `<li class="tl-item${x.kind === "project" ? " tl-project" : ""}">
+      <div class="tl-head"><span class="tl-num">${i + 1}.</span>${x.kind === "project" ? `<strong>${h(x.name)}</strong>` : canSeeReq(u, t) ? `<button class="linkish" data-act="open-card" data-id="${x.id}">${h(x.name)}</button>` : `<strong>${h(x.name)}</strong>`}
+        ${x.closed ? label("Closed", "st-cl") : ""}${pend ? label(`${pend.field === "start" ? "Start" : "End"} date change waiting`, "st-qa") : ""}</div>
+      <dl class="tl-dates">${timelineDates(x, "tl-why", true)}
+        <dt>Days deviated</dt><dd>${deviation(x.ends)}${sm ? " " + label(`Start moved ${sm > 0 ? "+" : ""}${dayWord(sm)}`, "st-qa") : ""}</dd></dl></li>`;
+  }).join("")}</ol>`;
 }
 function timelineRows(u, pid) {
   const p = proj(pid), all = seesAll(u, pid);
-  return [{kind: "project", id: pid, name: "Whole project", start: p.start, ends: p.deadlines || (p.deadline ? [p.deadline] : []), why: p.endWhy || {}, closed: p.status === "Closed"}]
+  return [{kind: "project", id: pid, name: "Whole project", start: p.start, starts: p.starts || (p.start ? [p.start] : []), startWhy: p.startWhy || {}, ends: p.deadlines || (p.deadline ? [p.deadline] : []), why: p.endWhy || {}, closed: p.status === "Closed"}]
     .concat(S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id) || involved(r, u.id))).sort((a, b) => a.id - b.id)
-      .map(r => ({kind: "req", id: r.id, name: `#${r.id} ${r.title}`, start: r.start || isoDay(r.created), ends: r.dues || (r.due ? [r.due] : []), why: r.endWhy || {}, closed: r.stage === 8})));
+      .map(r => ({kind: "req", id: r.id, name: `#${r.id} ${r.title}`, start: r.start || isoDay(r.created), starts: r.starts || [r.start || isoDay(r.created)], startWhy: r.startWhy || {}, ends: r.dues || (r.due ? [r.due] : []), why: r.endWhy || {}, closed: r.stage === 8})));
 }
 function overviewSection(u, pid) {
   const p = proj(pid), dft = p.ovDraft, pend = ovPending(p), approved = !!p.ovApprovedAt, ov = p.overview || {};
@@ -1422,29 +1483,25 @@ function projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, a
   const p = proj(pid), plan = canPlan(u, pid), ov = p.overview || {};
   const field = (k, t) => `<dt>${t}</dt><dd class="pre">${ov[k] ? h(ov[k]) : `<span class="note">Not filled in yet.</span>`}</dd>`;
   return `${overviewSection(u, pid)}
-  <section class="card-section"><h3 class="sec-title">Priority and start date</h3>
+  <section class="card-section"><h3 class="sec-title">Priority</h3>
   ${plan ? `<form data-form="plan" data-pid="${pid}" class="row" style="margin:0">
     <label for="pp-pri">Project priority<select id="pp-pri" name="priority">${PRIORITIES.map(x => `<option ${x === (p.priority || "Normal") ? "selected" : ""}>${x}</option>`).join("")}</select></label>
-    <label for="pp-start">Start date<input id="pp-start" type="date" name="start" value="${p.start || ""}" required></label>
     <button class="btn primary">Save</button></form>
-    <p class="note" style="margin-top:.6rem">Current end date: ${p.deadline || "none"}. To change it, request an extension below; the Project Lead or Project Head accepts it.</p>`
+    <p class="note" style="margin-top:.6rem">Start ${p.start || "not set"} · End ${p.deadline || "not set"}. Dates change through a date change request below; the Project Lead or Project Head accepts it.</p>`
     : `<p style="margin:0">${priLabel((p.priority || "Normal") + " priority")} <span>Start ${p.start || "not set"} · End ${p.deadline || "not set"}</span></p>`}</section>
   <section class="card-section"><h3 class="sec-title">Timeline</h3>
-    <p class="note" style="margin-bottom:.5rem">Every accepted end-date change is kept, with its reason. End date 1 is the original; later columns are extensions. Days deviated compares the latest end date with the original.</p>
-    ${tbl(`<thead><tr><th>List</th><th>Requirement</th><th>Start date</th>${Array.from({length: n}, (_, i) => `<th>End date ${i + 1}</th>`).join("")}<th>Days deviated</th></tr></thead><tbody>${rows.map((x, i) => `
-      <tr class="${x.kind === "project" ? "tl-project" : ""}"><td class="num">${x.kind === "project" ? "—" : i}</td>
-      <td>${x.kind === "project" ? `<strong>${h(x.name)}</strong>` : canSeeReq(u, req(x.id)) ? `<button class="linkish" data-act="open-card" data-id="${x.id}">${h(x.name)}</button>` : h(x.name)}${x.closed ? " " + label("Closed", "st-cl") : ""}</td>
-      <td class="num">${x.start || ""}</td>${Array.from({length: n}, (_, k) => `<td class="num">${x.ends[k] ? `${k === x.ends.length - 1 && k > 0 ? `<strong>${x.ends[k]}</strong>` : x.ends[k]}${k > 0 && x.why[k] ? `<span class="tl-why">${h(x.why[k])}</span>` : ""}` : ""}</td>`).join("")}
-      <td>${deviation(x.ends)}${pendingExt(extTarget(x.kind, x.id)) ? `<br>${label("Extension waiting", "st-qa")}` : ""}</td></tr>`).join("")}</tbody>`)}
+    <p class="note" style="margin-bottom:.6rem">Each item lists its original dates and every accepted change, with the reason. Days deviated compares the latest end date with the original.</p>
+    ${timelineList(u, rows)}
   </section>
-  <section class="card-section${pendingX.length && approver ? " fb-alert" : ""}"><h3 class="sec-title">End date extensions</h3>
-    <p class="note" style="margin-bottom:.5rem">Ask for more time with a reason. The Project Lead or Project Head accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
+  <section class="card-section${pendingX.length && approver ? " fb-alert" : ""}"><h3 class="sec-title">Date change requests</h3>
+    <p class="note" style="margin-bottom:.5rem">Ask to change a start or end date, with a reason. The Project Lead or Project Head accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
     ${pendingX.length ? `<h4 class="fl">Waiting for approval (${pendingX.length})</h4>${extTable(u, pendingX, false, true)}` : `<p class="note">No requests waiting.</p>`}
     ${askable.length ? `<form data-form="extreq" data-pid="${pid}" class="stack" style="margin-top:.8rem">
-      <div class="row" style="margin:0"><label for="ex-item">Needs more time<select id="ex-item" name="item">${askable.map(x => `<option value="${x.kind}:${x.id}">${h(x.name)} (ends ${x.ends[x.ends.length - 1] || "not set"})</option>`).join("")}</select></label>
-      <label for="ex-date">New end date<input id="ex-date" type="date" name="date" required></label></div>
-      <label for="ex-reason">Reason (required)<textarea id="ex-reason" name="reason" rows="2" required placeholder="Why more time is needed"></textarea></label>
-      <button class="btn primary">${approver ? "Extend now" : "Request extension"}</button></form>` : ""}
+      <div class="row" style="margin:0"><label for="ex-item">For<select id="ex-item" name="item">${askable.map(x => `<option value="${x.kind}:${x.id}">${h(x.name)} (starts ${x.starts[x.starts.length - 1] || "not set"}, ends ${x.ends[x.ends.length - 1] || "not set"})</option>`).join("")}</select></label>
+      <label for="ex-field">Date to change<select id="ex-field" name="field"><option value="end">End date</option><option value="start">Start date</option></select></label>
+      <label for="ex-date">New date<input id="ex-date" type="date" name="date" required></label></div>
+      <label for="ex-reason">Reason (required)<textarea id="ex-reason" name="reason" rows="2" required placeholder="Why the date needs to change"></textarea></label>
+      <button class="btn primary">${approver ? "Change now" : "Request date change"}</button></form>` : ""}
     ${pastX.length ? `<details style="margin-top:.8rem"><summary>Past requests (${pastX.length})</summary>${extTable(u, pastX, false, false)}</details>` : ""}
   </section>
   <section class="card-section"><h3 class="sec-title">History</h3>${historyList(hist, u, pid)}</section>`;
@@ -1538,9 +1595,9 @@ function notifText(x, u, p, r, toList) {
   if (a === "Send") return mine ? `assigned you requirement ${q} · ${STAGES[x.toStage]}${others.length ? ` (with ${others.join(", ")})` : ""}`
     : `sent requirement ${q} to ${toList.map(uname).join(", ") || "no one"} · ${STAGES[x.toStage]}`;
   if (a === "Created requirement") return `created requirement ${q}`;
-  if (a.startsWith("Requested end date extension")) return `${lower(a)}${r ? ` (“${r.title}”)` : ` in ${p.code}`}: “${x.comment}”`;
-  if (a.startsWith("Approved end date extension")) return `${mine ? "accepted your extension request" : lower(a)}${mine ? `${r ? ` for “${r.title}”` : ` in ${p.code}`}: ${a.replace(/^.*?: /, "")}` : r ? "" : ` in ${p.code}`}`;
-  if (a.startsWith("Declined end date extension")) return `${mine ? "declined your extension request" : lower(a)}${r ? ` (“${r.title}”)` : ` in ${p.code}`}`;
+  if (/^Requested (end date extension|start date change)/.test(a)) return `${lower(a)}${r ? ` (“${r.title}”)` : ` in ${p.code}`}: “${x.comment}”`;
+  if (/^Approved (end date extension|start date change)/.test(a)) return `${mine ? "accepted your date change request" : lower(a)}${mine ? `${r ? ` for “${r.title}”` : ` in ${p.code}`}: ${a.replace(/^.*?: /, "")}` : r ? "" : ` in ${p.code}`}`;
+  if (/^Declined (end date extension|start date change)/.test(a)) return `${mine ? "declined your date change request" : lower(a)}${r ? ` (“${r.title}”)` : ` in ${p.code}`}`;
   if (a === "Requested feedback") return `requested feedback on ${q}${x.comment ? `: “${x.comment}”` : ""}`;
   if (a === "Declined feedback request") return mine ? `declined your feedback request on ${q}` : `declined a feedback request on ${q}`;
   if (a === "Feedback approved") return mine ? `accepted a feedback request and sent you requirement ${q} · ${STAGES[x.toStage]}`
@@ -1621,7 +1678,7 @@ function render() {
   const body = v.name === "projects" || v.name === "project" ? viewProjects(u)
     : v.name === "admin" ? viewAdmin(u) : v.name === "archive" ? viewArchive(u)
     : v.name === "paused" ? viewPaused(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
-  renderTop();
+  renderTop(); setTopbarHeight();
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
   save();
 }
@@ -1643,6 +1700,7 @@ document.addEventListener("click", e => {
     reqCard(+a.dataset.id); return;
   }
   if (act === "ptab") { setTab(a.dataset.tab); return; }
+  if (act === "nav-toggle") { const u = me(); u.navPos = u.navPos === "side" ? "top" : "side"; render(); const b = document.querySelector("[data-act=nav-toggle]"); if (b) b.focus(); return; }
   if (act === "dl-report" || act === "dl-csv") { offerDownload(act, +a.dataset.pid); return; }
   if (act === "back-project") { S.flash = null; projectCard(+modal.dataset.back); return; }
   if (act === "add-dummy" || act === "add-dummy-new") { addDummy(a); return; }
@@ -1668,7 +1726,7 @@ document.addEventListener("click", e => {
     if (act === "remove") { removeMember(me(), +a.dataset.pid, +a.dataset.uid); flash("ok", "Member removed."); return {reopenProject: +a.dataset.pid}; }
     if (act === "ext-decide") {
       const ok = a.dataset.ok === "1"; decideExt(me(), a.dataset.kind, +a.dataset.id, ok);
-      flash("ok", ok ? "Extension accepted. The new end date is in the Timeline." : "Extension declined. The end date stays as it was.");
+      flash("ok", ok ? "Date change accepted. It is now in the Timeline." : "Date change declined. The date stays as it was.");
       if (modal.open && modal.querySelector("form[data-form=card]")) return {reopen: +a.dataset.id};
       if (modal.open) return {reopenProject: +a.dataset.pid, tab: modal.dataset.tab || "overview"};
     }
@@ -1685,7 +1743,7 @@ document.addEventListener("submit", e => {
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
-        if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason); flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead or Project Head can now accept or decline it."); return {reopen: id}; }
+        if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason, d.extfield); flash("ok", res === "applied" ? "Date changed. The Timeline keeps the earlier date and your reason." : "Date change requested. The Project Lead or Project Head can now accept or decline it."); return {reopen: id}; }
         if (doIt === "fbreq") { requestFeedback(u, id, d.fbreason); flash("ok", "Feedback requested. The Project Head, Project Lead and Dev Lead can now accept it."); return {reopen: id}; }
         if (doIt === "fbaccept") { const to = decideFeedback(u, id, true, +d.fbstage, +d.fbto, d.fbnote); flash("ok", `Feedback request accepted. Sent to ${to} in ${STAGES[+d.fbstage]}.`); break; }
         if (doIt === "fbdecline") { const who = decideFeedback(u, id, false, 0, 0, d.fbnote); flash("ok", `Feedback request declined. It stays with ${who}.`); return {reopen: id}; }
@@ -1709,10 +1767,10 @@ document.addEventListener("submit", e => {
         return {reopenProject: pid};
       }
       case "addmember": addMember(u, pid, +d.uid, [...f.querySelectorAll(".np-role")].map(x => x.value)); flash("ok", "Saved. Roles updated."); return {reopenProject: pid};
-      case "plan": setPlan(u, pid, d.priority, d.start); flash("ok", "Project priority and start date saved."); return {reopenProject: pid, tab: "overview"};
+      case "plan": setPlan(u, pid, d.priority, proj(pid).start); flash("ok", "Project priority saved."); return {reopenProject: pid, tab: "overview"};
       case "extreq": {
-        const [kind, xid] = (d.item || "").split(":"), res = requestExt(u, kind, +xid, d.date, d.reason);
-        flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead or Project Head can now accept or decline it.");
+        const [kind, xid] = (d.item || "").split(":"), res = requestExt(u, kind, +xid, d.date, d.reason, d.field);
+        flash("ok", res === "applied" ? "Date changed. The Timeline keeps the earlier date and your reason." : "Date change requested. The Project Lead or Project Head can now accept or decline it.");
         return {reopenProject: pid, tab: "overview"};
       }
       case "overview": submitOverview(u, pid, d); flash("ok", "Overview sent for approval. The Project Head or Project Lead approves it."); return {reopenProject: pid, tab: "overview"};
