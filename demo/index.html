@@ -556,7 +556,7 @@ const LEADS = ["Project Lead", "Dev Lead"];
 const SH = "Business Stakeholder", AN = "Project Analyst";
 const FILE_ROOT = "\\\\fs01\\IDLC_Streams";
 const DAY = 864e5;
-const KEY = "pmt-demo-v7";
+const KEY = "pmt-demo-v8";
 const HEAD = "Project Head";
 
 let S, CLOCK = null;
@@ -1043,12 +1043,12 @@ function seed() {
   at(36); const r12 = rq("shahriar", p1, "Payment gateway vendor onboarding", "Collect documents, security checklist and sandbox access.", 5, "High");
   send("shahriar", r12, "imam", QA, "Security checklist attached.");
   at(20); send("imam", r12, "saifuddin", APPR, "Security checklist passed. Ready for approval.");
-  at(1.5); send("saifuddin", r12, "jewel", APPR, "Contract value is above my approval limit. Please approve.");
+  at(1.5); send("saifuddin", r12, "jewel", APPR, "Please approve.");
   at(36.5); const r13 = rq("saifuddin", p1, "Vendor API documentation", "Get the full API reference and error codes from the vendor.", -5, "Normal");
   send("saifuddin", r13, "shahriar", AN);
   at(25); send("shahriar", r13, "imam", QA, "Docs received. Please check examples against the sandbox.");
   at(15); send("imam", r13, "nafis", APPR, "All documented endpoints answer as described.");
-  at(13.5); send("nafis", r13, "jewel", APPR, "Technical review done. Needs your sign-off before we commit to this vendor's API.");
+  at(13.5); send("nafis", r13, "jewel", APPR, "Please approve.");
   at(12); send("jewel", r13, "jewel", CLOSED, "Approved.");
   at(14); requestExt(U("nafis"), "project", p1, day(50), "Vendor needs two more weeks to give sandbox access.", "end");
   at(13); decideExt(U("saifuddin"), "project", p1, true);
@@ -1094,7 +1094,7 @@ function seed() {
   at(15); send("shahriar", r33, "mashequr", DEV);
   at(8); send("mashequr", r33, "imam", QA, "Batch file passes the bureau's validator.");
   at(0.7); send("imam", r33, "nafis", APPR, "All test cases passed.");
-  at(0.5); send("nafis", r33, "jewel", APPR, "Credit bureau data leaves the bank, so this needs CTO approval.");
+  at(0.5); send("nafis", r33, "jewel", APPR, "Please approve.");
 
   // 4. Vendor project led by Sayem (Saifuddin and Shahriar not on it); currently On Hold
   at(15);
