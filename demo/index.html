@@ -556,7 +556,7 @@ const LEADS = ["Project Lead", "Dev Lead"];
 const SH = "Business Stakeholder", AN = "Project Analyst";
 const FILE_ROOT = "\\\\fs01\\IDLC_Streams";
 const DAY = 864e5;
-const KEY = "pmt-demo-v6";
+const KEY = "pmt-demo-v7";
 const HEAD = "Project Head";
 
 let S, CLOCK = null;
@@ -890,12 +890,21 @@ function proceed(u, id, to, comment, internal, stage) {
   to = [...new Set([].concat(to).filter(Boolean))];
   if (!to.length) throw new RuleError("Choose at least one person to send to.");
   to.forEach(t => memberRole(r.pid, t));
+  checkHeadRule(u, r.pid, to, stage);
   if (stage === APPROVAL && to.some(t => !isApprover(r.pid, t))) throw new RuleError("Approval can only be sent to the Project Head, Project Lead or Dev Lead.");
   return move(u, r, "Send", to, stage, comment, internal, ov);
 }
 // The Approval stage can only be sent to the Project Head, Project Lead or Dev Lead, and only they close a requirement from it.
 const APPROVAL = 7;
 const isApprover = (pid, uid) => has(pid, uid, HEAD) || has(pid, uid, "Project Lead") || has(pid, uid, "Dev Lead");
+// The Project Head only receives approval requests, and only from the Project Lead or Dev Lead.
+const isHeadMember = (pid, uid) => has(pid, uid, HEAD);
+const canSendToHead = (u, pid) => u.cto || has(pid, u.id, "Project Lead") || has(pid, u.id, "Dev Lead");
+function checkHeadRule(u, pid, to, stage) {
+  if (!to.some(t => isHeadMember(pid, t))) return;
+  if (stage !== APPROVAL) throw new RuleError("The Project Head only receives approval requests. Choose the Approval stage, or send it to someone else.");
+  if (!canSendToHead(u, pid)) throw new RuleError("Only the Project Lead or Dev Lead can send an approval request to the Project Head.");
+}
 // Feedback requests: the assigned person asks with a reason; the Project Head, Project Lead or Dev Lead accepts or declines.
 const pendingFb = r => (r.fbReqs || []).find(f => f.status === "pending");
 function defaultFbStage(r) {
@@ -925,6 +934,7 @@ function decideFeedback(u, id, ok, stage, to, note) {
   }
   if (!isFeedback(stage)) throw new RuleError("Choose a Feedback stage.");
   memberRole(r.pid, to);
+  if (isHeadMember(r.pid, to)) throw new RuleError("The Project Head only receives approval requests. Pick someone else to give feedback.");
   f.status = "accepted"; f.decidedBy = u.id; f.decidedAt = now();
   return move(u, r, "Feedback approved", [to], stage, note || `Feedback requested by ${uname(f.by)}: ${f.reason}`, false, false);
 }
@@ -1033,11 +1043,13 @@ function seed() {
   at(36); const r12 = rq("shahriar", p1, "Payment gateway vendor onboarding", "Collect documents, security checklist and sandbox access.", 5, "High");
   send("shahriar", r12, "imam", QA, "Security checklist attached.");
   at(20); send("imam", r12, "saifuddin", APPR, "Security checklist passed. Ready for approval.");
+  at(1.5); send("saifuddin", r12, "jewel", APPR, "Contract value is above my approval limit. Please approve.");
   at(36.5); const r13 = rq("saifuddin", p1, "Vendor API documentation", "Get the full API reference and error codes from the vendor.", -5, "Normal");
   send("saifuddin", r13, "shahriar", AN);
   at(25); send("shahriar", r13, "imam", QA, "Docs received. Please check examples against the sandbox.");
   at(15); send("imam", r13, "nafis", APPR, "All documented endpoints answer as described.");
-  at(12); send("nafis", r13, "nafis", CLOSED, "Approved.");
+  at(13.5); send("nafis", r13, "jewel", APPR, "Technical review done. Needs your sign-off before we commit to this vendor's API.");
+  at(12); send("jewel", r13, "jewel", CLOSED, "Approved.");
   at(14); requestExt(U("nafis"), "project", p1, day(50), "Vendor needs two more weeks to give sandbox access.", "end");
   at(13); decideExt(U("saifuddin"), "project", p1, true);
   at(0.6); addComment(U("imam"), r11, "Two SLA penalties are missing from the draft contract.", false);
@@ -1082,6 +1094,7 @@ function seed() {
   at(15); send("shahriar", r33, "mashequr", DEV);
   at(8); send("mashequr", r33, "imam", QA, "Batch file passes the bureau's validator.");
   at(0.7); send("imam", r33, "nafis", APPR, "All test cases passed.");
+  at(0.5); send("nafis", r33, "jewel", APPR, "Credit bureau data leaves the bank, so this needs CTO approval.");
 
   // 4. Vendor project led by Sayem (Saifuddin and Shahriar not on it); currently On Hold
   at(15);
@@ -1115,14 +1128,20 @@ const modal = document.getElementById("modal");
 // When the chosen stage is Approval, only the Project Head, Project Lead and Dev Lead can be picked.
 function syncToOptions(form) {
   if (!form || !form.querySelector(".to-picks")) return;
-  const st = form.querySelector("[name=stage]"), appr = st && +st.value === APPROVAL;
+  const st = form.querySelector("[name=stage]"), appr = st && +st.value === APPROVAL, canHead = form.querySelector(".to-picks").dataset.canhead === "1";
   form.querySelectorAll(".to-picks select").forEach(sel => {
-    [...sel.options].forEach(o => { const off = appr && o.dataset.lead !== "1"; o.toggleAttribute("disabled", off); o.toggleAttribute("hidden", off); });
+    [...sel.options].forEach(o => {
+      const head = o.dataset.head === "1";
+      const off = head ? !(appr && canHead) : appr && o.dataset.lead !== "1";
+      o.toggleAttribute("disabled", off); o.toggleAttribute("hidden", off);
+    });
     if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled) { const ok = [...sel.options].find(o => !o.disabled); if (ok) sel.value = ok.value; }
   });
   let note = form.querySelector(".appr-note");
-  if (!note) { form.querySelector(".to-picks").closest(".row").insertAdjacentHTML("afterend", `<p class="note appr-note" hidden>Approval can only be sent to the Project Head, Project Lead or Dev Lead.</p>`); note = form.querySelector(".appr-note"); }
-  note.hidden = !appr;
+  if (!note) { form.querySelector(".to-picks").closest(".row").insertAdjacentHTML("afterend", `<p class="note appr-note" hidden></p>`); note = form.querySelector(".appr-note"); }
+  note.hidden = false;
+  note.textContent = appr ? (canHead ? "Approval can only be sent to the Project Head, Project Lead or Dev Lead." : "Approval can only be sent to the Project Lead or Dev Lead. They pass it on to the Project Head if needed.")
+    : "The Project Head only receives approval requests, so they are not listed for this stage.";
 }
 document.addEventListener("change", e => { if (e.target.name === "stage" && e.target.form) syncToOptions(e.target.form); });
 function openModal(html, wide) {
@@ -1166,7 +1185,7 @@ function reqCard(id, keepComment) {
     !closed && !holds(r, u.id) ? `Assigned to ${h(holderNames(r))}. As ${u.cto ? "CTO" : "Project Lead"} you can still act; it is logged as an override.` : "",
     closed ? "This requirement is Closed." : ""].filter(Boolean).map(t => `<p class="note">${t}</p>`).join("");
   const pf = pendingFb(r), all = seesAll(u, r.pid);
-  const fbStage = pf ? defaultFbStage(r) : null, fbFrom = pf ? (members.find(m => m.uid === r.prev && m.uid !== pf.by) || members.find(m => m.uid !== pf.by) || members[0]) : null;
+  const fbStage = pf ? defaultFbStage(r) : null, fbFrom = pf ? (members.find(m => m.uid === r.prev && m.uid !== pf.by && !m.roles.includes(HEAD)) || members.find(m => m.uid !== pf.by && !m.roles.includes(HEAD)) || members[0]) : null;
   const back = modal.open && modal.dataset.back ? +modal.dataset.back : 0;
   openModal(`<div class="card-head">${back ? `<button type="button" class="btn secondary back-btn" data-act="back-project">‹ ${h(proj(back).code)}</button>` : ""}<h2 id="modal-title">${h(`Requirement ${reqCode(r)} · ${p.code}`)}</h2><button type="button" class="x" data-act="close" aria-label="Close">×</button></div>
   <form data-form="card" data-id="${id}">
@@ -1176,7 +1195,7 @@ function reqCard(id, keepComment) {
         <p style="margin:0"><strong>${h(uname(pf.by))}</strong> <span class="file-meta">${fmt(pf.at)}</span></p><p class="pre" style="margin:.3rem 0 0">${h(pf.reason)}</p>
         ${all && !closed ? `<div class="stack" style="margin-top:.8rem">
           <div class="row" style="margin:0"><label for="fb-stage">Move to<select id="fb-stage" name="fbstage">${stageOrder().filter(isFeedback).map(n => `<option value="${n}" ${n === fbStage ? "selected" : ""}>${STAGES[n]}</option>`).join("")}</select></label>
-          <label for="fb-to">Feedback from<select id="fb-to" name="fbto">${members.map(m => `<option value="${m.uid}" ${fbFrom && m.uid === fbFrom.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${loadTag(m.uid)}</option>`).join("")}</select></label></div>
+          <label for="fb-to">Feedback from<select id="fb-to" name="fbto">${members.filter(m => !m.roles.includes(HEAD)).map(m => `<option value="${m.uid}" ${fbFrom && m.uid === fbFrom.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${loadTag(m.uid)}</option>`).join("")}</select></label></div>
           <label for="fb-note">Note (optional)<textarea id="fb-note" name="fbnote" rows="2"></textarea></label>
           <div class="row" style="margin:0"><button class="btn primary" name="do" value="fbaccept">Accept and send</button><button class="btn secondary" name="do" value="fbdecline">Decline</button></div></div>`
         : `<p class="note" style="margin-top:.5rem">Waiting for the Project Head, Project Lead or Dev Lead to accept it.</p>`}</section>` : ""}
@@ -1200,7 +1219,7 @@ function reqCard(id, keepComment) {
         <div class="row" style="margin:0">
           <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => (n !== 8 || (r.stage === APPROVAL && isApprover(r.pid, u.id)) || isHead(u, r.pid)) && (!isFeedback(n) || all || n === r.stage))
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
-          <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
+          <div class="role-picks to-picks" data-canhead="${canSendToHead(u, p.id) ? 1 : 0}"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" data-head="${m.roles.includes(HEAD) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Choose the stage and one or more people, then press Send. Everyone you add gets it in their queue, and any of them can send it on.${all ? "" : " To move it to a Feedback stage, use Request feedback below."}</p></section>
       ${pendingExt(r) ? `<section class="card-section fb-alert"><h3 class="fl">${pendingExt(r).field === "start" ? "Start date change" : "End date extension"} · waiting for the Project Lead or Project Head</h3>
@@ -1251,7 +1270,7 @@ function reqDialog(pid) {
         <label class="check"><input type="checkbox" id="nr-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>
         <div class="row" style="margin:0">
           <label for="nr-stage">Stage<select id="nr-stage" name="stage">${stageOrder().filter(n => n !== 8 && (!isFeedback(n) || seesAll(u, pid))).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
-          <div class="role-picks to-picks"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
+          <div class="role-picks to-picks" data-canhead="${canSendToHead(u, p.id) ? 1 : 0}"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" data-head="${m.roles.includes(HEAD) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Send gives it to those people at that stage. Keep it with me saves it to your own queue.</p></section>
       ${modalError}
@@ -1776,7 +1795,7 @@ function viewHowTo() {
   ${sec("Create a project", "Project Head", ol(["Open <strong>Projects</strong> (or use <strong>New project</strong> in My Queue).", "Type the name. The code is made automatically. Set the priority and the <strong>end date</strong> (required). Leave the start date empty to use today.", "Add people: pick a User and a Role. Use <strong>+ Add role</strong> to give one person several roles, and <strong>Add another person</strong> for more people.", "Check the Review step and press <strong>Create project</strong>."]))}
   ${sec("Manage members", "Project Head, Project Lead, Dev Lead", ul(["Open the project card, Primary tab, Members.", "Pick a person and one or more roles, then <strong>Add member</strong>. Pick an existing member to give them another role.", "Remove a role with × on its chip, or remove the person with <strong>Remove</strong>. Only the Project Head removes a Project Lead or Dev Lead; Business Stakeholders are added or removed by the Project Head or Project Lead."]))}
   ${sec("Create a requirement", "Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder", ol(["Open the project card and press <strong>New requirement</strong>.", "Enter the title (only the creator sets it), description, priority and dates. Add dummy file names and repository or reference links if needed.", "Choose the stage and one or more people, then press <strong>Send</strong>, or <strong>Keep it with me</strong> to keep it in your queue.", "The requirement gets a code such as HDP-001-R01."]))}
-  ${sec("Work on and send a requirement", "The people it is assigned to", ol(["Open it from My Queue.", "Add comments, dummy files and links as needed. Tick Internal to hide a comment from Business Stakeholders.", "Choose the next <strong>Stage</strong> and the person (use <strong>+ Add person</strong> for several), write a comment if useful, and press <strong>Send</strong>.", "<strong>Approval</strong> can only be sent to the Project Head, Project Lead or Dev Lead. One of them closes it by choosing <strong>Closed (approve)</strong>."]))}
+  ${sec("Work on and send a requirement", "The people it is assigned to", ol(["Open it from My Queue.", "Add comments, dummy files and links as needed. Tick Internal to hide a comment from Business Stakeholders.", "Choose the next <strong>Stage</strong> and the person (use <strong>+ Add person</strong> for several), write a comment if useful, and press <strong>Send</strong>.", "<strong>Approval</strong> can only be sent to the Project Lead or Dev Lead. Only they can send an approval request on to the Project Head, who receives requirements for approval only. Any of them closes it with <strong>Approve and close</strong>."]))}
   ${sec("Ask for feedback", "The people it is assigned to; approved by the Project Head, Project Lead or Dev Lead", ol(["In the requirement card, open <strong>Request feedback</strong>, write the reason and send it.", "An approver opens it from My Queue, picks the Feedback stage and who gives feedback, then presses <strong>Accept and send</strong> or <strong>Decline</strong>."]))}
   ${sec("Undo a send", "The person who sent it", ul(["Open <strong>Sent Requests</strong> and press <strong>Unsend</strong>. It comes back to you at the stage it was in.", "This only works until the other person sends it on."]))}
   ${sec("Change a start or end date", "Asked by the Project Head, Project Lead, Dev Lead or the requirement's assignees; accepted by the Project Lead or Project Head", ol(["Project card, Overview tab, <strong>Date change requests</strong> (or <strong>Ask to change dates</strong> in a requirement card).", "Choose what it is for, Start date or End date, the new date and a reason (required).", "The Project Lead or Project Head accepts or declines it. Accepted changes appear in the Timeline with the reason."]))}
