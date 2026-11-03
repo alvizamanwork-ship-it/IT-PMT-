@@ -1464,12 +1464,14 @@ function historyList(rows, u, pid) {
 
 function viewQueue(u) {
   const order = {High: 0, Normal: 1, Low: 2};
-  const items = S.reqs.filter(r => holds(r, u.id) && r.stage !== 8 && proj(r.pid).status === "Active")
+  // The CTO's queue holds only requirements sent to him for approval; everything else is in each project's card.
+  const items = S.reqs.filter(r => holds(r, u.id) && r.stage !== 8 && proj(r.pid).status === "Active" && (!u.cto || r.stage === APPROVAL))
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
-  const fbs = S.reqs.filter(r => pendingFb(r) && seesAll(u, r.pid) && proj(r.pid).status === "Active");
-  const exs = S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
-  const ovs = S.projects.filter(pp => pp.status === "Active" && canApproveOverview(u, pp.id) && ovPending(pp));
+  const fbs = u.cto ? [] : S.reqs.filter(r => pendingFb(r) && seesAll(u, r.pid) && proj(r.pid).status === "Active");
+  const exs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
+  const ovs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveOverview(u, pp.id) && ovPending(pp));
   return `<div class="head-row"><h1>My Queue</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>
+  ${u.cto ? `<p class="note" style="margin-bottom:.75rem">Requirements sent to you for approval. To see any other work, open the project from Projects; its card shows every requirement, who holds it, and requests waiting there.</p>` : ""}
   ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}
   ${ovs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project overviews waiting for your approval (${ovs.length})</h2>
     <ul class="files">${ovs.map(pp => `<li class="file-plain"><button class="linkish" data-go="project" data-tab="overview" data-id="${pp.id}">${h(pp.code)} · ${h(pp.name)}</button> <span class="file-meta">${ovPending(pp).change ? "change requested" : "sent"} by ${h(uname(ovPending(pp).by))} · ${fmt(ovPending(pp).at)}</span></li>`).join("")}</ul></section>` : ""}
@@ -1478,7 +1480,7 @@ function viewQueue(u) {
     <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
     <td class="num">${Math.floor((now() - r.entered) / DAY)}</td>
     <td>${r.stage === APPROVAL && isApprover(r.pid, u.id) ? `<button type="button" class="btn primary qbtn" data-act="approve-close" data-id="${r.id}">Approve and close</button>` : ""}</td></tr>`).join("")}</tbody>`)
-    : "<p>Nothing waiting for you.</p>"}
+    : `<p>${u.cto ? "No approval requests waiting for you." : "Nothing waiting for you."}</p>`}
     <p class="note">Requirements in On Hold or Cancelled projects are hidden here.</p>`;
 }
 
