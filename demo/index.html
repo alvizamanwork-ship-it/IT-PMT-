@@ -460,6 +460,7 @@ dialog.card > .pwrap { display: flex; flex-direction: column; min-height: 0; fle
 .extend input { min-height: 2.2rem; padding: .25em .4em; }
 .extend .btn { min-height: 2.2rem; padding: .25em .9em; font-size: .9rem; }
 tr.tl-project td { background: var(--surface-2); }
+.qbtn { min-height: 2.1rem; padding: .25em .9em; font-size: .88rem; white-space: nowrap; }
 .file-plain { list-style: none; padding: .3rem 0; }
 .tl-why { color: var(--muted); }
 .tl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
@@ -1219,7 +1220,9 @@ function reqCard(id, keepComment) {
       ${modalError}
     </div>
     <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Close</button>
-      ${ro ? "" : `<span class="spacer"></span><button class="btn primary" name="do" value="send">Send</button>`}</div>
+      ${ro ? "" : r.stage === APPROVAL && isApprover(r.pid, u.id)
+        ? `<span class="spacer"></span><button class="btn secondary" name="do" value="send">Send</button><button class="btn primary" name="do" value="approve">Approve and close</button>`
+        : `<span class="spacer"></span><button class="btn primary" name="do" value="send">Send</button>`}</div>
   </form>`);
 }
 
@@ -1451,10 +1454,11 @@ function viewQueue(u) {
   ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}
   ${ovs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project overviews waiting for your approval (${ovs.length})</h2>
     <ul class="files">${ovs.map(pp => `<li class="file-plain"><button class="linkish" data-go="project" data-tab="overview" data-id="${pp.id}">${h(pp.code)} · ${h(pp.name)}</button> <span class="file-meta">${ovPending(pp).change ? "change requested" : "sent"} by ${h(uname(ovPending(pp).by))} · ${fmt(ovPending(pp).at)}</span></li>`).join("")}</ul></section>` : ""}
-  ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Date change requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
+  ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Date change requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
     <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
-    <td class="num">${Math.floor((now() - r.entered) / DAY)}</td></tr>`).join("")}</tbody>`)
+    <td class="num">${Math.floor((now() - r.entered) / DAY)}</td>
+    <td>${r.stage === APPROVAL && isApprover(r.pid, u.id) ? `<button type="button" class="btn primary qbtn" data-act="approve-close" data-id="${r.id}">Approve and close</button>` : ""}</td></tr>`).join("")}</tbody>`)
     : "<p>Nothing waiting for you.</p>"}
     <p class="note">Requirements in On Hold or Cancelled projects are hidden here.</p>`;
 }
@@ -1855,6 +1859,7 @@ document.addEventListener("click", e => {
   if (act === "open-project") { projectDialog(); return; }
   if (act === "wiz-next" || act === "wiz-back") { const f = modal.querySelector("form[data-form=newproject]"); wizGo(+f.dataset.step + (act === "wiz-next" ? 1 : -1)); return; }
   run(() => {
+    if (act === "approve-close") { const r = req(+a.dataset.id); accept(me(), r.id, ""); flash("ok", `${reqCode(r)} approved and closed.`); }
     if (act === "unsend") { const res = unsend(me(), +a.dataset.hid); flash("ok", `Unsent from ${res.names}. “${res.title}” is back in your queue at ${res.stage}.`); }
     if (act === "remove-role") { removeRole(me(), +a.dataset.pid, +a.dataset.uid, a.dataset.role); flash("ok", `Role ${a.dataset.role} removed.`); return {reopenProject: +a.dataset.pid}; }
     if (act === "remove") { removeMember(me(), +a.dataset.pid, +a.dataset.uid); flash("ok", "Member removed."); return {reopenProject: +a.dataset.pid}; }
@@ -1877,6 +1882,7 @@ document.addEventListener("submit", e => {
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
+        if (doIt === "approve") { accept(u, id, d.comment); flash("ok", `${reqCode(req(id))} approved and closed.`); break; }
         if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason, d.extfield); flash("ok", res === "applied" ? "Date changed. The Timeline keeps the earlier date and your reason." : "Date change requested. The Project Lead or Project Head can now accept or decline it."); return {reopen: id}; }
         if (doIt === "fbreq") { requestFeedback(u, id, d.fbreason); flash("ok", "Feedback requested. The Project Head, Project Lead and Dev Lead can now accept it."); return {reopen: id}; }
         if (doIt === "fbaccept") { const to = decideFeedback(u, id, true, +d.fbstage, +d.fbto, d.fbnote); flash("ok", `Feedback request accepted. Sent to ${to} in ${STAGES[+d.fbstage]}.`); break; }
