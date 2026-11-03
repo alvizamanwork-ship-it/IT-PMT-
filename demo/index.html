@@ -516,6 +516,30 @@ tr.tl-project td { background: var(--surface-2); }
 .pwrap [role=tabpanel] > * { min-width: 0; }
 /* How To */
 .howto { max-width: 46rem; }
+.howto-panel { max-width: 64rem; margin: 0 0 .6rem; border: 1px solid var(--sep-strong); border-radius: var(--radius); background: var(--surface); }
+.howto-panel > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .75rem; padding: .85rem 1rem .85rem 2.4rem; position: relative; border-radius: var(--radius); }
+.howto-panel > summary::-webkit-details-marker { display: none; }
+.howto-panel > summary::before { content: "›"; position: absolute; left: 1rem; top: .7rem; font-size: 1.3rem; line-height: 1; color: var(--accent); transition: transform .15s; }
+.howto-panel[open] > summary::before { transform: rotate(90deg); }
+.howto-panel > summary:hover { background: var(--tint); }
+.howto-panel > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ht-title { font-weight: 700; font-size: 1.1rem; }
+.ht-sub { color: var(--muted); font-size: .88rem; }
+.ht-body { padding: 0 1rem 1rem 2.4rem; }
+.ht-body ol, .ht-body ul { margin: .3rem 0 0; padding-left: 1.3rem; display: grid; gap: .35rem; }
+.ht-h { margin: 1rem 0 .2rem; font-size: 1rem; }
+.ht-body > .ht-h:first-child { margin-top: .2rem; }
+.ht-body .who { margin: 0 0 .3rem; }
+.hier ol { margin-top: .4rem; border-left: 2px solid var(--sep-strong); padding-left: 1.2rem; }
+.ht-matrix th[scope=row] { font-weight: 500; text-align: left; text-transform: none; letter-spacing: 0; font-size: .92rem; color: var(--text); min-width: 14rem; }
+.ht-matrix thead th { white-space: normal; text-align: center; vertical-align: bottom; }
+.ht-matrix thead th:first-child { text-align: left; }
+.ht-matrix td { text-align: center; white-space: normal; }
+.ht-matrix .yes { color: var(--accent); font-weight: 700; }
+.ht-matrix .no { color: var(--muted); }
+.ht-matrix .cond { font-size: .8rem; color: var(--muted); }
+.ht-matrix tr.grp th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--tint); }
+@media (max-width: 40rem) { .ht-body { padding-left: 1rem; } }
 .howto h2 { margin-top: 1.6rem; }
 .howto .who { margin: -.2rem 0 .4rem; }
 .howto ol, .howto ul { margin: .3rem 0 0; padding-left: 1.4rem; display: grid; gap: .35rem; }
@@ -2230,25 +2254,124 @@ function viewNotifications(u) {
 }
 // How To: a short text manual for the essential tasks.
 function viewHowTo() {
-  const sec = (t, who, body) => `<section class="howto"><h2>${t}</h2>${who ? `<p class="note who">Who: ${who}</p>` : ""}${body}</section>`;
   const ol = items => `<ol>${items.map(x => `<li>${x}</li>`).join("")}</ol>`, ul = items => `<ul>${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
-  return `<h1>How To</h1>
-  <p class="note" style="max-width:46rem">A short guide to the essential tasks. What you can do depends on your role in each project: Project Head (the CTO), Project Lead, Dev Lead, Project Analyst, Business Stakeholder, Developer or QA.</p>
-  ${sec("Find your work", "", ul(["<strong>My Queue</strong> lists the requirements assigned to you right now, highest priority first. Approvals waiting for you (feedback, date changes, overviews) appear at the top.", "<strong>Notifications</strong> shows the last 24 hours of activity that involves you. The red number shows new items.", "<strong>Search</strong> (top bar): type a project code (e.g. HDP-001) or a requirement code (e.g. HDP-001-R02), or part of a name, then press Enter."]))}
-  ${sec("Create a project", "Project Head", ol(["Open <strong>Projects</strong> (or use <strong>New project</strong> in My Queue).", "Type the name. The code is made automatically. Set the priority and the <strong>end date</strong> (required). Leave the start date empty to use today.", "Add people: pick a User and a Role. Use <strong>+ Add role</strong> to give one person several roles, and <strong>Add another person</strong> for more people.", "Check the Review step and press <strong>Create project</strong>."]))}
-  ${sec("Manage members", "Project Head, Project Lead, Dev Lead", ul(["Open the project card, Primary tab, Members.", "Pick a person and one or more roles, then <strong>Add member</strong>. Pick an existing member to give them another role.", "Remove a role with × on its chip, or remove the person with <strong>Remove</strong>. Only the Project Head removes a Project Lead or Dev Lead; Business Stakeholders are added or removed by the Project Head or Project Lead."]))}
-  ${sec("Create a requirement", "Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder", ol(["Open the project card and press <strong>New requirement</strong>.", "Enter the title (only the creator sets it), description, priority and dates. Add dummy file names and repository or reference links if needed.", "Choose the stage and one or more people, then press <strong>Send</strong>, or <strong>Keep it with me</strong> to keep it in your queue.", "The requirement gets a code such as HDP-001-R01."]))}
-  ${sec("Work on and send a requirement", "The people it is assigned to", ol(["Open it from My Queue.", "Add dummy files and links as needed. Write any comment in the Comment box; it is saved when you press Send. Tick Internal to hide it from Business Stakeholders.", "Choose the next <strong>Stage</strong> and the person (use <strong>+ Add person</strong> for several), write a comment if useful, and press <strong>Send</strong>.", "<strong>Approval</strong> can only be sent to the Project Lead or Dev Lead. Only the Project Lead, Dev Lead or Business Stakeholder can send an approval request to the Project Head, who receives requirements for approval only. Any of them closes it with <strong>Approve and close</strong>."]))}
-  ${sec("Ask for feedback", "The people it is assigned to; approved by the Project Head, Project Lead or Dev Lead", ol(["In the requirement card, open <strong>Request feedback</strong>, write the reason and send it.", "An approver opens it from My Queue, picks the Feedback stage and who gives feedback, then presses <strong>Accept and send</strong> or <strong>Decline</strong>."]))}
-  ${sec("Undo a send", "The person who sent it", ul(["Open <strong>Sent Requests</strong> and press <strong>Unsend</strong>. It comes back to you at the stage it was in.", "This only works until the other person sends it on."]))}
-  ${sec("Change a start or end date", "Asked by the Project Head, Project Lead, Dev Lead or the requirement's assignees; accepted by the Project Lead or Project Head", ol(["Project card, Overview tab, <strong>Date change requests</strong> (or <strong>Ask to change dates</strong> in a requirement card).", "Choose what it is for, Start date or End date, the new date and a reason (required).", "The Project Lead or Project Head accepts or declines it. Accepted changes appear in the Timeline with the reason."]))}
-  ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
-  ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
-  ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
-  ${sec("Start or request a project", "Everyone", ul(["The Project Head, and people the system admin allows, press <strong>New project</strong> (Projects or My Queue). If you start one, you join it as Project Lead.", "Everyone else presses <strong>Request project</strong>: give the name, type, priority, dates and why it is needed. The Project Head approves it (and sets it up) or declines it with a reason.", "Track your requests in <strong>Sent Requests</strong>. Withdraw one while it is still waiting.", "If neither button shows, project requests are closed. Contact the system admin."]))}
-  ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "Admin is only for the system admin account (admin), which only opens the Admin page. The Project Head does not have Admin."]))}
-  ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (system admin only; the Project Head does not have it): set the folder share where uploaded files are saved (files are only ever added, never deleted), control who can start or request projects (Access control), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF, Email), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  const who = t => `<p class="note who">Who: ${t}</p>`;
+  const panel = (id, title, sub, body, open) => `<details class="howto-panel" id="ht-${id}" ${open ? "open" : ""}><summary><span class="ht-title">${title}</span>${sub ? `<span class="ht-sub">${sub}</span>` : ""}</summary><div class="ht-body">${body}</div></details>`;
+  const sub = (t, body) => `<h3 class="ht-h">${t}</h3>${body}`;
+  const Y = `<span class="yes" aria-label="Yes">✓</span>`, N = `<span class="no" aria-label="No">–</span>`, c = t => `<span class="cond">${t}</span>`;
+  const cols = ["Project Head (CTO)", "Project Lead", "Dev Lead", "Project Analyst", "Business Stakeholder", "Developer / QA"];
+  const row = (what, ...cells) => `<tr><th scope="row">${what}</th>${cells.map(x => `<td>${x === 1 ? Y : x === 0 ? N : c(x)}</td>`).join("")}</tr>`;
+  const grp = t => `<tr class="grp"><th scope="rowgroup" colspan="${cols.length + 1}">${t}</th></tr>`;
+  const matrix = tbl(`<thead><tr><th scope="col">What</th>${cols.map(x => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>
+    ${grp("Projects")}
+    ${row("Start a new project", 1, "If admin allows", "If admin allows", "If admin allows", "If admin allows", "If admin allows")}
+    ${row("Request a project", 0, 1, 1, 1, 1, 1)}
+    ${row("Approve or decline project requests", 1, 0, 0, 0, 0, 0)}
+    ${row("Change status (On Hold, Cancelled, Closed)", 1, 1, 0, 0, 0, 0)}
+    ${row("Change project priority and start date", 1, 1, 1, 0, 0, 0)}
+    ${row("Add members and roles", 1, 1, "Not Stakeholders", 0, 0, 0)}
+    ${row("Remove a Project Lead or Dev Lead", 1, 0, 0, 0, 0, 0)}
+    ${row("Remove other members", 1, 1, "Not Stakeholders", 0, 0, 0)}
+    ${row("See On Hold & Cancelled page, team workload", 1, "Workload in own projects", "Workload in own projects", 0, 0, 0)}
+    ${grp("Requirements")}
+    ${row("See every requirement in the project", 1, 1, 1, "Only ones assigned to them", "Only ones assigned to them", "Only ones assigned to them")}
+    ${row("Create a requirement", 1, 1, 1, 1, 1, 0)}
+    ${row("Change a requirement's title", "If they created it", "If they created it", "If they created it", "If they created it", "If they created it", 0)}
+    ${row("Send a requirement on", "Any (logged)", "Any (logged)", "When assigned", "When assigned", "When assigned", "When assigned")}
+    ${row("Send to Approval → Project Lead / Dev Lead", 1, 1, 1, 1, 1, 1)}
+    ${row("Send to Approval → Project Head", 1, 1, 1, 0, 1, 0)}
+    ${row("Approve and close", 1, 1, 1, 0, 0, 0)}
+    ${row("Ask for feedback", "When assigned", "When assigned", "When assigned", "When assigned", "When assigned", "When assigned")}
+    ${row("Accept a feedback request", 1, 1, 1, 0, 0, 0)}
+    ${row("Read Internal comments", 1, 1, 1, 1, 0, 1)}
+    ${row("Remove a file or link", 1, 1, 1, "If they added it", "If they added it", "If they added it")}
+    ${grp("Dates and overview")}
+    ${row("Ask to change a start or end date", 1, 1, 1, "When assigned", "When assigned", "When assigned")}
+    ${row("Accept a date change", 1, 1, 0, 0, 0, 0)}
+    ${row("Fill in the overview", 0, 0, 0, 1, 1, 0)}
+    ${row("Approve the overview", 1, 1, 0, 0, 0, 0)}
+    ${row("Request a change to an approved overview", 0, 0, 0, 1, 0, 0)}
+  </tbody>`).replace('<div class="tbl">', '<div class="tbl ht-matrix">');
+  return `<div class="head-row"><h1>How To</h1><div class="row" style="margin:0"><button type="button" class="btn secondary" data-act="howto-all" data-open="1">Expand all</button><button type="button" class="btn secondary" data-act="howto-all" data-open="0">Collapse all</button></div></div>
+  <p class="note" style="max-width:52rem;margin-bottom:1rem">The manual for IDLC Streams. Press a title to open or close it. What you can do depends on your role in each project; one person can have different roles in different projects.</p>
+
+  ${panel("start", "Start here", "What IDLC Streams does, in one minute", ul([
+    "IDLC Streams tracks IT projects and the <strong>requirements</strong> (pieces of work) inside them. Each requirement moves through <strong>stages</strong>: " + stageOrder().map(n => STAGES[n]).join(" → ") + ".",
+    "A requirement is always <strong>assigned</strong> to one or more people. It shows in their <strong>My Queue</strong>. When they finish their part, they pick the next stage and the next person and press <strong>Send</strong>.",
+    "Projects have a type. <strong>Vendor</strong> projects have no Developers; <strong>Integration</strong> projects have no Project Analysts; <strong>Internal</strong> projects can have every role. Codes are automatic: VND-001, INT-002, ITG-003, and requirements like INT-002-R01.",
+    "Everything is recorded: who sent what, to whom, when, and why. Nothing is silently changed."]), true)}
+
+  ${panel("roles", "Role hierarchy", "Who sits where, and what each role is for", `
+    <ol class="hier">
+      <li><strong>System admin</strong> <span class="note">(the <code>admin</code> account)</span> — runs the system, not projects. Only sees the Admin page: users, access control, mail, folder share, integrations, roles and stages. Not a member of any project.</li>
+      <li><strong>Project Head (CTO)</strong> — oversees every project and is automatically in all of them. Starts projects and approves project requests. Receives requirements <em>only</em> as approval requests, so My Queue holds just approvals. Can act on any requirement (logged as an override).
+        <ol>
+          <li><strong>Project Lead</strong> — runs one project with almost the same powers as the Project Head inside it: manages members, status, dates and the overview, approves and closes work.
+            <ol>
+              <li><strong>Dev Lead</strong> — leads the technical work: sees all requirements, assigns developers, sets priority and start date, approves and closes work, accepts feedback requests.
+                <ol><li><strong>Developer</strong> and <strong>QA</strong> — build and test the requirements assigned to them.</li></ol></li>
+              <li><strong>Project Analyst</strong> — writes and analyses requirements and fills in the project overview. The only one who can ask to change an approved overview.</li>
+            </ol></li>
+        </ol></li>
+      <li><strong>Business Stakeholder</strong> — the business side. Creates requirements, fills in the overview, and can send approval requests straight to the Project Head. Never sees Internal comments.</li>
+    </ol>
+    ${ul(["One person can hold several roles in a project (use <strong>+ Add role</strong>), for example Developer and QA.", "The system admin can add new role names in Admin. A new role can hold and send requirements but has no special powers."])}`)}
+
+  ${panel("access", "Access control", "Signing in, who sees what, and who can start projects", `
+    ${sub("Signing in", ul(["Everyone signs in with a username and password. Usernames are made from the person's name.", "The system admin account only opens Admin. The Project Head does <strong>not</strong> have Admin."]))}
+    ${sub("What you can see", ul(["You only see projects you are a member of. The Project Head sees all of them.", "Inside a project, the <strong>Project Head, Project Lead and Dev Lead</strong> see every requirement. Everyone else sees the requirements assigned to them, plus closed ones they worked on (in the Archive).", "<strong>Internal</strong> comments are hidden from Business Stakeholders, in the card, the history and emails.", "Search only finds projects and requirements you are allowed to open."]))}
+    ${sub("Starting projects", ul(["The Project Head can always start a project.", "The system admin can allow chosen people to start projects (Admin → Access control). They join their new project as Project Lead.", "Everyone else can <strong>request</strong> a project, which the Project Head approves or declines. The system admin can turn requests off; then neither button shows."]))}
+    ${sub("Overrides", ul(["The Project Head and Project Lead can act on a requirement that is not assigned to them. The card warns them first and the action is logged as an override."]))}`)}
+
+  ${panel("matrix", "Who can do what", "One table of permissions by role", `${matrix}
+    <p class="note">✓ yes · – no. “When assigned” means only while the requirement is in their queue. The system admin cannot do any of these; they only manage the system in Admin.</p>`)}
+
+  ${panel("queue", "Your daily pages", "My Queue, Notifications, Sent Requests, Archive, Search", ul([
+    "<strong>My Queue</strong>: the requirements assigned to you now, highest priority first. Approvals waiting for you (feedback, date changes, overviews, project requests) show at the top. <strong>Added to project</strong> notices show at the bottom with <strong>Open project</strong> and <strong>Acknowledge</strong>; they stay until you acknowledge them.",
+    "<strong>Notifications</strong>: activity from the last 24 hours that involves you. The red number shows new items.",
+    "<strong>Sent Requests</strong>: requirements and project requests you sent. <strong>Unsend</strong> brings a requirement back until the other person sends it on; <strong>Withdraw</strong> cancels a waiting project request.",
+    "<strong>Archive</strong>: closed projects and requirements you took part in. <strong>On Hold & Cancelled</strong> (Project Head only) lists paused and stopped projects.",
+    "<strong>Search</strong> (top bar): type a project code (VND-001), a requirement code (VND-001-R02) or part of a name."]))}
+
+  ${panel("projects", "Projects", "Start, request, members, status", `
+    ${sub("Start a project", who("Project Head, and people the system admin allows") + ol(["Press <strong>New project</strong> in Projects or My Queue.", "Type the name and pick the type; the code is made automatically. Set the priority and the <strong>end date</strong> (required). An empty start date means today.", "Team: type a name and pick the person from the list, then choose a role. Use <strong>+ Add role</strong> for more roles and <strong>Add another person</strong> for more people.", "Check the Review step and press <strong>Create project</strong>. Each person added gets an Added to project notice."]))}
+    ${sub("Request a project", who("Everyone else, while requests are open") + ol(["Press <strong>Request project</strong>. Give the name, type, priority, dates and why it is needed.", "The Project Head sees it in My Queue. <strong>Approve and set up</strong> opens New project already filled in; <strong>Decline</strong> needs a reason, which is emailed to you."]))}
+    ${sub("Manage members", who("Project Head, Project Lead, Dev Lead") + ul(["Project card → Primary → Members. Type a name, pick roles and press <strong>Add member</strong>. Picking an existing member gives them another role.", "Remove a role with × on its chip. Only the Project Head removes a Project Lead or Dev Lead. Only the Project Head or Project Lead add or remove Business Stakeholders.", "The workload table shows how many open requirements each person has, here and across all projects."]))}
+    ${sub("Status", who("Project Head and Project Lead") + ul(["On Hold and Cancelled freeze the project and hide its work from queues.", "A project can only be Closed when every requirement is Closed. Closed projects move to the Archive."]))}`)}
+
+  ${panel("reqs", "Requirements", "Create, send, approval, feedback", `
+    ${sub("Create", who("Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder") + ol(["Project card → <strong>New requirement</strong>.", "Enter the title (only the creator can change it later), description, priority and dates. Add dummy files and links if needed.", "Choose the stage and one or more people, then <strong>Send</strong>, or <strong>Keep it with me</strong>."]))}
+    ${sub("Work on it and send it on", who("The people it is assigned to") + ol(["Open it from My Queue. Add files, links and a comment (saved when you press Send). Tick <strong>Internal</strong> to hide the comment from Business Stakeholders.", "Pick the next <strong>Stage</strong> and person (<strong>+ Add person</strong> for several) and press <strong>Send</strong>.", "Feedback stages need a comment."]))}
+    ${sub("Approval", ul(["Anyone can send a requirement to <strong>Approval</strong>, but only to the Project Lead or Dev Lead.", "Only the Project Lead, Dev Lead or Business Stakeholder can send it to the <strong>Project Head</strong>, who receives requirements for approval only.", "The approver presses <strong>Approve and close</strong>, or sends it back with a comment."]))}
+    ${sub("Feedback", ul(["Assigned people press <strong>Request feedback</strong> with a reason.", "The Project Head, Project Lead or Dev Lead accepts (picking the Feedback stage and who gives it) or declines."]))}`)}
+
+  ${panel("dates", "Dates, overview and timeline", "Changing dates, the overview, downloads", `
+    ${sub("Change a start or end date", who("Asked by the Project Head, Project Lead, Dev Lead or the people assigned; accepted by the Project Lead or Project Head") + ol(["Overview tab → <strong>Date change requests</strong>, or <strong>Ask to change dates</strong> in a requirement card.", "Choose start or end, the new date and a reason (required).", "Accepted changes are kept in the Timeline with the reason and how many days they moved."]))}
+    ${sub("Project overview", who("Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead") + ol(["Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "Once approved it is read-only. Only the Project Analyst can <strong>Request change</strong>, which needs approval again."]))}
+    ${sub("Timeline and downloads", ul(["The Timeline lists the project and each requirement with every date, the reason for each change and the days moved.", "<strong>Download</strong> in the Overview tab saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}`)}
+
+  ${panel("files", "Files and links", "Where files go, and why nothing is ever deleted", ul([
+    "Uploaded files are saved to the company folder share in: share \\ project code \\ requirement code \\ stage folder.",
+    "The system <strong>never deletes or overwrites</strong> files. A file with the same name is saved as _v2, _v3.",
+    "<strong>Remove</strong> on a requirement only hides the file there; it stays on the share. The person who added it, or the Project Head, Project Lead or Dev Lead, can remove it. Links work the same way.",
+    "In this demo, <strong>Add dummy file</strong> adds a file name only."]))}
+
+  ${panel("account", "Sign in, passwords and settings", "Everyone", ul([
+    "Forgot your password on the sign-in page? Press <strong>Forgot password?</strong>, enter your username or email, and use the 6-digit code from the email (valid 15 minutes).",
+    "Settings (top right) → <strong>Change password</strong>: current password and the new one twice. Forgot it? <strong>Send a reset code</strong>, or contact the system admin if email is off.",
+    "Settings also sets Dark or Light, accent colour, brightness, font and font size. Sign out is at the bottom of Settings."]))}
+
+  ${panel("reminders", "Reminders and notes", "Private to you", ul([
+    "Open <strong>Reminders</strong>, pick a day, type what to remember (time and note optional) and press <strong>Add reminder</strong>.",
+    "Tick it when done or × to delete it. The red number counts today's and overdue reminders.",
+    "<strong>Notes</strong> at the bottom are quick personal notes; tag one with a project if you like."]))}
+
+  ${panel("admin", "Admin", "System admin only", ul([
+    "<strong>Users</strong>: add a person (the username is made from the name; CIF is the ID number), set a temporary password, email a reset code, or import people from the HR integration (Name, Username, CIF, Email).",
+    "<strong>Access control</strong>: turn project requests on or off, and allow chosen people to start projects.",
+    "<strong>Folder share</strong>: the server folder where files are saved, and the service account. It must have create and write rights only, never delete.",
+    "<strong>Mail integration</strong>: the mail server used for reset codes and notifications. <strong>Integrations</strong>: directory sign-in, single sign-on, webhooks, APIs, HR user import.",
+    "<strong>Roles</strong> and <strong>Stages</strong>: add new names. <strong>Email log</strong>: what the system would send."]))}`;
 }
 function importPanel() {
   const srcs = (S.integrations || []).filter(x => x.type === INT_TYPES[0]);
@@ -2436,6 +2559,7 @@ document.addEventListener("click", e => {
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
   if (act === "open-project") { projectDialog(); return; }
   if (act === "open-projreq") { projReqDialog(); return; }
+  if (act === "howto-all") { document.querySelectorAll(".howto-panel").forEach(d => { d.open = a.dataset.open === "1"; }); return; }
   if (act === "ack-added") { const x = (S.addedNotices || []).find(y => y.id === +a.dataset.id && y.uid === me().id); if (!x) return;
     x.ack = now(); flash("ok", `Acknowledged: ${proj(x.pid).code} · ${proj(x.pid).name}.`); const inCard = modal.open && modal.querySelector(".pwrap"); render(); if (inCard) projectCard(x.pid); return; }
   if (act === "pr-approve") {
