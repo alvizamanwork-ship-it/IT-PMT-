@@ -1260,13 +1260,13 @@ function genUsername(name, skipId) {
   for (const c of [first, last && `${first}.${last}`]) if (c && !taken(c)) return c;
   const base = last ? `${first}.${last}` : first; let n = 2; while (taken(base + n)) n++; return base + n;
 }
-// Demo stand-in for what the user-import integration returns: Name, Username, CIF.
+// Demo stand-in for what the user-import integration returns: Name, Username, CIF, Email.
 const HR_FEED = [
-  {name: "Farhana Rahman", username: "farhana.r", cif: "1004215"},
-  {name: "Tanvir Hasan", username: "", cif: "1004216"},
-  {name: "Rumana Akter", username: "rumana", cif: "1004217"},
-  {name: "Alvi Zaman", username: "alvi", cif: "1004105"},
-  {name: "Imran Chowdhury", username: "imam", cif: "1004218"}];
+  {name: "Farhana Rahman", username: "farhana.r", cif: "1004215", email: "farhana.rahman@example.com"},
+  {name: "Tanvir Hasan", username: "", cif: "1004216", email: "tanvir.hasan@example.com"},
+  {name: "Rumana Akter", username: "rumana", cif: "1004217", email: ""},
+  {name: "Alvi Zaman", username: "alvi", cif: "1004105", email: "alvi@example.com"},
+  {name: "Imran Chowdhury", username: "imam", cif: "1004218", email: "imran.chowdhury@example.com"}];
 let importRows = null;
 // Demo only: passwords are scrambled with a simple hash and kept in this browser. The real app stores PBKDF2 hashes on the server.
 const hashPw = pw => { let a = 5381, b = 52711; for (const ch of String(pw)) { const k = ch.charCodeAt(0); a = Math.imul(a, 33) ^ k; b = Math.imul(b, 31) ^ k; } return "demo$" + (a >>> 0).toString(16) + (b >>> 0).toString(16); };
@@ -2095,13 +2095,13 @@ function viewHowTo() {
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
   ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "The system admin account (admin) only opens the Admin page. The Project Head also has Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): set the folder share where uploaded files are saved (files are only ever added, never deleted), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (Project Head and the system admin): set the folder share where uploaded files are saved (files are only ever added, never deleted), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF, Email), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
 function importPanel() {
   const srcs = (S.integrations || []).filter(x => x.type === INT_TYPES[0]);
   const on = srcs.filter(x => x.enabled);
   let out = `<h3 style="margin-top:1.25rem">Import users from an integration</h3>
-    <p class="note" style="margin-bottom:.5rem">Brings in <strong>Name</strong>, <strong>Username</strong> and <strong>CIF</strong> (ID number). A blank or taken username is made from the name. People whose CIF is already here are skipped.</p>`;
+    <p class="note" style="margin-bottom:.5rem">Brings in <strong>Name</strong>, <strong>Username</strong>, <strong>CIF</strong> (ID number) and <strong>Email</strong>. A blank or taken username is made from the name. People whose CIF is already here are skipped. Without an email a person cannot get password reset codes.</p>`;
   if (!on.length) return out + `<p class="note">${srcs.length ? "Turn on" : "Add"} a "${INT_TYPES[0]}" integration below to import users.</p>`;
   out += `<div class="row" style="margin:0"><label for="imp-src">Source<select id="imp-src">${on.map(x => `<option value="${x.id}">${h(x.name)}</option>`).join("")}</select></label>
     <button type="button" class="btn secondary" data-act="imp-fetch">Fetch users</button></div>`;
@@ -2109,10 +2109,10 @@ function importPanel() {
   const rows = importRows.map((r, i) => {
     const have = S.users.find(x => x.cif === r.cif), un = have ? have.username : (r.username && !S.users.some(x => x.username.toLowerCase() === r.username.toLowerCase()) ? r.username : genUsername(r.name));
     return `<tr><td><input type="checkbox" name="pick" value="${i}" ${have ? "disabled" : "checked"} aria-label="Import ${h(r.name)}"></td><td>${h(r.name)}</td>
-      <td>${h(un)}${!have && un !== r.username ? ` <span class="note">(${r.username ? "was " + h(r.username) + ", taken" : "made from name"})</span>` : ""}</td><td>${h(r.cif)}</td>
+      <td>${h(un)}${!have && un !== r.username ? ` <span class="note">(${r.username ? "was " + h(r.username) + ", taken" : "made from name"})</span>` : ""}</td><td>${h(r.cif)}</td><td>${r.email ? h(r.email) : `<span class="note">None</span>`}</td>
       <td>${have ? label("Already here", "pr-low") : label("New", "st-new")}</td></tr>`; }).join("");
   return out + `<form data-form="impusers" class="stack panel" style="margin:.75rem 0 0">
-    ${tbl(`<thead><tr><th><span class="sr-only">Import</span></th><th>Name</th><th>Username</th><th>CIF</th><th>Status</th></tr></thead><tbody>${rows}</tbody>`)}
+    ${tbl(`<thead><tr><th><span class="sr-only">Import</span></th><th>Name</th><th>Username</th><th>CIF</th><th>Email</th><th>Status</th></tr></thead><tbody>${rows}</tbody>`)}
     <label for="imp-pw">Temporary password for imported users<input id="imp-pw" type="password" name="pw" required autocomplete="new-password"></label>
     <div class="row" style="margin:0"><button class="btn primary">Import selected</button><button type="button" class="btn secondary" data-act="imp-cancel">Cancel</button></div></form>`;
 }
@@ -2344,7 +2344,7 @@ document.addEventListener("submit", e => {
         if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
         const names = picks.map(r => {
           const un = r.username && !S.users.some(x => x.username.toLowerCase() === r.username.toLowerCase()) ? r.username : genUsername(r.name);
-          S.users.push({id: nextId("u"), username: un, name: r.name, cif: r.cif, email: "", cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+          S.users.push({id: nextId("u"), username: un, name: r.name, cif: r.cif, email: (r.email || "").trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
           return `${r.name} (${un})`; });
         importRows = null; flash("ok", `Imported ${names.length}: ${names.join(", ")}.`); break;
       }
