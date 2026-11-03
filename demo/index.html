@@ -688,9 +688,36 @@ function checkDates(start, end, endName) {
 const PROJECT_TYPES = ["Vendor", "Internal", "Integration"];
 const TYPE_BLOCKS = {Vendor: ["Developer"], Integration: ["Project Analyst"]};
 const typeBlocks = (type, r) => (TYPE_BLOCKS[type] || []).includes(r);
+// Access control: the Project Head can always start projects; the system admin can let other people start them.
+// Everyone else can request a project (on by default; the system admin can close requests).
+const canStart = u => !!u && !u.sysadmin && (u.cto || ((S.access || {}).starters || []).includes(u.id));
+const canRequest = u => !!u && !u.sysadmin && !canStart(u) && !!(S.access || {}).requests;
+const projBtn = u => canStart(u) ? `<button class="btn primary" data-act="open-project">New project</button>`
+  : canRequest(u) ? `<button class="btn primary" data-act="open-projreq">Request project</button>` : "";
+function mailTo(uid, subject, body) { const x = user(uid); if (!x || !x.email || !mailOn()) return; S.outbox.unshift({at: now(), to: x.email, subject: `[IDLC Streams] ${subject}`, body}); S.outbox = S.outbox.slice(0, 40); }
+function requestProject(u, d) {
+  if (!canRequest(u)) throw new Forbidden(canStart(u) ? "You can start projects yourself. Use New project." : "Project requests are closed. Contact the system admin.");
+  const name = (d.name || "").trim(); if (!name) throw new RuleError("Give the project a name.");
+  if (!PROJECT_TYPES.includes(d.type)) throw new RuleError("Choose the project type.");
+  if (!d.deadline) throw new RuleError("Set the end date you need.");
+  checkDates(d.start || isoDay(now()), d.deadline, "end date");
+  if (!(d.reason || "").trim()) throw new RuleError("Say why the project is needed.");
+  const pr = {id: nextId("pr"), by: u.id, name, type: d.type, priority: PRIORITIES.includes(d.priority) ? d.priority : "Normal", start: d.start || "", deadline: d.deadline, reason: d.reason.trim(), status: "Pending", at: now()};
+  S.projReqs.push(pr);
+  S.users.filter(x => x.cto).forEach(x => mailTo(x.id, `Project request: ${name}`, `${u.name} requested a new ${pr.type} project "${name}".\nEnd date needed: ${pr.deadline}\nWhy: ${pr.reason}\n\nOpen My Queue to approve or decline it.`));
+  return pr;
+}
+function decideProjReq(u, prid, ok, note, pid) {
+  const pr = (S.projReqs || []).find(x => x.id === prid);
+  if (!pr || pr.status !== "Pending") throw new RuleError("That request was already handled or withdrawn.");
+  if (!u.cto) throw new Forbidden("Only the Project Head approves or declines project requests.");
+  if (!ok && !(note || "").trim()) throw new RuleError("Say why you are declining it.");
+  Object.assign(pr, {status: ok ? "Approved" : "Declined", decidedBy: u.id, decidedAt: now(), note: (note || "").trim(), pid: pid || null});
+  mailTo(pr.by, `Project request ${ok ? "approved" : "declined"}: ${pr.name}`, ok ? `Your project request "${pr.name}" was approved by ${u.name}. Project code: ${proj(pid).code}.` : `Your project request "${pr.name}" was declined by ${u.name}.\nReason: ${pr.note}`);
+}
 function createProject(u, name, priority = "Normal", deadline = "", start = "", type = "Internal") {
   if (!PROJECT_TYPES.includes(type)) throw new RuleError("Choose the project type.");
-  if (!u.cto) throw new Forbidden("Only the CTO creates projects.");
+  if (!canStart(u)) throw new Forbidden("You cannot start projects. Use Request project, or ask the system admin for access.");
   name = name.trim(); if (!name) throw new RuleError("Give the project a name.");
   if (!PRIORITIES.includes(priority)) throw new RuleError("Choose a priority.");
   if (!deadline) throw new RuleError("Set the project end date. It is required.");
@@ -698,7 +725,7 @@ function createProject(u, name, priority = "Normal", deadline = "", start = "", 
   checkDates(start, deadline, "end date");
   const code = genCode(type);
   const p = {id: nextId("p"), name, code, status: "Active", pausedAt: null, folder: `${fileRoot()}\\${code}`, priority, type, deadline, deadlines: [deadline], start, overview: {},
-    members: S.users.filter(x => x.cto).map(x => ({uid: x.id, roles: [HEAD]}))};
+    members: S.users.filter(x => x.cto).map(x => ({uid: x.id, roles: [HEAD]})).concat(u.cto ? [] : [{uid: u.id, roles: ["Project Lead"]}])};
   S.projects.push(p); log(p.id, u, `Project created with code ${code}`); return p.id;
 }
 // Project priority and deadline: the CTO, the Project Lead and the Dev Lead can set or change them.
@@ -1250,6 +1277,13 @@ function ensureAuthData() {
     S.integrations = S.integrations.filter(x => !(x.type === "File storage" && x.name === "Network file share"));
   }
   if (!S.removedFiles) S.removedFiles = [];
+  if (!S.access) {
+    S.access = {requests: true, starters: []};
+    const by = S.users.find(x => x.username === "shahriar") || S.users.find(x => !x.cto && !x.sysadmin), d0 = isoDay(Date.now() + 14 * DAY), d1 = isoDay(Date.now() + 120 * DAY);
+    S.projReqs = by ? [{id: nextId("pr"), by: by.id, name: "Dummy Internal Proj 4", type: "Internal", priority: "Normal", start: d0, deadline: d1,
+      reason: "Branch teams need a simple leave-request tracker. Today it is done by email and spreadsheets.", status: "Pending", at: Date.now() - 3 * 3600e3}] : [];
+  }
+  if (!S.projReqs) S.projReqs = [];
   if (!S.integrations.some(x => x.type === INT_TYPES[0])) S.integrations.unshift({id: nextId("in"), name: "HR system (staff list)", type: INT_TYPES[0], url: "https://hr.example.com/api/staff", key: "saved", enabled: true, at: Date.now()});
 }
 // Username is made from the name: first name, then first.last, then first.last2, 3…
@@ -1492,10 +1526,22 @@ function reqDialog(pid) {
   </form>`);
 }
 
-function projectDialog() {
-  const heads = S.users.filter(x => x.cto).map(x => x.name).join(", ");
-  openModal(`${cardHead("New project")}
-  <form data-form="newproject" data-step="1">
+function projReqDialog() {
+  openModal(`${cardHead("Request a project")}<form data-form="projreq"><div class="card-body"><section class="card-section stack">
+    <p class="note" style="margin:0">Your request goes to the Project Head (${h(S.users.filter(x => x.cto).map(x => x.name).join(", "))}), who approves and sets it up, or declines it with a reason.</p>
+    <label for="pq-name">Project name<input id="pq-name" name="name" required autocomplete="off"></label>
+    <div class="row" style="margin:0"><label for="pq-type">Project type<select id="pq-type" name="type">${PROJECT_TYPES.map(t => `<option ${t === "Internal" ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label for="pq-pri">Priority<select id="pq-pri" name="priority">${PRIORITIES.map(x => `<option ${x === "Normal" ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+      <label for="pq-start">Start date (optional)<input id="pq-start" type="date" name="start"></label>
+      <label for="pq-end">End date needed<input id="pq-end" type="date" name="deadline" required></label></div>
+    <label for="pq-why">Why is it needed?<textarea id="pq-why" name="reason" rows="4" required placeholder="The problem, who it helps, anything the team should know"></textarea></label>
+    </section>${modalError}</div>
+    <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Cancel</button><span class="spacer"></span><button class="btn primary">Send request</button></div></form>`);
+}
+function projectDialog(pre) {
+  const heads = S.users.filter(x => x.cto).map(x => x.name).join(", "), me0 = me();
+  openModal(`${cardHead(pre ? `New project · requested by ${uname(pre.by)}` : "New project")}
+  <form data-form="newproject" data-step="1" data-preq="${pre ? pre.id : ""}">
     <div class="card-phases" id="wiz-line">${wizPhases(1)}</div>
     <div class="card-body">
       <section data-step="1" class="stack">
@@ -1510,7 +1556,7 @@ function projectDialog() {
           <dt>Folder</dt><dd><code id="np-folder">${h(fileRoot())}\\${genCode("Internal")}</code></dd></dl>
       </section>
       <section data-step="2" class="stack" hidden>
-        <p class="note">${h(heads)} joins every project as Project Head. Add the other people and their roles.</p>
+        <p class="note">${h(heads)} joins every project as Project Head.${me0 && !me0.cto ? " You join as Project Lead." : ""} Add the other people and their roles.</p>
         <div id="np-team" class="stack">${teamRow()}</div>
         <button type="button" class="btn secondary" data-act="team-add">Add another person</button>
       </section>
@@ -1699,7 +1745,14 @@ function viewQueue(u) {
   const fbs = u.cto ? [] : S.reqs.filter(r => pendingFb(r) && seesAll(u, r.pid) && proj(r.pid).status === "Active");
   const exs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
   const ovs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveOverview(u, pp.id) && ovPending(pp));
-  return `<div class="head-row"><h1>My Queue</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>
+  const prs = u.cto ? (S.projReqs || []).filter(x => x.status === "Pending") : [];
+  return `<div class="head-row"><h1>My Queue</h1>${projBtn(u)}</div>
+  ${prs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project requests waiting for you (${prs.length})</h2>
+    ${tbl(`<thead><tr><th>Project</th><th>Type</th><th>Priority</th><th>Dates</th><th>Requested by</th><th>Why</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${prs.map(x => `<tr>
+      <td><strong>${h(x.name)}</strong></td><td>${h(x.type)}</td><td>${priLabel(x.priority)}</td><td class="num">${x.start || "On approval"} → ${x.deadline}</td>
+      <td>${h(uname(x.by))}<br><span class="file-meta">${fmt(x.at)}</span></td><td class="pre">${h(x.reason)}</td>
+      <td><div class="extend"><button type="button" class="btn primary qbtn" data-act="pr-approve" data-id="${x.id}">Approve and set up</button>
+        <button type="button" class="btn secondary qbtn" data-act="pr-decline" data-id="${x.id}">Decline</button></div></td></tr>`).join("")}</tbody>`)}</section>` : ""}
   ${u.cto ? `<p class="note" style="margin-bottom:.75rem">Requirements sent to you for approval. To see any other work, open the project from Projects; its card shows every requirement, who holds it, and requests waiting there.</p>` : ""}
   ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}
   ${ovs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project overviews waiting for your approval (${ovs.length})</h2>
@@ -1722,10 +1775,10 @@ function viewProjectList(u) {
   const list = S.projects.filter(p => canView(u, p.id) && p.status !== "Closed" && !(u.cto && PAUSED.includes(p.status)));
   const paused = u.cto ? S.projects.filter(p => PAUSED.includes(p.status)).length : 0;
   const archived = S.projects.filter(p => p.status === "Closed" && canView(u, p.id)).length;
-  return `<div class="head-row"><h1>Projects</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>${paused ? `<p class="note" style="margin-bottom:.4rem">${paused} project${paused === 1 ? " is" : "s are"} on hold or cancelled: see <button class="linkish" data-go="paused">On Hold &amp; Cancelled</button>.</p>` : ""}${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th>Priority</th><th>Start date</th><th>End date</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
+  return `<div class="head-row"><h1>Projects</h1>${projBtn(u)}</div>${!canStart(u) && !canRequest(u) ? `<p class="note" style="margin-bottom:.4rem">Project requests are closed. Contact the system admin if you need a new project.</p>` : ""}${paused ? `<p class="note" style="margin-bottom:.4rem">${paused} project${paused === 1 ? " is" : "s are"} on hold or cancelled: see <button class="linkish" data-go="paused">On Hold &amp; Cancelled</button>.</p>` : ""}${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th>Priority</th><th>Start date</th><th>End date</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${h(p.type || "Internal")}</td><td>${label(p.status)}</td>
     <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (seesAll(u, p.id) || holds(r, u.id))).length}</td></tr>`).join("")}</tbody>`)
-    : `<p>${u.cto ? "No open projects. Press New project to start one." : "You are not a member of any open project."}</p>`}`;
+    : `<p>${u.cto ? "No open projects. Press New project to start one." : `You are not a member of any open project.${canStart(u) ? " Press New project to start one." : canRequest(u) ? " Press Request project to ask for one." : ""}`}</p>`}`;
 }
 
 // Project card: opens as a popup with two tabs, Primary and Overview.
@@ -1926,7 +1979,13 @@ function viewSent(u) {
     if (proj(r.pid).status !== "Active") return label(`Project ${proj(r.pid).status}`, "st-cl");
     return label(`Waiting with ${(x.toList || [x.to]).map(uname).join(", ")}`, "st-an");
   };
-  return `<h1>Sent Requests</h1>
+  const mine = (S.projReqs || []).filter(x => x.by === u.id).sort((a, b) => b.at - a.at);
+  const prStatus = x => x.status === "Pending" ? label("Waiting for the Project Head", "st-an") : x.status === "Approved" ? label(`Approved · ${proj(x.pid) ? proj(x.pid).code : ""}`, "st-ap")
+    : x.status === "Declined" ? label("Declined", "pr-high") : label("Withdrawn", "pr-low");
+  const prSec = mine.length ? `<section><h2>Project requests</h2>${tbl(`<thead><tr><th>Project</th><th>Type</th><th>End date</th><th>Sent</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${mine.map(x => `<tr>
+    <td><strong>${h(x.name)}</strong>${x.status === "Declined" && x.note ? `<br><span class="file-meta">Reason: ${h(x.note)}</span>` : ""}</td><td>${h(x.type)}</td><td class="num">${x.deadline}</td><td class="num">${fmt(x.at)}</td><td>${prStatus(x)}</td>
+    <td>${x.status === "Pending" ? `<button class="btn secondary" data-act="pr-withdraw" data-id="${x.id}">Withdraw</button>` : x.status === "Approved" && proj(x.pid) && canView(u, x.pid) ? `<button class="btn secondary" data-go="project" data-id="${x.pid}">Open</button>` : ""}</td></tr>`).join("")}</tbody>`)}</section>` : "";
+  return `<h1>Sent Requests</h1>${prSec}${mine.length ? `<h2>Requirements</h2>` : ""}
   <p class="note">Requirements you sent. If you sent one to the wrong person, Unsend brings it back to you at the stage it was in. Once the person you sent it to sends it on, it can no longer be unsent.</p>
   ${list.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Sent to</th><th>Stage</th><th>Sent</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${list.map(x => {
     const r = req(x.rid), title = `${reqCode(r)} ${h(r.title)}`;
@@ -2094,9 +2153,10 @@ function viewHowTo() {
   ${sec("Fill in the project overview", "Filled in by the Project Analyst or Business Stakeholder; approved by the Project Head or Project Lead", ol(["Project card, Overview tab: fill in Summary, Description, Analysis and Project cost, then <strong>Send for approval</strong>.", "The Project Head or Project Lead approves or declines it with a note.", "Once approved it is read-only. Only the Project Analyst can use <strong>Request change</strong>, which needs a new approval."]))}
   ${sec("Timeline and downloads", "", ul(["The Timeline lists the whole project and each requirement with every start and end date, the reason for each change and the days deviated.", "In the Overview tab, <strong>Download</strong> saves an Overview report (.html, printable to PDF) or the Timeline (.csv)."]))}
   ${sec("Pause, close and find old work", "Project Head and Project Lead", ul(["Change the project status in the project card, Primary tab. On Hold and Cancelled hide its work from queues; they are listed under <strong>On Hold & Cancelled</strong> for the Project Head.", "A project can close only when all its requirements are Closed. Closed work moves to the <strong>Archive</strong>, where everyone sees the closed work they took part in."]))}
+  ${sec("Start or request a project", "Everyone", ul(["The Project Head, and people the system admin allows, press <strong>New project</strong> (Projects or My Queue). If you start one, you join it as Project Lead.", "Everyone else presses <strong>Request project</strong>: give the name, type, priority, dates and why it is needed. The Project Head approves it (and sets it up) or declines it with a reason.", "Track your requests in <strong>Sent Requests</strong>. Withdraw one while it is still waiting.", "If neither button shows, project requests are closed. Contact the system admin."]))}
   ${sec("Sign in and passwords", "Everyone", ul(["Sign in with your username and password.", "Forgot it? Press <strong>Forgot password?</strong>, enter your username or email, and type the 6-digit code from the email with your new password. The code works for 15 minutes.", "Change your password: Settings (top right) → <strong>Change password</strong>. Enter your current password and the new one twice. Forgot it? Press <strong>Send a reset code</strong> and use the code from the email (or contact the system admin if email is off).", "Sign out from the Settings menu (top right).", "Admin is only for the system admin account (admin), which only opens the Admin page. The Project Head does not have Admin."]))}
   ${sec("Reminders and notes", "Everyone (private to you)", ul(["Open <strong>Reminders</strong>. Pick a day on the calendar, type what to remember, add a time and a note if you like, and press <strong>Add reminder</strong>.", "Tick a reminder when it is done, or × to delete it. Overdue reminders turn red, and the red number next to Reminders counts today's and overdue ones.", "Use <strong>Notes</strong> at the bottom for quick personal notes."]))}
-  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (system admin only; the Project Head does not have it): set the folder share where uploaded files are saved (files are only ever added, never deleted), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF, Email), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
+  ${sec("Admin and settings", "", ul(["<strong>Admin</strong> (system admin only; the Project Head does not have it): set the folder share where uploaded files are saved (files are only ever added, never deleted), control who can start or request projects (Access control), add users (the username is made from the name; the CIF is the ID number), import users from an HR integration (Name, Username, CIF, Email), email reset codes, set up mail integration and integrations with other sites, add role and stage names, and read the email log.", "<strong>Settings</strong> (top right): Dark or Light appearance, font and font size."]))}`;
 }
 function importPanel() {
   const srcs = (S.integrations || []).filter(x => x.type === INT_TYPES[0]);
@@ -2133,6 +2193,16 @@ function viewAdmin(u) {
       <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head", "st-ap") : label("Staff", "st-cl")}</td>
       <td>${x.email ? `<button type="button" class="btn secondary qbtn" data-act="admin-reset" data-id="${x.id}">Email reset code</button>` : ""}</td></tr>`).join("")}</tbody>`)}
     ${importPanel()}
+  </section>
+  <section><h2>Access control</h2>
+    <p class="note" style="margin-bottom:.5rem">Who can start a new project. The Project Head can always start projects. Everyone else can <strong>request</strong> one (the Project Head approves it), unless you close requests. You can let chosen people <strong>start</strong> projects themselves; they join their new project as Project Lead.</p>
+    <form data-form="access" class="row panel" style="margin:0 0 .75rem"><label class="check"><input type="checkbox" id="ac-req" name="requests" value="yes" ${S.access.requests ? "checked" : ""}> Allow project requests from staff</label>
+      <button class="btn primary">Save</button></form>
+    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>New projects</th><th><span class="sr-only">Change</span></th></tr></thead><tbody>${S.users.filter(x => !x.sysadmin).map(x => {
+      const st = canStart(x);
+      return `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td>
+        <td>${x.cto ? label("Start (Project Head)", "st-ap") : st ? label("Can start", "st-ap") : S.access.requests ? label("Request only", "st-an") : label("No access", "pr-low")}</td>
+        <td>${x.cto ? "" : `<button type="button" class="btn secondary qbtn" data-act="acc-start" data-id="${x.id}">${st ? "Remove start access" : "Allow to start projects"}</button>`}</td></tr>`; }).join("")}</tbody>`)}
   </section>
   <section><h2>Mail integration</h2>
     <p class="note" style="margin-bottom:.5rem">Used for password reset codes and email notifications. ${mailOn() ? label("On", "st-ap") : label("Off", "pr-low")} In this demo nothing is actually sent; emails appear in the Email log below.</p>
@@ -2273,6 +2343,28 @@ document.addEventListener("click", e => {
   if (act === "team-remove") { a.closest(".team-row").remove(); return; }
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
   if (act === "open-project") { projectDialog(); return; }
+  if (act === "open-projreq") { projReqDialog(); return; }
+  if (act === "pr-approve") {
+    const pr = S.projReqs.find(x => x.id === +a.dataset.id); if (!pr || !me().cto) return;
+    projectDialog(pr);
+    const set = (id, v) => { const el = modal.querySelector(id); if (el && v) { el.value = v; el.dispatchEvent(new Event("input", {bubbles: true})); el.dispatchEvent(new Event("change", {bubbles: true})); } };
+    set("#np-type", pr.type); set("#np-name", pr.name); set("#np-pri", pr.priority); set("#np-start", pr.start); set("#np-deadline", pr.deadline);
+    const sel = modal.querySelector(".np-user"); if (sel) { sel.value = String(pr.by); sel.dispatchEvent(new Event("change", {bubbles: true})); }
+    return;
+  }
+  if (act === "pr-decline") {
+    const pr = S.projReqs.find(x => x.id === +a.dataset.id); if (!pr) return;
+    openModal(`${cardHead(`Decline project request`)}<form data-form="prdecline" data-id="${pr.id}"><div class="card-body"><section class="card-section stack">
+      <p style="margin:0"><strong>${h(pr.name)}</strong> · requested by ${h(uname(pr.by))}</p>
+      <label for="pd-note">Why are you declining it? <span class="note">(sent to ${h(uname(pr.by))})</span><textarea id="pd-note" name="note" rows="3" required></textarea></label></section>${modalError}</div>
+      <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Cancel</button><span class="spacer"></span><button class="btn primary">Decline request</button></div></form>`, false, true);
+    return;
+  }
+  if (act === "pr-withdraw") { run(() => { const pr = S.projReqs.find(x => x.id === +a.dataset.id && x.by === me().id && x.status === "Pending"); if (!pr) throw new RuleError("That request was already handled.");
+    pr.status = "Withdrawn"; pr.decidedAt = now(); flash("ok", `Project request "${pr.name}" withdrawn.`); }); return; }
+  if (act === "acc-start") { const u = me(); if (!isSysAdmin(u)) return; const x = user(+a.dataset.id), st = S.access.starters;
+    if (st.includes(x.id)) S.access.starters = st.filter(i => i !== x.id); else st.push(x.id);
+    flash("ok", S.access.starters.includes(x.id) ? `${x.name} can now start projects.` : `${x.name} can no longer start projects.`); render(); return; }
   if (act === "wiz-next" || act === "wiz-back") { const f = modal.querySelector("form[data-form=newproject]"); wizGo(+f.dataset.step + (act === "wiz-next" ? 1 : -1)); return; }
   run(() => {
     if (act === "approve-close") { const r = req(+a.dataset.id); accept(me(), r.id, ""); flash("ok", `${reqCode(r)} approved and closed.`); }
@@ -2412,9 +2504,18 @@ document.addEventListener("submit", e => {
         flash("ok", ok ? "Overview approved. It is now read-only." : "Overview declined. It went back to the person who sent it."); return {reopenProject: pid, tab: "overview"}; }
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", d.status === "Closed" ? "Project closed. It is now in the Archive." : `Project status is now ${d.status}.`); return {reopenProject: pid};
       case "newproject": {
+        const preq = +f.dataset.preq ? S.projReqs.find(x => x.id === +f.dataset.preq) : null;
+        if (preq && preq.status !== "Pending") throw new RuleError("That project request was already handled or withdrawn.");
         const np = createProject(u, d.name, d.priority, d.deadline, d.start, d.type);
+        if (preq) decideProjReq(u, preq.id, true, "", np);
         teamPicks(f).forEach(t => addMember(u, np, t.uid, t.roles));
         S.view = {name: "projects"}; flash("ok", `Project ${proj(np).code} created. Its folder was made on the share.`); return {reopenProject: np};
+      }
+      case "projreq": { const pr = requestProject(u, d); flash("ok", `Project request "${pr.name}" sent to the Project Head. Track it in Sent Requests.`); break; }
+      case "prdecline": { decideProjReq(u, +f.dataset.id, false, d.note); flash("ok", "Project request declined. The requester was told why."); break; }
+      case "access": {
+        if (!isSysAdmin(u)) throw new Forbidden("Only the system admin changes access control.");
+        S.access.requests = d.requests === "yes"; flash("ok", `Project requests are now ${S.access.requests ? "open" : "closed"}.`); break;
       }
       case "newrole": {
         if (!isSysAdmin(u)) throw new Forbidden("Only the system admin adds roles.");
