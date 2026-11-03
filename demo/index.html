@@ -459,6 +459,7 @@ dialog.card > .pwrap { display: flex; flex-direction: column; min-height: 0; fle
 .extend input { min-height: 2.2rem; padding: .25em .4em; }
 .extend .btn { min-height: 2.2rem; padding: .25em .9em; font-size: .9rem; }
 tr.tl-project td { background: var(--surface-2); }
+.file-plain { list-style: none; padding: .3rem 0; }
 .tl-why { display: block; max-width: 14rem; white-space: normal; font-size: .78rem; color: var(--muted); font-family: var(--font); }
 .dl-bar .extend { flex-wrap: wrap; }
 .pwrap [role=tabpanel] { grid-template-columns: minmax(0, 1fr); }
@@ -628,7 +629,7 @@ function requestExt(u, kind, id, date, reason) {
   if (!reason) throw new RuleError("Write the reason for the extension. It is required.");
   checkDates(t.start, date, "end date");
   if (date === (kind === "project" ? t.deadline : t.due)) throw new RuleError("That is already the end date.");
-  if (pendingExt(t)) throw new RuleError("An extension request for this is already waiting for the Project Lead.");
+  if (pendingExt(t)) throw new RuleError("An extension request for this is already waiting for approval.");
   if (canApproveExt(u, pid)) { (t.extReqs = t.extReqs || []).push({id: nextId("ex"), by: u.id, date, reason, at: now(), status: "accepted", decidedBy: u.id, decidedAt: now()}); applyExt(u, kind, id, date, reason, u.id); return "applied"; }
   (t.extReqs = t.extReqs || []).push({id: nextId("ex"), by: u.id, date, reason, at: now(), status: "pending"});
   log(pid, u, `Requested end date extension${kind === "project" ? "" : ` for #${id}`} to ${date}`, {rid: kind === "project" ? null : id, comment: reason});
@@ -663,13 +664,31 @@ function extTable(u, items, withProject, decide) {
       ${decide ? `<td>${x.status === "pending" && canApproveExt(u, pid) ? `<div class="extend"><button type="button" class="btn primary" data-act="ext-decide" data-ok="1" data-kind="${kind}" data-id="${id}" data-pid="${pid}">Accept</button><button type="button" class="btn secondary" data-act="ext-decide" data-ok="0" data-kind="${kind}" data-id="${id}" data-pid="${pid}">Decline</button></div>` : ""}</td>` : ""}</tr>`;
   }).join("")}</tbody>`);
 }
-function setOverview(u, pid, d) {
-  if (!canPlan(u, pid)) throw new Forbidden("Only the CTO, the Project Lead or the Dev Lead edit the project overview.");
-  const p = proj(pid), old = p.overview || {}, names = {summary: "Summary", desc: "Description", analysis: "Analysis", cost: "Project cost"};
-  const next = {summary: (d.summary || "").trim(), desc: (d.desc || "").trim(), analysis: (d.analysis || "").trim(), cost: (d.cost || "").trim()};
-  const changed = Object.keys(names).filter(k => (old[k] || "") !== next[k]);
-  if (!changed.length) throw new RuleError("Nothing changed.");
-  p.overview = next; log(pid, u, `Overview updated: ${changed.map(k => names[k]).join(", ")}`);
+// Overview: the Project Analyst or Business Stakeholder fills it in; the Project Head or Project Lead approves it.
+// Once approved it is read-only; only the Project Analyst can request a change, which needs a new approval.
+const OV_FIELDS = {summary: "Summary", desc: "Description", analysis: "Analysis", cost: "Project cost"};
+const canFillOverview = (u, pid) => has(pid, u.id, AN) || has(pid, u.id, SH);
+const canChangeOverview = (u, pid) => has(pid, u.id, AN);
+const canApproveOverview = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
+const ovPending = p => p.ovDraft && p.ovDraft.status === "pending" ? p.ovDraft : null;
+function submitOverview(u, pid, d) {
+  const p = proj(pid), approved = !!p.ovApprovedAt;
+  if (!canFillOverview(u, pid)) throw new Forbidden("Only the Project Analyst or Business Stakeholder fill in the project overview.");
+  if (approved && !canChangeOverview(u, pid)) throw new Forbidden("The overview is approved and read-only. Only the Project Analyst can request a change.");
+  if (ovPending(p)) throw new RuleError("The overview is already waiting for approval.");
+  const next = {}; Object.keys(OV_FIELDS).forEach(k => { next[k] = (d[k] || "").trim(); });
+  if (!Object.values(next).some(Boolean)) throw new RuleError("Fill in at least one field.");
+  if (approved && Object.keys(OV_FIELDS).every(k => (p.overview[k] || "") === next[k])) throw new RuleError("Nothing changed from the approved overview.");
+  p.ovDraft = {fields: next, by: u.id, at: now(), status: "pending", change: approved};
+  log(pid, u, approved ? "Requested an overview change" : "Sent the overview for approval");
+}
+function decideOverview(u, pid, ok, note) {
+  const p = proj(pid), dft = ovPending(p);
+  if (!canApproveOverview(u, pid)) throw new Forbidden("Only the Project Head or Project Lead approve the overview.");
+  if (!dft) throw new RuleError("Nothing is waiting for approval.");
+  note = (note || "").trim();
+  if (ok) { p.overview = dft.fields; p.ovApprovedAt = now(); p.ovApprovedBy = u.id; p.ovDraft = null; log(pid, u, dft.change ? "Approved the overview change" : "Approved the overview", {to: dft.by, comment: note}); }
+  else { dft.status = "declined"; dft.note = note; dft.decidedBy = u.id; dft.decidedAt = now(); log(pid, u, dft.change ? "Declined the overview change" : "Declined the overview", {to: dft.by, comment: note}); }
 }
 const overdue = p => p.deadline && p.status === "Active" && p.deadline < isoDay(now());
 const deadlineText = p => p.deadline ? `${p.deadline}${overdue(p) ? " " + label("Overdue", "st-fb") : ""}` : `<span class="note">None</span>`;
@@ -811,8 +830,12 @@ function proceed(u, id, to, comment, internal, stage) {
   to = [...new Set([].concat(to).filter(Boolean))];
   if (!to.length) throw new RuleError("Choose at least one person to send to.");
   to.forEach(t => memberRole(r.pid, t));
+  if (stage === APPROVAL && to.some(t => !isApprover(r.pid, t))) throw new RuleError("Approval can only be sent to the Project Head, Project Lead or Dev Lead.");
   return move(u, r, "Send", to, stage, comment, internal, ov);
 }
+// The Approval stage can only be sent to the Project Head, Project Lead or Dev Lead, and only they close a requirement from it.
+const APPROVAL = 7;
+const isApprover = (pid, uid) => has(pid, uid, HEAD) || has(pid, uid, "Project Lead") || has(pid, uid, "Dev Lead");
 // Feedback requests: the assigned person asks with a reason; the Project Head, Project Lead or Dev Lead accepts or declines.
 const pendingFb = r => (r.fbReqs || []).find(f => f.status === "pending");
 function defaultFbStage(r) {
@@ -852,7 +875,7 @@ function fbTable(list, withProject) {
 }
 function accept(u, id, comment) {
   const r = loadReq(u, id); let ov = guard(u, r);
-  ov = require_(u, r.stage === 7 && has(r.pid, u.id, SH), "Only the Business Stakeholder can close it, from Approval.", r.pid) || ov;
+  ov = require_(u, r.stage === APPROVAL && isApprover(r.pid, u.id), "Only the Project Head, Project Lead or Dev Lead can close it, from Approval.", r.pid) || ov;
   return move(u, r, "Accepted and closed", null, 8, comment, false, ov);
 }
 function reassign(u, id, to, comment) {
@@ -936,6 +959,19 @@ function load() { try { const v = localStorage.getItem(KEY); if (v) { S = JSON.p
 
 // ---------- popup cards ----------
 const modal = document.getElementById("modal");
+// When the chosen stage is Approval, only the Project Head, Project Lead and Dev Lead can be picked.
+function syncToOptions(form) {
+  if (!form || !form.querySelector(".to-picks")) return;
+  const st = form.querySelector("[name=stage]"), appr = st && +st.value === APPROVAL;
+  form.querySelectorAll(".to-picks select").forEach(sel => {
+    [...sel.options].forEach(o => { const off = appr && o.dataset.lead !== "1"; o.toggleAttribute("disabled", off); o.toggleAttribute("hidden", off); });
+    if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled) { const ok = [...sel.options].find(o => !o.disabled); if (ok) sel.value = ok.value; }
+  });
+  let note = form.querySelector(".appr-note");
+  if (!note) { form.querySelector(".to-picks").closest(".row").insertAdjacentHTML("afterend", `<p class="note appr-note" hidden>Approval can only be sent to the Project Head, Project Lead or Dev Lead.</p>`); note = form.querySelector(".appr-note"); }
+  note.hidden = !appr;
+}
+document.addEventListener("change", e => { if (e.target.name === "stage" && e.target.form) syncToOptions(e.target.form); });
 function openModal(html, wide) {
   modal.classList.toggle("wide", !!wide);
   modal.innerHTML = html; if (!modal.open) modal.showModal();
@@ -944,6 +980,7 @@ function openModal(html, wide) {
     : modal.querySelector("input:not(.sr-only):not([type=hidden]), select, textarea");
   if (f) f.focus({preventScroll: true});
   const b = modal.querySelector(".card-body"); if (b) b.scrollTop = 0;
+  modal.querySelectorAll("form").forEach(syncToOptions);
 }
 function closeModal() { if (modal.open) modal.close(); }
 modal.addEventListener("close", () => { modal.dataset.back = ""; modal.classList.remove("wide"); });
@@ -1008,16 +1045,16 @@ function reqCard(id, keepComment) {
         ${sv ? "" : `<label class="check"><input type="checkbox" id="cd-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>`}
         <button class="btn secondary" name="do" value="comment">Add comment</button>
         <div class="row" style="margin:0">
-          <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => (n !== 8 || r.stage === 7 || isHead(u, r.pid)) && (!isFeedback(n) || all || n === r.stage))
+          <label for="cd-stage">Stage<select id="cd-stage" name="stage">${stageOrder().filter(n => (n !== 8 || (r.stage === APPROVAL && isApprover(r.pid, u.id)) || isHead(u, r.pid)) && (!isFeedback(n) || all || n === r.stage))
             .map(n => `<option value="${n}" ${n === r.stage ? "selected" : ""}>${n === 8 ? "Closed (approve)" : STAGES[n]}</option>`).join("")}</select></label>
-          <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
+          <div class="role-picks to-picks"><label for="cd-to">Send to<select id="cd-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Choose the stage and one or more people, then press Send. Everyone you add gets it in their queue, and any of them can send it on.${all ? "" : " To move it to a Feedback stage, use Request feedback below."}</p></section>
-      ${pendingExt(r) ? `<section class="card-section fb-alert"><h3 class="fl">End date extension · waiting for the Project Lead</h3>
+      ${pendingExt(r) ? `<section class="card-section fb-alert"><h3 class="fl">End date extension · waiting for the Project Lead or Project Head</h3>
         <p style="margin:0">${h(uname(pendingExt(r).by))} asked for <strong>${pendingExt(r).date}</strong> (now ${r.due || "not set"})</p><p class="pre" style="margin:.3rem 0 0">${h(pendingExt(r).reason)}</p>
         ${canApproveExt(u, r.pid) ? `<div class="extend" style="margin-top:.6rem"><button type="button" class="btn primary" data-act="ext-decide" data-ok="1" data-kind="req" data-id="${r.id}" data-pid="${r.pid}">Accept</button><button type="button" class="btn secondary" data-act="ext-decide" data-ok="0" data-kind="req" data-id="${r.id}" data-pid="${r.pid}">Decline</button></div>` : ""}</section>`
       : canRequestExt(u, "req", r.id) && p.status === "Active" ? `<details class="card-section"><summary>Ask for more time</summary><div class="stack" style="margin-top:.75rem">
-        <p class="note">Current end date: ${r.due || "not set"}. The Project Lead accepts or declines the request.</p>
+        <p class="note">Current end date: ${r.due || "not set"}. The Project Lead or Project Head accepts or declines the request.</p>
         <label for="cd-extdate" class="narrow">New end date<input id="cd-extdate" type="date" name="extdate"></label>
         <label for="cd-extreason">Reason (required)<textarea id="cd-extreason" name="extreason" rows="2"></textarea></label>
         <button class="btn secondary" name="do" value="extreq">${canApproveExt(u, r.pid) ? "Extend now" : "Request extension"}</button></div></details>` : ""}
@@ -1058,7 +1095,7 @@ function reqDialog(pid) {
         <label class="check"><input type="checkbox" id="nr-internal" name="internal" value="yes"> Internal (hidden from Stakeholders)</label>
         <div class="row" style="margin:0">
           <label for="nr-stage">Stage<select id="nr-stage" name="stage">${stageOrder().filter(n => n !== 8 && (!isFeedback(n) || seesAll(u, pid))).map(n => `<option value="${n}">${STAGES[n]}</option>`).join("")}</select></label>
-          <div class="role-picks to-picks"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
+          <div class="role-picks to-picks"><label for="nr-to">Send to<select id="nr-to" name="to">${members.map(m => `<option value="${m.uid}" data-lead="${isApprover(p.id, m.uid) ? 1 : 0}" ${m.uid === pick.uid ? "selected" : ""}>${h(uname(m.uid))} (${h(m.roles.join(", "))})${seesAll(u, p.id) ? loadTag(m.uid) : ""}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add" data-more="And also" data-drop="Remove person">+ Add person</button></div>
         </div>
         <p class="note">Send gives it to those people at that stage. Keep it with me saves it to your own queue.</p></section>
       ${modalError}
@@ -1173,7 +1210,8 @@ ol{padding-left:1.5rem}li{margin-bottom:.3rem}.label{font-weight:600}blockquote{
 <h1>${esc(p.code)} · ${esc(p.name)}</h1>
 <p class="muted">IDLC Streams project overview · generated ${fmt(now())} by ${esc(u.name)}</p>
 <dl><dt>Status</dt><dd>${esc(p.status)}</dd><dt>Priority</dt><dd>${esc(p.priority || "Normal")}</dd><dt>Start date</dt><dd>${p.start || "None"}</dd>
-<dt>End date</dt><dd>${p.deadline || "None"}</dd><dt>Project cost</dt><dd>${esc(ov.cost || "Not set")}</dd><dt>Team</dt><dd>${memberSort(p).map(m => `${esc(uname(m.uid))} (${esc(m.roles.join(", "))})`).join(", ")}</dd></dl>
+<dt>End date</dt><dd>${p.deadline || "None"}</dd><dt>Project cost</dt><dd>${esc(ov.cost || "Not set")}</dd>
+<dt>Overview</dt><dd>${p.ovApprovedAt ? `Approved by ${esc(uname(p.ovApprovedBy))} on ${fmt(p.ovApprovedAt)}` : "Not approved yet"}${ovPending(p) ? " (a change is waiting for approval)" : ""}</dd><dt>Team</dt><dd>${memberSort(p).map(m => `${esc(uname(m.uid))} (${esc(m.roles.join(", "))})`).join(", ")}</dd></dl>
 <h2>Summary</h2>${para(ov.summary)}<h2>Description</h2>${para(ov.desc)}<h2>Analysis</h2>${para(ov.analysis)}
 <h2>Timeline</h2><table><thead><tr><th>List</th><th>Requirement</th><th>Start date</th>${Array.from({length: n}, (_, i) => `<th>End date ${i + 1}</th>`).join("")}<th>Days deviated</th></tr></thead><tbody>
 ${rows.map((x, i) => `<tr><td>${x.kind === "project" ? "—" : i}</td><td>${esc(x.name)}${x.closed ? " (Closed)" : ""}</td><td>${x.start || ""}</td>${Array.from({length: n}, (_, k) => `<td>${x.ends[k] || ""}${k > 0 && x.why[k] ? `<span class="why">${esc(x.why[k])}</span>` : ""}</td>`).join("")}<td>${dev(x.ends)}</td></tr>`).join("")}</tbody></table>
@@ -1245,8 +1283,11 @@ function viewQueue(u) {
     .sort((a, b) => order[a.priority] - order[b.priority] || (a.due || "9") .localeCompare(b.due || "9") || a.id - b.id);
   const fbs = S.reqs.filter(r => pendingFb(r) && seesAll(u, r.pid) && proj(r.pid).status === "Active");
   const exs = S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
+  const ovs = S.projects.filter(pp => pp.status === "Active" && canApproveOverview(u, pp.id) && ovPending(pp));
   return `<div class="head-row"><h1>My Queue</h1>${u.cto ? `<button class="btn primary" data-act="open-project">New project</button>` : ""}</div>
   ${fbs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Feedback requests waiting for your approval (${fbs.length})</h2>${fbTable(fbs, true)}</section>` : ""}
+  ${ovs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project overviews waiting for your approval (${ovs.length})</h2>
+    <ul class="files">${ovs.map(pp => `<li class="file-plain"><button class="linkish" data-go="project" data-tab="overview" data-id="${pp.id}">${h(pp.code)} · ${h(pp.name)}</button> <span class="file-meta">${ovPending(pp).change ? "change requested" : "sent"} by ${h(uname(ovPending(pp).by))} · ${fmt(ovPending(pp).at)}</span></li>`).join("")}</ul></section>` : ""}
   ${exs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">End date extension requests waiting for you (${exs.length})</h2>${extTable(u, exs, true, true)}</section>` : ""}${items.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Priority</th><th>Start</th><th>Due</th><th>Days in stage</th></tr></thead><tbody>${items.map(r => `
     <tr><td><button class="linkish" data-act="open-card" data-id="${r.id}">#${r.id} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td>
     <td>${stageLabel(r.stage)}</td><td>${priLabel(r.priority)}</td><td class="num">${r.start || ""}</td><td class="num">${r.due || ""}</td>
@@ -1300,6 +1341,8 @@ function projectPrimary(u, pid) {
   const pending = all ? S.reqs.filter(r => r.pid === pid && pendingFb(r)) : [];
   return `<p class="meta" style="margin:0">${label(p.status)}${priLabel((p.priority || "Normal") + " priority")}<span>Start: ${p.start || `<span class="note">None</span>`}</span><span>End date: ${deadlineText(p)}</span>${myRole ? `<span>My role: ${h(myRole)}</span>` : ""}<span>Folder: <code>${h(p.folder)}</code></span></p>
   ${pending.length ? `<section class="card-section fb-alert"><h3 class="sec-title">Feedback requests waiting for approval (${pending.length})</h3>${fbTable(pending, false)}</section>` : ""}
+  ${canApproveOverview(u, pid) && ovPending(p) ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">Overview waiting for your approval</h3>
+    <button type="button" class="btn secondary" data-act="ptab" data-tab="overview">Review in Overview</button></div></section>` : ""}
   ${canApproveExt(u, pid) && extList(u, pid, "pending").length ? `<section class="card-section fb-alert"><div class="head-row"><h3 class="sec-title">End date extension requests waiting (${extList(u, pid, "pending").length})</h3>
     <button type="button" class="btn secondary" data-act="ptab" data-tab="overview">Review in Overview</button></div></section>` : ""}
   <section class="card-section"><div class="head-row"><h3 class="sec-title">${all ? "All requirements" : "Requirements you hold"}</h3>${canCreate ? `<button class="btn primary" data-act="open-req" data-pid="${pid}">New requirement</button>` : ""}</div>
@@ -1348,23 +1391,43 @@ function timelineRows(u, pid) {
     .concat(S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id) || involved(r, u.id))).sort((a, b) => a.id - b.id)
       .map(r => ({kind: "req", id: r.id, name: `#${r.id} ${r.title}`, start: r.start || isoDay(r.created), ends: r.dues || (r.due ? [r.due] : []), why: r.endWhy || {}, closed: r.stage === 8})));
 }
+function overviewSection(u, pid) {
+  const p = proj(pid), dft = p.ovDraft, pend = ovPending(p), approved = !!p.ovApprovedAt, ov = p.overview || {};
+  const view = f => `<dl class="kv">${Object.keys(OV_FIELDS).map(k => `<dt>${OV_FIELDS[k]}</dt><dd class="pre">${f[k] ? h(f[k]) : `<span class="note">Not filled in.</span>`}</dd>`).join("")}</dl>`;
+  const form = (f, btn) => `<form data-form="overview" data-pid="${pid}" class="stack">
+    <label for="ov-summary">Summary<input id="ov-summary" name="summary" value="${h(f.summary || "")}" placeholder="One line about the project" autocomplete="off"></label>
+    <label for="ov-desc">Description<textarea id="ov-desc" name="desc" rows="3">${h(f.desc || "")}</textarea></label>
+    <label for="ov-analysis">Analysis<textarea id="ov-analysis" name="analysis" rows="3">${h(f.analysis || "")}</textarea></label>
+    <label for="ov-cost" class="narrow">Project cost<input id="ov-cost" name="cost" value="${h(f.cost || "")}" placeholder="e.g. BDT 2,500,000" autocomplete="off"></label>
+    <button class="btn primary">${btn}</button></form>`;
+  const declined = dft && dft.status === "declined" ? `<p class="flash error" style="margin:0 0 .75rem">${dft.change ? "Change request" : "Overview"} declined by ${h(uname(dft.decidedBy))}${dft.note ? `: ${h(dft.note)}` : "."}</p>` : "";
+  const status = pend ? label("Waiting for approval", "st-qa") : approved ? label("Approved", "st-ap") : label("Draft", "pr-low");
+  let body;
+  if (pend) {
+    body = `<div class="fb-alert card-section" style="margin-bottom:.75rem"><h4 class="fl">${pend.change ? "Requested change" : "Sent for approval"} by ${h(uname(pend.by))} · ${fmt(pend.at)}</h4>${view(pend.fields)}
+      ${canApproveOverview(u, pid) ? `<form data-form="ovdecide" data-pid="${pid}" class="stack" style="margin-top:.75rem"><label for="ov-note">Note (optional)<textarea id="ov-note" name="note" rows="2"></textarea></label>
+        <div class="row" style="margin:0"><button class="btn primary" name="do" value="accept">Approve</button><button class="btn secondary" name="do" value="decline">Decline</button></div></form>`
+      : `<p class="note" style="margin-top:.5rem">Waiting for the Project Head or Project Lead to approve it.</p>`}</div>
+      ${approved ? `<h4 class="fl">Current approved overview</h4>${view(ov)}` : ""}`;
+  } else if (approved) {
+    body = `${declined}<p class="note" style="margin-bottom:.5rem">Approved by ${h(uname(p.ovApprovedBy))} on ${fmt(p.ovApprovedAt)}. Read-only.</p>${view(ov)}
+      ${canChangeOverview(u, pid) ? `<details style="margin-top:.75rem"><summary>Request change</summary><div style="margin-top:.75rem">${form(dft && dft.status === "declined" ? dft.fields : ov, "Send change for approval")}</div></details>` : ""}`;
+  } else {
+    body = canFillOverview(u, pid) ? `${declined}${form(dft ? dft.fields : {}, "Send for approval")}`
+      : `<p class="note" style="margin-bottom:.5rem">The Project Analyst or Business Stakeholder fills this in, and the Project Head or Project Lead approves it.</p>${view({})}`;
+  }
+  return `<section class="card-section"><div class="head-row"><h3 class="sec-title">Overview</h3>${status}</div>${body}</section>`;
+}
 function projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, askable) {
   const p = proj(pid), plan = canPlan(u, pid), ov = p.overview || {};
   const field = (k, t) => `<dt>${t}</dt><dd class="pre">${ov[k] ? h(ov[k]) : `<span class="note">Not filled in yet.</span>`}</dd>`;
-  return `<section class="card-section"><h3 class="sec-title">Overview</h3>
-  ${plan ? `<form data-form="overview" data-pid="${pid}" class="stack">
-    <label for="ov-summary">Summary<input id="ov-summary" name="summary" value="${h(ov.summary || "")}" placeholder="One line about the project" autocomplete="off"></label>
-    <label for="ov-desc">Description<textarea id="ov-desc" name="desc" rows="3">${h(ov.desc || "")}</textarea></label>
-    <label for="ov-analysis">Analysis<textarea id="ov-analysis" name="analysis" rows="3">${h(ov.analysis || "")}</textarea></label>
-    <label for="ov-cost" class="narrow">Project cost<input id="ov-cost" name="cost" value="${h(ov.cost || "")}" placeholder="e.g. BDT 2,500,000" autocomplete="off"></label>
-    <button class="btn primary">Save overview</button></form>`
-    : `<dl class="kv">${field("summary", "Summary")}${field("desc", "Description")}${field("analysis", "Analysis")}${field("cost", "Project cost")}</dl>`}</section>
+  return `${overviewSection(u, pid)}
   <section class="card-section"><h3 class="sec-title">Priority and start date</h3>
   ${plan ? `<form data-form="plan" data-pid="${pid}" class="row" style="margin:0">
     <label for="pp-pri">Project priority<select id="pp-pri" name="priority">${PRIORITIES.map(x => `<option ${x === (p.priority || "Normal") ? "selected" : ""}>${x}</option>`).join("")}</select></label>
     <label for="pp-start">Start date<input id="pp-start" type="date" name="start" value="${p.start || ""}" required></label>
     <button class="btn primary">Save</button></form>
-    <p class="note" style="margin-top:.6rem">Current end date: ${p.deadline || "none"}. To change it, request an extension below; the Project Lead accepts it.</p>`
+    <p class="note" style="margin-top:.6rem">Current end date: ${p.deadline || "none"}. To change it, request an extension below; the Project Lead or Project Head accepts it.</p>`
     : `<p style="margin:0">${priLabel((p.priority || "Normal") + " priority")} <span>Start ${p.start || "not set"} · End ${p.deadline || "not set"}</span></p>`}</section>
   <section class="card-section"><h3 class="sec-title">Timeline</h3>
     <p class="note" style="margin-bottom:.5rem">Every accepted end-date change is kept, with its reason. End date 1 is the original; later columns are extensions. Days deviated compares the latest end date with the original.</p>
@@ -1375,8 +1438,8 @@ function projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, a
       <td>${deviation(x.ends)}${pendingExt(extTarget(x.kind, x.id)) ? `<br>${label("Extension waiting", "st-qa")}` : ""}</td></tr>`).join("")}</tbody>`)}
   </section>
   <section class="card-section${pendingX.length && approver ? " fb-alert" : ""}"><h3 class="sec-title">End date extensions</h3>
-    <p class="note" style="margin-bottom:.5rem">Ask for more time with a reason. The Project Lead accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
-    ${pendingX.length ? `<h4 class="fl">Waiting for the Project Lead (${pendingX.length})</h4>${extTable(u, pendingX, false, true)}` : `<p class="note">No requests waiting.</p>`}
+    <p class="note" style="margin-bottom:.5rem">Ask for more time with a reason. The Project Lead or Project Head accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
+    ${pendingX.length ? `<h4 class="fl">Waiting for approval (${pendingX.length})</h4>${extTable(u, pendingX, false, true)}` : `<p class="note">No requests waiting.</p>`}
     ${askable.length ? `<form data-form="extreq" data-pid="${pid}" class="stack" style="margin-top:.8rem">
       <div class="row" style="margin:0"><label for="ex-item">Needs more time<select id="ex-item" name="item">${askable.map(x => `<option value="${x.kind}:${x.id}">${h(x.name)} (ends ${x.ends[x.ends.length - 1] || "not set"})</option>`).join("")}</select></label>
       <label for="ex-date">New end date<input id="ex-date" type="date" name="date" required></label></div>
@@ -1591,7 +1654,7 @@ document.addEventListener("click", e => {
     const used = [...box.querySelectorAll("select")].map(x => x.value), next = [...first.options].find(o => !used.includes(o.value));
     a.insertAdjacentHTML("beforebegin", `<div class="role-extra"><label for="${id}">${a.dataset.more || "Another role"}${first.outerHTML.replace(/ id="[^"]*"/, ` id="${id}"`).replace(/ name="[^"]*"/, "")}</label>
       <button type="button" class="linkish" data-act="role-drop">${a.dataset.drop || "Remove role"}</button></div>`);
-    const sel = document.getElementById(id); sel.value = next ? next.value : first.value; sel.focus(); return;
+    const sel = document.getElementById(id); sel.value = next ? next.value : first.value; syncToOptions(a.closest("form")); sel.focus(); return;
   }
   if (act === "role-drop") { a.closest(".role-extra").remove(); return; }
   if (act === "team-add") { modal.querySelector("#np-team").insertAdjacentHTML("beforeend", teamRow()); modal.querySelector("#np-team .team-row:last-child select").focus(); return; }
@@ -1622,7 +1685,7 @@ document.addEventListener("submit", e => {
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
-        if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason); flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead can now accept or decline it."); return {reopen: id}; }
+        if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason); flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead or Project Head can now accept or decline it."); return {reopen: id}; }
         if (doIt === "fbreq") { requestFeedback(u, id, d.fbreason); flash("ok", "Feedback requested. The Project Head, Project Lead and Dev Lead can now accept it."); return {reopen: id}; }
         if (doIt === "fbaccept") { const to = decideFeedback(u, id, true, +d.fbstage, +d.fbto, d.fbnote); flash("ok", `Feedback request accepted. Sent to ${to} in ${STAGES[+d.fbstage]}.`); break; }
         if (doIt === "fbdecline") { const who = decideFeedback(u, id, false, 0, 0, d.fbnote); flash("ok", `Feedback request declined. It stays with ${who}.`); return {reopen: id}; }
@@ -1649,10 +1712,12 @@ document.addEventListener("submit", e => {
       case "plan": setPlan(u, pid, d.priority, d.start); flash("ok", "Project priority and start date saved."); return {reopenProject: pid, tab: "overview"};
       case "extreq": {
         const [kind, xid] = (d.item || "").split(":"), res = requestExt(u, kind, +xid, d.date, d.reason);
-        flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead can now accept or decline it.");
+        flash("ok", res === "applied" ? "End date extended. The Timeline keeps the earlier date and your reason." : "Extension requested. The Project Lead or Project Head can now accept or decline it.");
         return {reopenProject: pid, tab: "overview"};
       }
-      case "overview": setOverview(u, pid, d); flash("ok", "Overview saved."); return {reopenProject: pid, tab: "overview"};
+      case "overview": submitOverview(u, pid, d); flash("ok", "Overview sent for approval. The Project Head or Project Lead approves it."); return {reopenProject: pid, tab: "overview"};
+      case "ovdecide": { const ok = e.submitter && e.submitter.value === "accept"; decideOverview(u, pid, ok, d.note);
+        flash("ok", ok ? "Overview approved. It is now read-only." : "Overview declined. It went back to the person who sent it."); return {reopenProject: pid, tab: "overview"}; }
       case "status": setStatus(u, pid, d.status, d.confirm === "yes"); flash("ok", d.status === "Closed" ? "Project closed. It is now in the Archive." : `Project status is now ${d.status}.`); return {reopenProject: pid};
       case "newproject": {
         const np = createProject(u, d.name, d.priority, d.deadline, d.start);
