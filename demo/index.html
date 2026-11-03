@@ -606,8 +606,8 @@ input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn
 .login-card h1 { font-size: 1.6rem; margin: 1rem 0 .4rem; }
 .login-logo { display: flex; align-items: center; gap: .7rem; color: var(--text); }
 .login-logo .brand-mark { width: 4.2rem; height: 2.8rem; }
-.login-logo .brand-idlc { font-size: 2.1rem; }
-.login-logo .brand-streams { font-size: .8rem; }
+.login-logo .brand-streams { font-size: 1.9rem; }
+.login-logo .brand-idlc { font-size: .85rem; }
 .login-card .stack { margin-top: .75rem; }
 .login-card .stack > .btn { justify-self: stretch; }
 .login-demo { margin-top: 1.2rem; padding-top: .9rem; border-top: 1px solid var(--sep); }
@@ -618,8 +618,12 @@ input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn
 .topbar-in > .brand { display: inline-flex; align-items: center; gap: .6rem; background: none; border: 0; padding: .15rem .2rem; cursor: pointer; color: var(--text); font: inherit; border-radius: .5rem; }
 .brand-mark { width: 3rem; height: 2rem; flex: none; }
 .brand-word { display: grid; line-height: .9; text-align: left; }
-.brand-streams { font-size: .62rem; font-weight: 400; letter-spacing: .32em; }
-.brand-idlc { font-size: 1.55rem; font-weight: 800; letter-spacing: -.01em; font-family: "Century Gothic", "CenturyGothic", "Poppins", sans-serif; }
+.brand-idlc { font-size: .66rem; font-weight: 700; letter-spacing: .34em; }
+.brand-streams { font-size: 1.4rem; font-weight: 800; letter-spacing: .01em; font-family: "Century Gothic", "CenturyGothic", "Poppins", sans-serif; }
+.tb-clock { display: grid; line-height: 1.15; margin-left: .9rem; padding-left: .9rem; border-left: 1px solid var(--sep-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tb-clock .clk-time { font-size: 1rem; font-weight: 700; }
+.tb-clock .clk-date { font-size: .72rem; color: var(--muted); }
+@media (max-width: 40rem) { .tb-clock .clk-date { display: none; } .tb-clock { margin-left: .5rem; padding-left: .5rem; } }
 @media (prefers-reduced-motion: reduce) { .btn, label.check input[type="checkbox"], label.check input[type="checkbox"]::before { transition: none; } .btn:active { transform: none; } }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 </style>
@@ -1787,7 +1791,11 @@ function flash(type, text) { S.flash = {type, text}; }
 
 const BRAND_INNER = `<svg class="brand-mark" viewBox="0 0 120 80" aria-hidden="true"><rect x="0" y="8" width="64" height="64" fill="#ED1C24"></rect>
         <g fill="currentColor"><rect x="76" y="10" width="44" height="10" rx="5"></rect><rect x="76" y="35" width="32" height="10" rx="5"></rect><rect x="76" y="60" width="20" height="10" rx="5"></rect></g></svg>
-      <span class="brand-word"><span class="brand-streams">STREAMS</span><span class="brand-idlc">IDLC</span></span>`;
+      <span class="brand-word"><span class="brand-idlc">IDLC</span><span class="brand-streams">STREAMS</span></span>`;
+// Date and time beside the logo; refreshed every 15 seconds without redrawing the page.
+const clockParts = () => { const d = new Date(); return {time: d.toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"}), date: d.toLocaleDateString("en-GB", {weekday: "short", day: "numeric", month: "short", year: "numeric"}), iso: d.toISOString()}; };
+const clockMarkup = () => { const c = clockParts(); return `<time class="tb-clock" id="tb-clock" datetime="${c.iso}"><span class="clk-time">${c.time}</span><span class="clk-date">${c.date}</span></time>`; };
+setInterval(() => { const el = document.getElementById("tb-clock"); if (!el) return; const c = clockParts(); el.setAttribute("datetime", c.iso); el.children[0].textContent = c.time; el.children[1].textContent = c.date; }, 15000);
 const brandMarkup = clickable => clickable ? `<button type="button" class="brand" data-go="queue" aria-label="IDLC Streams, go to My Queue">${BRAND_INNER}</button>` : `<span class="brand" aria-label="IDLC Streams">${BRAND_INNER}</span>`;
 function closeMenus() { const m = document.getElementById("settings-menu"); if (m) m.open = false; }
 function setTopbarHeight() { const t = document.querySelector(".topbar"); if (t) document.documentElement.style.setProperty("--topbar-h", t.offsetHeight + "px"); }
@@ -1805,7 +1813,7 @@ function renderTop() {
   document.documentElement.dataset.nav = side ? "side" : "top";
   const aside = document.getElementById("sidenav"); aside.hidden = !side; aside.innerHTML = side ? `<nav aria-label="Main" class="side-nav">${links}</nav>` : "";
   document.getElementById("topbar").innerHTML = `
-    ${brandMarkup(true)}
+    ${brandMarkup(true)}${clockMarkup()}
     ${side ? `<span class="tb-spacer"></span>` : `<nav aria-label="Main">${links}</nav>`}
     <div class="tsearch" role="search">
       <label for="top-q" class="sr-only">Search projects and requirements by code or name</label>
