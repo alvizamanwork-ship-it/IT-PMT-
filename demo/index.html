@@ -336,11 +336,14 @@ code { font-family: var(--mono); font-size: .9em; overflow-wrap: anywhere; }
 .kv dt { font-weight: 600; color: var(--muted); }
 .kv dd { margin: 0; }
 .stage-list { margin: .25rem 0 .75rem; padding-left: 1.75rem; display: grid; gap: .4rem; }
-.team-row.wiz { display: grid; grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr) auto; gap: .75rem; align-items: start;
+.team-row.wiz { display: grid; grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr) auto; gap: .75rem; align-items: start;
   padding-bottom: .85rem; border-bottom: 1px solid var(--sep); }
 .team-row.wiz > .btn { margin-top: 1.75rem; }
 @media (max-width: 40rem) { .team-row.wiz { grid-template-columns: 1fr; } .team-row.wiz > .btn { justify-self: start; margin-top: 0; } }
 .role-picks { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.team-row.wiz > label, .role-picks > label { min-width: 0; }
+.team-row.wiz select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.role-picks > label { flex: 0 1 13rem; }
 .role-extra { display: flex; gap: .5rem; align-items: end; }
 .role-extra .linkish, .add-role { padding-bottom: .7rem; font-weight: 600; white-space: nowrap; }
 .chip-x { background: none; border: 0; color: inherit; font: inherit; font-weight: 700; cursor: pointer; margin-left: .35rem; padding: 0 .15rem; line-height: 1; }
