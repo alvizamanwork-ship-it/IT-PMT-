@@ -2291,96 +2291,96 @@ function howtoBn() {
   const grp = t => `<tr class="grp"><th scope="rowgroup" colspan="${cols.length + 1}">${t}</th></tr>`;
   const ADM = "অ্যাডমিন অনুমতি দিলে", ASG = "দায়িত্বে থাকলে", MINE = "নিজে তৈরি করলে", ADDED = "নিজে যোগ করলে", ONLY = "শুধু নিজের দায়িত্বেরগুলো", NSH = "Stakeholder ছাড়া";
   const matrix = tbl(`<thead><tr><th scope="col">কাজ</th>${cols.map(x => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>
-    ${grp("প্রজেক্ট")}
-    ${row("নতুন প্রজেক্ট শুরু করা", 1, ADM, ADM, ADM, ADM, ADM)}
-    ${row("প্রজেক্টের অনুরোধ করা", 0, 1, 1, 1, 1, 1)}
-    ${row("প্রজেক্টের অনুরোধ অনুমোদন বা বাতিল করা", 1, 0, 0, 0, 0, 0)}
-    ${row("স্ট্যাটাস বদলানো (On Hold, Cancelled, Closed)", 1, 1, 0, 0, 0, 0)}
-    ${row("প্রজেক্টের অগ্রাধিকার ও শুরুর তারিখ বদলানো", 1, 1, 1, 0, 0, 0)}
+    ${grp("Project")}
+    ${row("নতুন Project শুরু করা", 1, ADM, ADM, ADM, ADM, ADM)}
+    ${row("Project-এর অনুরোধ করা", 0, 1, 1, 1, 1, 1)}
+    ${row("Project-এর অনুরোধ অনুমোদন বা বাতিল করা", 1, 0, 0, 0, 0, 0)}
+    ${row("Status বদলানো (On Hold, Cancelled, Closed)", 1, 1, 0, 0, 0, 0)}
+    ${row("Project-এর অগ্রাধিকার ও শুরুর তারিখ বদলানো", 1, 1, 1, 0, 0, 0)}
     ${row("সদস্য ও ভূমিকা যোগ করা", 1, 1, NSH, 0, 0, 0)}
     ${row("Project Lead বা Dev Lead সরানো", 1, 0, 0, 0, 0, 0)}
     ${row("অন্য সদস্য সরানো", 1, 1, NSH, 0, 0, 0)}
-    ${row("On Hold & Cancelled পেজ ও টিমের কাজের চাপ দেখা", 1, "নিজের প্রজেক্টে কাজের চাপ", "নিজের প্রজেক্টে কাজের চাপ", 0, 0, 0)}
-    ${grp("রিকোয়ারমেন্ট")}
-    ${row("প্রজেক্টের সব রিকোয়ারমেন্ট দেখা", 1, 1, 1, ONLY, ONLY, ONLY)}
-    ${row("রিকোয়ারমেন্ট তৈরি করা", 1, 1, 1, 1, 1, 0)}
-    ${row("রিকোয়ারমেন্টের শিরোনাম বদলানো", MINE, MINE, MINE, MINE, MINE, 0)}
-    ${row("রিকোয়ারমেন্ট পরের ধাপে পাঠানো", "যেকোনোটি (লগ হয়)", "যেকোনোটি (লগ হয়)", ASG, ASG, ASG, ASG)}
+    ${row("On Hold & Cancelled পেজ ও টিমের কাজের চাপ দেখা", 1, "নিজের Project-এ কাজের চাপ", "নিজের Project-এ কাজের চাপ", 0, 0, 0)}
+    ${grp("Requirement")}
+    ${row("Project-এর সব Requirement দেখা", 1, 1, 1, ONLY, ONLY, ONLY)}
+    ${row("Requirement তৈরি করা", 1, 1, 1, 1, 1, 0)}
+    ${row("Requirement-এর শিরোনাম বদলানো", MINE, MINE, MINE, MINE, MINE, 0)}
+    ${row("Requirement পরের Stage-এ পাঠানো", "যেকোনোটি (লগ হয়)", "যেকোনোটি (লগ হয়)", ASG, ASG, ASG, ASG)}
     ${row("Approval-এ পাঠানো → Project Lead / Dev Lead", 1, 1, 1, 1, 1, 1)}
     ${row("Approval-এ পাঠানো → Project Head", 1, 1, 1, 0, 1, 0)}
     ${row("Approve and close", 1, 1, 1, 0, 0, 0)}
-    ${row("ফিডব্যাক চাওয়া", ASG, ASG, ASG, ASG, ASG, ASG)}
-    ${row("ফিডব্যাকের অনুরোধ গ্রহণ করা", 1, 1, 1, 0, 0, 0)}
+    ${row("Feedback চাওয়া", ASG, ASG, ASG, ASG, ASG, ASG)}
+    ${row("Feedback-এর অনুরোধ গ্রহণ করা", 1, 1, 1, 0, 0, 0)}
     ${row("Internal মন্তব্য পড়া", 1, 1, 1, 1, 0, 1)}
     ${row("ফাইল বা লিংক সরানো", 1, 1, 1, ADDED, ADDED, ADDED)}
-    ${grp("তারিখ ও ওভারভিউ")}
+    ${grp("তারিখ ও Overview")}
     ${row("শুরু বা শেষের তারিখ বদলের অনুরোধ", 1, 1, 1, ASG, ASG, ASG)}
     ${row("তারিখ বদলের অনুরোধ গ্রহণ করা", 1, 1, 0, 0, 0, 0)}
-    ${row("ওভারভিউ পূরণ করা", 0, 0, 0, 1, 1, 0)}
-    ${row("ওভারভিউ অনুমোদন করা", 1, 1, 0, 0, 0, 0)}
-    ${row("অনুমোদিত ওভারভিউ বদলের অনুরোধ", 0, 0, 0, 1, 0, 0)}
+    ${row("Overview পূরণ করা", 0, 0, 0, 1, 1, 0)}
+    ${row("Overview অনুমোদন করা", 1, 1, 0, 0, 0, 0)}
+    ${row("অনুমোদিত Overview বদলের অনুরোধ", 0, 0, 0, 1, 0, 0)}
   </tbody>`).replace('<div class="tbl">', '<div class="tbl ht-matrix">');
-  return `<p class="note" style="max-width:52rem;margin-bottom:1rem">IDLC Streams-এর ব্যবহার নির্দেশিকা। কোনো শিরোনামে চাপ দিলে সেটি খুলবে বা বন্ধ হবে। আপনি কী করতে পারবেন তা প্রতিটি প্রজেক্টে আপনার ভূমিকার ওপর নির্ভর করে; একজন মানুষের ভিন্ন ভিন্ন প্রজেক্টে ভিন্ন ভূমিকা থাকতে পারে। বোতাম ও পেজের নাম সাইটে যেমন আছে তেমনই ইংরেজিতে লেখা হয়েছে।</p>
+  return `<p class="note" style="max-width:52rem;margin-bottom:1rem">IDLC Streams-এর ব্যবহার নির্দেশিকা। কোনো শিরোনামে চাপ দিলে সেটি খুলবে বা বন্ধ হবে। আপনি কী করতে পারবেন তা প্রতিটি Project-এ আপনার ভূমিকার ওপর নির্ভর করে; একজন মানুষের ভিন্ন ভিন্ন Project-এ ভিন্ন ভূমিকা থাকতে পারে। বোতাম ও পেজের নাম সাইটে যেমন আছে তেমনই ইংরেজিতে লেখা হয়েছে।</p>
 
   ${panel("start", "শুরু করুন", "এক মিনিটে IDLC Streams কী করে", ul([
-    "IDLC Streams আইটি প্রজেক্ট এবং তার ভেতরের <strong>রিকোয়ারমেন্ট</strong> (কাজের অংশ) ট্র্যাক করে। প্রতিটি রিকোয়ারমেন্ট কয়েকটি <strong>ধাপ (stage)</strong> পার হয়: " + stageOrder().map(n => STAGES[n]).join(" → ") + "।",
-    "প্রতিটি রিকোয়ারমেন্ট সবসময় এক বা একাধিক জনের <strong>দায়িত্বে</strong> থাকে। সেটি তাঁদের <strong>My Queue</strong>-তে দেখা যায়। নিজের অংশ শেষ হলে তাঁরা পরের ধাপ ও পরের জনকে বেছে নিয়ে <strong>Send</strong> চাপেন।",
-    "প্রজেক্টের ধরন আছে। <strong>Vendor</strong> প্রজেক্টে Developer থাকে না; <strong>Integration</strong> প্রজেক্টে Project Analyst থাকে না; <strong>Internal</strong> প্রজেক্টে সব ভূমিকাই থাকতে পারে। কোড নিজে থেকেই তৈরি হয়: VND-001, INT-002, ITG-003, আর রিকোয়ারমেন্টের কোড যেমন INT-002-R01।",
+    "IDLC Streams আইটি Project এবং তার ভেতরের <strong>Requirement</strong> (কাজের অংশ) ট্র্যাক করে। প্রতিটি Requirement কয়েকটি <strong>Stage</strong> পার হয়: " + stageOrder().map(n => STAGES[n]).join(" → ") + "।",
+    "প্রতিটি Requirement সবসময় এক বা একাধিক জনের <strong>দায়িত্বে</strong> থাকে। সেটি তাঁদের <strong>My Queue</strong>-তে দেখা যায়। নিজের অংশ শেষ হলে তাঁরা পরের Stage ও পরের জনকে বেছে নিয়ে <strong>Send</strong> চাপেন।",
+    "Project-এর ধরন আছে। <strong>Vendor</strong> Project-এ Developer থাকে না; <strong>Integration</strong> Project-এ Project Analyst থাকে না; <strong>Internal</strong> Project-এ সব ভূমিকাই থাকতে পারে। কোড নিজে থেকেই তৈরি হয়: VND-001, INT-002, ITG-003, আর Requirement-এর কোড যেমন INT-002-R01।",
     "সবকিছু রেকর্ড থাকে: কে কী পাঠিয়েছেন, কাকে, কখন এবং কেন। চুপিচুপি কিছুই বদলায় না।"]), true)}
 
   ${panel("roles", "ভূমিকার স্তরবিন্যাস", "কে কোথায়, আর প্রতিটি ভূমিকার কাজ কী", `
     <ol class="hier">
-      <li><strong>System admin</strong> <span class="note">(<code>admin</code> অ্যাকাউন্ট)</span> — প্রজেক্ট নয়, সিস্টেম চালান। শুধু Admin পেজ দেখেন: ব্যবহারকারী, অ্যাক্সেস নিয়ন্ত্রণ, মেইল, ফোল্ডার শেয়ার, ইন্টিগ্রেশন, ভূমিকা ও ধাপ। কোনো প্রজেক্টের সদস্য নন।</li>
-      <li><strong>Project Head (CTO)</strong> — সব প্রজেক্ট তদারকি করেন এবং নিজে থেকেই সব প্রজেক্টে থাকেন। প্রজেক্ট শুরু করেন ও প্রজেক্টের অনুরোধ অনুমোদন করেন। রিকোয়ারমেন্ট পান <em>শুধু</em> অনুমোদনের অনুরোধ হিসেবে, তাই তাঁর My Queue-তে শুধু অনুমোদনের কাজ থাকে। যেকোনো রিকোয়ারমেন্টে কাজ করতে পারেন (override হিসেবে লগ হয়)।
+      <li><strong>System admin</strong> <span class="note">(<code>admin</code> অ্যাকাউন্ট)</span> — Project নয়, সিস্টেম চালান। শুধু Admin পেজ দেখেন: ব্যবহারকারী, অ্যাক্সেস নিয়ন্ত্রণ, মেইল, ফোল্ডার শেয়ার, ইন্টিগ্রেশন, ভূমিকা ও Stage। কোনো Project-এর সদস্য নন।</li>
+      <li><strong>Project Head (CTO)</strong> — সব Project তদারকি করেন এবং নিজে থেকেই সব Project-এ থাকেন। Project শুরু করেন ও Project-এর অনুরোধ অনুমোদন করেন। Requirement পান <em>শুধু</em> অনুমোদনের অনুরোধ হিসেবে, তাই তাঁর My Queue-তে শুধু অনুমোদনের কাজ থাকে। যেকোনো Requirement-এ কাজ করতে পারেন (override হিসেবে লগ হয়)।
         <ol>
-          <li><strong>Project Lead</strong> — একটি প্রজেক্ট চালান; সেই প্রজেক্টের ভেতরে প্রায় Project Head-এর মতোই ক্ষমতা: সদস্য, স্ট্যাটাস, তারিখ ও ওভারভিউ পরিচালনা করেন, কাজ অনুমোদন ও বন্ধ করেন।
+          <li><strong>Project Lead</strong> — একটি Project চালান; সেই Project-এর ভেতরে প্রায় Project Head-এর মতোই ক্ষমতা: সদস্য, Status, তারিখ ও Overview পরিচালনা করেন, কাজ অনুমোদন ও বন্ধ করেন।
             <ol>
-              <li><strong>Dev Lead</strong> — কারিগরি কাজের নেতৃত্ব দেন: সব রিকোয়ারমেন্ট দেখেন, ডেভেলপারদের কাজ দেন, অগ্রাধিকার ও শুরুর তারিখ ঠিক করেন, কাজ অনুমোদন ও বন্ধ করেন, ফিডব্যাকের অনুরোধ গ্রহণ করেন।
-                <ol><li><strong>Developer</strong> ও <strong>QA</strong> — নিজের দায়িত্বের রিকোয়ারমেন্ট তৈরি ও পরীক্ষা করেন।</li></ol></li>
-              <li><strong>Project Analyst</strong> — রিকোয়ারমেন্ট লেখেন ও বিশ্লেষণ করেন এবং প্রজেক্টের ওভারভিউ পূরণ করেন। অনুমোদিত ওভারভিউ বদলের অনুরোধ শুধু তিনিই করতে পারেন।</li>
+              <li><strong>Dev Lead</strong> — কারিগরি কাজের নেতৃত্ব দেন: সব Requirement দেখেন, ডেভেলপারদের কাজ দেন, অগ্রাধিকার ও শুরুর তারিখ ঠিক করেন, কাজ অনুমোদন ও বন্ধ করেন, Feedback-এর অনুরোধ গ্রহণ করেন।
+                <ol><li><strong>Developer</strong> ও <strong>QA</strong> — নিজের দায়িত্বের Requirement তৈরি ও পরীক্ষা করেন।</li></ol></li>
+              <li><strong>Project Analyst</strong> — Requirement লেখেন ও বিশ্লেষণ করেন এবং Project-এর Overview পূরণ করেন। অনুমোদিত Overview বদলের অনুরোধ শুধু তিনিই করতে পারেন।</li>
             </ol></li>
         </ol></li>
-      <li><strong>Business Stakeholder</strong> — ব্যবসার দিক। রিকোয়ারমেন্ট তৈরি করেন, ওভারভিউ পূরণ করেন, এবং সরাসরি Project Head-কে অনুমোদনের অনুরোধ পাঠাতে পারেন। Internal মন্তব্য কখনো দেখেন না।</li>
+      <li><strong>Business Stakeholder</strong> — ব্যবসার দিক। Requirement তৈরি করেন, Overview পূরণ করেন, এবং সরাসরি Project Head-কে অনুমোদনের অনুরোধ পাঠাতে পারেন। Internal মন্তব্য কখনো দেখেন না।</li>
     </ol>
-    ${ul(["একজন মানুষ একটি প্রজেক্টে একাধিক ভূমিকা রাখতে পারেন (<strong>+ Add role</strong> ব্যবহার করুন), যেমন Developer ও QA দুটোই।", "System admin, Admin পেজে নতুন ভূমিকার নাম যোগ করতে পারেন। নতুন ভূমিকা রিকোয়ারমেন্ট রাখতে ও পাঠাতে পারে, তবে বিশেষ কোনো ক্ষমতা পায় না।"])}`)}
+    ${ul(["একজন মানুষ একটি Project-এ একাধিক ভূমিকা রাখতে পারেন (<strong>+ Add role</strong> ব্যবহার করুন), যেমন Developer ও QA দুটোই।", "System admin, Admin পেজে নতুন ভূমিকার নাম যোগ করতে পারেন। নতুন ভূমিকা Requirement রাখতে ও পাঠাতে পারে, তবে বিশেষ কোনো ক্ষমতা পায় না।"])}`)}
 
-  ${panel("access", "অ্যাক্সেস নিয়ন্ত্রণ", "সাইন ইন, কে কী দেখতে পায়, আর কে প্রজেক্ট শুরু করতে পারে", `
+  ${panel("access", "অ্যাক্সেস নিয়ন্ত্রণ", "সাইন ইন, কে কী দেখতে পায়, আর কে Project শুরু করতে পারে", `
     ${sub("সাইন ইন", ul(["সবাই ইউজারনেম ও পাসওয়ার্ড দিয়ে সাইন ইন করেন। ইউজারনেম মানুষের নাম থেকে তৈরি হয়।", "System admin অ্যাকাউন্ট শুধু Admin খোলে। Project Head-এর Admin অ্যাক্সেস <strong>নেই</strong>।"]))}
-    ${sub("কে কী দেখতে পায়", ul(["আপনি শুধু সেই প্রজেক্টগুলো দেখেন যেগুলোর আপনি সদস্য। Project Head সবগুলো দেখেন।", "একটি প্রজেক্টের ভেতরে <strong>Project Head, Project Lead ও Dev Lead</strong> সব রিকোয়ারমেন্ট দেখেন। বাকিরা শুধু নিজের দায়িত্বেরগুলো দেখেন, আর যেগুলোতে কাজ করেছেন সেগুলো বন্ধ হলে Archive-এ দেখেন।", "<strong>Internal</strong> মন্তব্য Business Stakeholder-দের কাছ থেকে লুকানো থাকে — কার্ডে, ইতিহাসে ও ইমেইলে।", "Search শুধু সেই প্রজেক্ট ও রিকোয়ারমেন্ট খুঁজে দেয় যেগুলো খোলার অনুমতি আপনার আছে।"]))}
-    ${sub("প্রজেক্ট শুরু করা", ul(["Project Head সবসময় প্রজেক্ট শুরু করতে পারেন।", "System admin নির্দিষ্ট কাউকে প্রজেক্ট শুরু করার অনুমতি দিতে পারেন (Admin → Access control)। তাঁরা নিজের নতুন প্রজেক্টে Project Lead হিসেবে যুক্ত হন।", "বাকিরা প্রজেক্টের <strong>অনুরোধ</strong> করতে পারেন, যা Project Head অনুমোদন বা বাতিল করেন। System admin অনুরোধ বন্ধ করে দিতে পারেন; তখন কোনো বোতামই দেখা যায় না।"]))}
-    ${sub("Override", ul(["Project Head ও Project Lead নিজের দায়িত্বে না থাকা রিকোয়ারমেন্টেও কাজ করতে পারেন। কার্ড আগে সতর্ক করে, আর কাজটি override হিসেবে লগ হয়।"]))}`)}
+    ${sub("কে কী দেখতে পায়", ul(["আপনি শুধু সেই Project-গুলো দেখেন যেগুলোর আপনি সদস্য। Project Head সবগুলো দেখেন।", "একটি Project-এর ভেতরে <strong>Project Head, Project Lead ও Dev Lead</strong> সব Requirement দেখেন। বাকিরা শুধু নিজের দায়িত্বেরগুলো দেখেন, আর যেগুলোতে কাজ করেছেন সেগুলো বন্ধ হলে Archive-এ দেখেন।", "<strong>Internal</strong> মন্তব্য Business Stakeholder-দের কাছ থেকে লুকানো থাকে — কার্ডে, ইতিহাসে ও ইমেইলে।", "Search শুধু সেই Project ও Requirement খুঁজে দেয় যেগুলো খোলার অনুমতি আপনার আছে।"]))}
+    ${sub("Project শুরু করা", ul(["Project Head সবসময় Project শুরু করতে পারেন।", "System admin নির্দিষ্ট কাউকে Project শুরু করার অনুমতি দিতে পারেন (Admin → Access control)। তাঁরা নিজের নতুন Project-এ Project Lead হিসেবে যুক্ত হন।", "বাকিরা Project-এর <strong>অনুরোধ</strong> করতে পারেন, যা Project Head অনুমোদন বা বাতিল করেন। System admin অনুরোধ বন্ধ করে দিতে পারেন; তখন কোনো বোতামই দেখা যায় না।"]))}
+    ${sub("Override", ul(["Project Head ও Project Lead নিজের দায়িত্বে না থাকা Requirement-এও কাজ করতে পারেন। কার্ড আগে সতর্ক করে, আর কাজটি override হিসেবে লগ হয়।"]))}`)}
 
   ${panel("matrix", "কে কী করতে পারে", "ভূমিকা অনুযায়ী অনুমতির একটি টেবিল", `${matrix}
-    <p class="note">✓ হ্যাঁ · – না। “দায়িত্বে থাকলে” মানে রিকোয়ারমেন্টটি যতক্ষণ তাঁর queue-তে আছে। System admin এগুলোর কোনোটিই করতে পারেন না; তিনি শুধু Admin-এ সিস্টেম পরিচালনা করেন।</p>`)}
+    <p class="note">✓ হ্যাঁ · – না। “দায়িত্বে থাকলে” মানে Requirement-টি যতক্ষণ তাঁর queue-তে আছে। System admin এগুলোর কোনোটিই করতে পারেন না; তিনি শুধু Admin-এ সিস্টেম পরিচালনা করেন।</p>`)}
 
   ${panel("queue", "প্রতিদিনের পেজ", "My Queue, Notifications, Sent Requests, Archive, Search", ul([
-    "<strong>My Queue</strong>: এখন আপনার দায়িত্বে থাকা রিকোয়ারমেন্ট, বেশি অগ্রাধিকারেরগুলো আগে। সবার ওপরে <strong>Urgent deadlines</strong>: যেগুলোর শেষ তারিখ ২ দিনের মধ্যে বা পার হয়ে গেছে। এরপর আপনার অপেক্ষায় থাকা অনুমোদনগুলো (ফিডব্যাক, তারিখ বদল, ওভারভিউ, প্রজেক্টের অনুরোধ)। নিচে <strong>Added to project</strong> নোটিশ, সঙ্গে <strong>Open project</strong> ও <strong>Acknowledge</strong>; Acknowledge না চাপা পর্যন্ত নোটিশটি থাকে।",
+    "<strong>My Queue</strong>: এখন আপনার দায়িত্বে থাকা Requirement, বেশি অগ্রাধিকারেরগুলো আগে। সবার ওপরে <strong>Urgent deadlines</strong>: যেগুলোর শেষ তারিখ ২ দিনের মধ্যে বা পার হয়ে গেছে। এরপর আপনার অপেক্ষায় থাকা অনুমোদনগুলো (Feedback, তারিখ বদল, Overview, Project-এর অনুরোধ)। নিচে <strong>Added to project</strong> নোটিশ, সঙ্গে <strong>Open project</strong> ও <strong>Acknowledge</strong>; Acknowledge না চাপা পর্যন্ত নোটিশটি থাকে।",
     "<strong>Notifications</strong>: গত ২৪ ঘণ্টায় আপনার সঙ্গে সম্পর্কিত কাজকর্ম। লাল সংখ্যা নতুনগুলো দেখায়।",
-    "<strong>Sent Requests</strong>: আপনার পাঠানো রিকোয়ারমেন্ট ও প্রজেক্টের অনুরোধ। অন্যজন পরের ধাপে পাঠানোর আগ পর্যন্ত <strong>Unsend</strong> দিয়ে রিকোয়ারমেন্ট ফেরত আনা যায়; <strong>Withdraw</strong> অপেক্ষমাণ প্রজেক্টের অনুরোধ বাতিল করে।",
-    "<strong>Archive</strong>: আপনি যেসব বন্ধ প্রজেক্ট ও রিকোয়ারমেন্টে কাজ করেছেন। <strong>On Hold & Cancelled</strong> (শুধু Project Head) স্থগিত ও বাতিল প্রজেক্টের তালিকা।",
-    "<strong>Search</strong> (ওপরের বার): প্রজেক্টের কোড (VND-001), রিকোয়ারমেন্টের কোড (VND-001-R02) বা নামের অংশ লিখুন।"]))}
+    "<strong>Sent Requests</strong>: আপনার পাঠানো Requirement ও Project-এর অনুরোধ। অন্যজন পরের Stage-এ পাঠানোর আগ পর্যন্ত <strong>Unsend</strong> দিয়ে Requirement ফেরত আনা যায়; <strong>Withdraw</strong> অপেক্ষমাণ Project-এর অনুরোধ বাতিল করে।",
+    "<strong>Archive</strong>: আপনি যেসব বন্ধ Project ও Requirement-এ কাজ করেছেন। <strong>On Hold & Cancelled</strong> (শুধু Project Head) স্থগিত ও বাতিল Project-এর তালিকা।",
+    "<strong>Search</strong> (ওপরের বার): Project-এর কোড (VND-001), Requirement-এর কোড (VND-001-R02) বা নামের অংশ লিখুন।"]))}
 
-  ${panel("projects", "প্রজেক্ট", "শুরু, অনুরোধ, সদস্য, স্ট্যাটাস", `
-    ${sub("প্রজেক্ট শুরু করা", who("Project Head, এবং System admin যাঁদের অনুমতি দিয়েছেন") + ol(["Projects বা My Queue-তে <strong>New project</strong> চাপুন।", "নাম লিখুন ও ধরন বাছুন; কোড নিজে থেকেই তৈরি হবে। অগ্রাধিকার ও <strong>শেষের তারিখ</strong> (আবশ্যক) দিন। শুরুর তারিখ ফাঁকা রাখলে আজকের তারিখ ধরা হবে।", "টিম: নাম লিখে তালিকা থেকে মানুষটিকে বাছুন, তারপর ভূমিকা দিন। আরও ভূমিকার জন্য <strong>+ Add role</strong>, আরও মানুষের জন্য <strong>Add another person</strong>।", "Review ধাপ দেখে <strong>Create project</strong> চাপুন। যাঁদের যোগ করা হলো, প্রত্যেকে একটি Added to project নোটিশ পাবেন।"]))}
-    ${sub("প্রজেক্টের অনুরোধ করা", who("বাকি সবাই, যতক্ষণ অনুরোধ চালু আছে") + ol(["<strong>Request project</strong> চাপুন। নাম, ধরন, অগ্রাধিকার, তারিখ এবং কেন দরকার তা লিখুন।", "Project Head এটি My Queue-তে দেখবেন। <strong>Approve and set up</strong> চাপলে New project আগে থেকে পূরণ হয়ে খোলে; <strong>Decline</strong> করতে কারণ লিখতে হয়, যা আপনাকে ইমেইলে জানানো হয়।"]))}
-    ${sub("সদস্য পরিচালনা", who("Project Head, Project Lead, Dev Lead") + ul(["প্রজেক্ট কার্ড → Primary → Members। নাম লিখুন, ভূমিকা বাছুন এবং <strong>Add member</strong> চাপুন। আগে থেকে থাকা সদস্যকে বাছলে তিনি আরেকটি ভূমিকা পান।", "ভূমিকার চিপের × দিয়ে ভূমিকা সরান। Project Lead বা Dev Lead শুধু Project Head সরাতে পারেন। Business Stakeholder যোগ বা সরাতে পারেন শুধু Project Head বা Project Lead।", "কাজের চাপের টেবিলে দেখা যায় কার কাছে কয়টি খোলা রিকোয়ারমেন্ট আছে — এই প্রজেক্টে এবং সব প্রজেক্ট মিলিয়ে।"]))}
-    ${sub("স্ট্যাটাস", who("Project Head ও Project Lead") + ul(["On Hold ও Cancelled প্রজেক্টকে থামিয়ে দেয় এবং এর কাজ queue থেকে লুকিয়ে রাখে।", "সব রিকোয়ারমেন্ট Closed হলেই কেবল প্রজেক্ট Closed করা যায়। বন্ধ প্রজেক্ট Archive-এ চলে যায়।"]))}`)}
+  ${panel("projects", "Project", "শুরু, অনুরোধ, সদস্য, Status", `
+    ${sub("Project শুরু করা", who("Project Head, এবং System admin যাঁদের অনুমতি দিয়েছেন") + ol(["Projects বা My Queue-তে <strong>New project</strong> চাপুন।", "নাম লিখুন ও ধরন বাছুন; কোড নিজে থেকেই তৈরি হবে। অগ্রাধিকার ও <strong>শেষের তারিখ</strong> (আবশ্যক) দিন। শুরুর তারিখ ফাঁকা রাখলে আজকের তারিখ ধরা হবে।", "টিম: নাম লিখে তালিকা থেকে মানুষটিকে বাছুন, তারপর ভূমিকা দিন। আরও ভূমিকার জন্য <strong>+ Add role</strong>, আরও মানুষের জন্য <strong>Add another person</strong>।", "Review Stage দেখে <strong>Create project</strong> চাপুন। যাঁদের যোগ করা হলো, প্রত্যেকে একটি Added to project নোটিশ পাবেন।"]))}
+    ${sub("Project-এর অনুরোধ করা", who("বাকি সবাই, যতক্ষণ অনুরোধ চালু আছে") + ol(["<strong>Request project</strong> চাপুন। নাম, ধরন, অগ্রাধিকার, তারিখ এবং কেন দরকার তা লিখুন।", "Project Head এটি My Queue-তে দেখবেন। <strong>Approve and set up</strong> চাপলে New project আগে থেকে পূরণ হয়ে খোলে; <strong>Decline</strong> করতে কারণ লিখতে হয়, যা আপনাকে ইমেইলে জানানো হয়।"]))}
+    ${sub("সদস্য পরিচালনা", who("Project Head, Project Lead, Dev Lead") + ul(["Project কার্ড → Primary → Members। নাম লিখুন, ভূমিকা বাছুন এবং <strong>Add member</strong> চাপুন। আগে থেকে থাকা সদস্যকে বাছলে তিনি আরেকটি ভূমিকা পান।", "ভূমিকার চিপের × দিয়ে ভূমিকা সরান। Project Lead বা Dev Lead শুধু Project Head সরাতে পারেন। Business Stakeholder যোগ বা সরাতে পারেন শুধু Project Head বা Project Lead।", "কাজের চাপের টেবিলে দেখা যায় কার কাছে কয়টি খোলা Requirement আছে — এই Project-এ এবং সব Project মিলিয়ে।"]))}
+    ${sub("Status", who("Project Head ও Project Lead") + ul(["On Hold ও Cancelled Project-কে থামিয়ে দেয় এবং এর কাজ queue থেকে লুকিয়ে রাখে।", "সব Requirement Closed হলেই কেবল Project Closed করা যায়। বন্ধ Project Archive-এ চলে যায়।"]))}`)}
 
-  ${panel("reqs", "রিকোয়ারমেন্ট", "তৈরি, পাঠানো, অনুমোদন, ফিডব্যাক", `
-    ${sub("তৈরি করা", who("Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder") + ol(["প্রজেক্ট কার্ড → <strong>New requirement</strong>।", "শিরোনাম (পরে শুধু যিনি তৈরি করেছেন তিনিই বদলাতে পারেন), বিবরণ, অগ্রাধিকার ও তারিখ দিন। দরকার হলে ফাইল ও লিংক যোগ করুন।", "ধাপ এবং এক বা একাধিক জনকে বাছুন, তারপর <strong>Send</strong>, অথবা <strong>Keep it with me</strong>।"]))}
-    ${sub("কাজ করা ও পরের ধাপে পাঠানো", who("যাঁদের দায়িত্বে আছে") + ol(["My Queue থেকে খুলুন। ফাইল, লিংক ও মন্তব্য যোগ করুন (Send চাপলে মন্তব্য সেভ হয়)। Business Stakeholder-দের কাছ থেকে মন্তব্য লুকাতে <strong>Internal</strong> চালু করুন।", "পরের <strong>Stage</strong> ও মানুষ বাছুন (একাধিক জনের জন্য <strong>+ Add person</strong>) এবং <strong>Send</strong> চাপুন।", "Feedback ধাপে মন্তব্য আবশ্যক।"]))}
-    ${sub("অনুমোদন (Approval)", ul(["যে কেউ রিকোয়ারমেন্ট <strong>Approval</strong>-এ পাঠাতে পারেন, তবে শুধু Project Lead বা Dev Lead-কে।", "শুধু Project Lead, Dev Lead বা Business Stakeholder এটি <strong>Project Head</strong>-কে পাঠাতে পারেন; Project Head রিকোয়ারমেন্ট পান শুধু অনুমোদনের জন্য।", "অনুমোদনকারী <strong>Approve and close</strong> চাপেন, অথবা মন্তব্যসহ ফেরত পাঠান।"]))}
-    ${sub("ফিডব্যাক", ul(["দায়িত্বে থাকা ব্যক্তি কারণ লিখে <strong>Request feedback</strong> চাপেন।", "Project Head, Project Lead বা Dev Lead অনুরোধটি গ্রহণ করেন (Feedback ধাপ ও কে ফিডব্যাক দেবেন তা বেছে) অথবা বাতিল করেন।"]))}`)}
+  ${panel("reqs", "Requirement", "তৈরি, পাঠানো, অনুমোদন, Feedback", `
+    ${sub("তৈরি করা", who("Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder") + ol(["Project কার্ড → <strong>New requirement</strong>।", "শিরোনাম (পরে শুধু যিনি তৈরি করেছেন তিনিই বদলাতে পারেন), বিবরণ, অগ্রাধিকার ও তারিখ দিন। দরকার হলে ফাইল ও লিংক যোগ করুন।", "Stage এবং এক বা একাধিক জনকে বাছুন, তারপর <strong>Send</strong>, অথবা <strong>Keep it with me</strong>।"]))}
+    ${sub("কাজ করা ও পরের Stage-এ পাঠানো", who("যাঁদের দায়িত্বে আছে") + ol(["My Queue থেকে খুলুন। ফাইল, লিংক ও মন্তব্য যোগ করুন (Send চাপলে মন্তব্য সেভ হয়)। Business Stakeholder-দের কাছ থেকে মন্তব্য লুকাতে <strong>Internal</strong> চালু করুন।", "পরের <strong>Stage</strong> ও মানুষ বাছুন (একাধিক জনের জন্য <strong>+ Add person</strong>) এবং <strong>Send</strong> চাপুন।", "Feedback Stage-এ মন্তব্য আবশ্যক।"]))}
+    ${sub("অনুমোদন (Approval)", ul(["যে কেউ Requirement <strong>Approval</strong>-এ পাঠাতে পারেন, তবে শুধু Project Lead বা Dev Lead-কে।", "শুধু Project Lead, Dev Lead বা Business Stakeholder এটি <strong>Project Head</strong>-কে পাঠাতে পারেন; Project Head Requirement পান শুধু অনুমোদনের জন্য।", "অনুমোদনকারী <strong>Approve and close</strong> চাপেন, অথবা মন্তব্যসহ ফেরত পাঠান।"]))}
+    ${sub("Feedback", ul(["দায়িত্বে থাকা ব্যক্তি কারণ লিখে <strong>Request feedback</strong> চাপেন।", "Project Head, Project Lead বা Dev Lead অনুরোধটি গ্রহণ করেন (Feedback Stage ও কে Feedback দেবেন তা বেছে) অথবা বাতিল করেন।"]))}`)}
 
-  ${panel("dates", "তারিখ, ওভারভিউ ও টাইমলাইন", "তারিখ পরিবর্তন, ওভারভিউ, ডাউনলোড", `
-    ${sub("শুরু বা শেষের তারিখ বদলানো", who("অনুরোধ করেন Project Head, Project Lead, Dev Lead বা দায়িত্বে থাকা ব্যক্তিরা; গ্রহণ করেন Project Lead বা Project Head") + ol(["Overview ট্যাব → <strong>Date change requests</strong>, অথবা রিকোয়ারমেন্ট কার্ডে <strong>Ask to change dates</strong>।", "শুরু না শেষ, নতুন তারিখ ও কারণ (আবশ্যক) দিন।", "গৃহীত পরিবর্তন কারণ ও কত দিন সরেছে তা সহ টাইমলাইনে থেকে যায়।"]))}
-    ${sub("প্রজেক্টের ওভারভিউ", who("পূরণ করেন Project Analyst বা Business Stakeholder; অনুমোদন করেন Project Head বা Project Lead") + ol(["Overview ট্যাব: Summary, Description, Analysis ও Project cost পূরণ করে <strong>Send for approval</strong> চাপুন।", "অনুমোদনের পর এটি শুধু পড়া যায়। শুধু Project Analyst <strong>Request change</strong> করতে পারেন, যার জন্য আবার অনুমোদন লাগে।"]))}
-    ${sub("টাইমলাইন ও ডাউনলোড", ul(["টাইমলাইনে প্রজেক্ট ও প্রতিটি রিকোয়ারমেন্টের সব তারিখ, প্রতিটি পরিবর্তনের কারণ ও কত দিন সরেছে তা থাকে।", "Overview ট্যাবের <strong>Download</strong> দিয়ে Overview রিপোর্ট (.html, PDF হিসেবে প্রিন্ট করা যায়) বা টাইমলাইন (.csv) সেভ করুন।"]))}`)}
+  ${panel("dates", "তারিখ, Overview ও Timeline", "তারিখ পরিবর্তন, Overview, ডাউনলোড", `
+    ${sub("শুরু বা শেষের তারিখ বদলানো", who("অনুরোধ করেন Project Head, Project Lead, Dev Lead বা দায়িত্বে থাকা ব্যক্তিরা; গ্রহণ করেন Project Lead বা Project Head") + ol(["Overview ট্যাব → <strong>Date change requests</strong>, অথবা Requirement কার্ডে <strong>Ask to change dates</strong>।", "শুরু না শেষ, নতুন তারিখ ও কারণ (আবশ্যক) দিন।", "গৃহীত পরিবর্তন কারণ ও কত দিন সরেছে তা সহ Timeline-এ থেকে যায়।"]))}
+    ${sub("Project-এর Overview", who("পূরণ করেন Project Analyst বা Business Stakeholder; অনুমোদন করেন Project Head বা Project Lead") + ol(["Overview ট্যাব: Summary, Description, Analysis ও Project cost পূরণ করে <strong>Send for approval</strong> চাপুন।", "অনুমোদনের পর এটি শুধু পড়া যায়। শুধু Project Analyst <strong>Request change</strong> করতে পারেন, যার জন্য আবার অনুমোদন লাগে।"]))}
+    ${sub("Timeline ও ডাউনলোড", ul(["Timeline-এ Project ও প্রতিটি Requirement-এর সব তারিখ, প্রতিটি পরিবর্তনের কারণ ও কত দিন সরেছে তা থাকে।", "Overview ট্যাবের <strong>Download</strong> দিয়ে Overview রিপোর্ট (.html, PDF হিসেবে প্রিন্ট করা যায়) বা Timeline (.csv) সেভ করুন।"]))}`)}
 
   ${panel("files", "ফাইল ও লিংক", "ফাইল কোথায় যায়, আর কেন কিছুই মুছে ফেলা হয় না", ul([
-    "আপলোড করা ফাইল কোম্পানির ফোল্ডার শেয়ারে সেভ হয় এই ক্রমে: শেয়ার \\ প্রজেক্ট কোড \\ রিকোয়ারমেন্ট কোড \\ ধাপের ফোল্ডার।",
+    "আপলোড করা ফাইল কোম্পানির ফোল্ডার শেয়ারে সেভ হয় এই ক্রমে: শেয়ার \\ Project কোড \\ Requirement কোড \\ Stage-এর ফোল্ডার।",
     "সিস্টেম কখনো ফাইল <strong>মুছে বা ওভাররাইট করে না</strong>। একই নামের ফাইল _v2, _v3 নামে সেভ হয়।",
-    "রিকোয়ারমেন্টে <strong>Remove</strong> চাপলে ফাইলটি শুধু সেখান থেকে লুকায়; শেয়ারে থেকেই যায়। যিনি যোগ করেছেন, অথবা Project Head, Project Lead বা Dev Lead সরাতে পারেন। লিংকও একইভাবে কাজ করে।",
+    "Requirement-এ <strong>Remove</strong> চাপলে ফাইলটি শুধু সেখান থেকে লুকায়; শেয়ারে থেকেই যায়। যিনি যোগ করেছেন, অথবা Project Head, Project Lead বা Dev Lead সরাতে পারেন। লিংকও একইভাবে কাজ করে।",
     "এই ডেমোতে <strong>Add dummy file</strong> শুধু ফাইলের নাম যোগ করে।"]))}
 
   ${panel("account", "সাইন ইন, পাসওয়ার্ড ও সেটিংস", "সবার জন্য", ul([
@@ -2391,11 +2391,11 @@ function howtoBn() {
   ${panel("reminders", "রিমাইন্ডার ও নোট", "শুধু আপনার জন্য", ul([
     "<strong>Reminders</strong> খুলুন, একটি দিন বাছুন, কী মনে রাখতে হবে লিখুন (সময় ও নোট ঐচ্ছিক) এবং <strong>Add reminder</strong> চাপুন।",
     "কাজ শেষ হলে টিক দিন, মুছতে × চাপুন। লাল সংখ্যা আজকের ও মেয়াদ পেরোনো রিমাইন্ডার গোনে।",
-    "নিচের <strong>Notes</strong> দ্রুত ব্যক্তিগত নোটের জন্য; চাইলে একটি প্রজেক্ট ট্যাগ করুন।"]))}
+    "নিচের <strong>Notes</strong> দ্রুত ব্যক্তিগত নোটের জন্য; চাইলে একটি Project ট্যাগ করুন।"]))}
 
   ${panel("admin", "অ্যাডমিন", "শুধু System admin", ul([
     "<strong>Users</strong>: নতুন ব্যবহারকারী যোগ করুন (ইউজারনেম নাম থেকে তৈরি হয়; CIF হলো আইডি নম্বর), অস্থায়ী পাসওয়ার্ড দিন, রিসেট কোড ইমেইল করুন, অথবা HR ইন্টিগ্রেশন থেকে মানুষ আনুন (Name, Username, CIF, Email)।",
-    "<strong>Access control</strong>: প্রজেক্টের অনুরোধ চালু বা বন্ধ করুন, এবং নির্দিষ্ট কাউকে প্রজেক্ট শুরু করার অনুমতি দিন।",
+    "<strong>Access control</strong>: Project-এর অনুরোধ চালু বা বন্ধ করুন, এবং নির্দিষ্ট কাউকে Project শুরু করার অনুমতি দিন।",
     "<strong>Folder share</strong>: যে সার্ভার ফোল্ডারে ফাইল সেভ হয়, এবং সার্ভিস অ্যাকাউন্ট। এর শুধু তৈরি ও লেখার অনুমতি থাকবে, মোছার অনুমতি কখনো নয়।",
     "<strong>Mail integration</strong>: রিসেট কোড ও নোটিফিকেশনের জন্য মেইল সার্ভার। <strong>Integrations</strong>: ডিরেক্টরি সাইন-ইন, সিঙ্গেল সাইন-অন, ওয়েবহুক, API, HR থেকে ব্যবহারকারী আনা।",
     "<strong>Roles</strong> ও <strong>Stages</strong>: নতুন নাম যোগ করুন। <strong>Email log</strong>: সিস্টেম যে ইমেইলগুলো পাঠাত।"]))}`;
@@ -2403,7 +2403,7 @@ function howtoBn() {
 
 function viewHowTo(u) {
   const bn = !!(u && u.howtoBn);
-  const head = `<div class="head-row"><h1>${bn ? "কীভাবে করবেন (How To)" : "How To"}</h1><div class="row" style="margin:0;align-items:center">
+  const head = `<div class="head-row"><h1>${bn ? "ব্যবহারকারী নির্দেশিকা" : "How To"}</h1><div class="row" style="margin:0;align-items:center">
     <label class="check ht-lang" for="ht-bn"><input type="checkbox" id="ht-bn" data-act="howto-lang" ${bn ? "checked" : ""}> <span lang="bn">বাংলা</span></label>
     <button type="button" class="btn secondary" data-act="howto-all" data-open="1">${bn ? "সব খুলুন" : "Expand all"}</button><button type="button" class="btn secondary" data-act="howto-all" data-open="0">${bn ? "সব বন্ধ করুন" : "Collapse all"}</button></div></div>`;
   return head + (bn ? `<div lang="bn" class="howto-bn">${howtoBn()}</div>` : howtoEn());
