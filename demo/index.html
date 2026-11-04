@@ -440,6 +440,20 @@ details.arc { margin: .75rem 0; }
 /* Top bar project search */
 .tsearch { position: relative; }
 .combo { position: relative; }
+/* Collapsible cards */
+section.coll > .coll-head, section.coll > .coll-head > h2, section.coll > .coll-head > h3, section.coll .coll-head h3.sec-title { cursor: pointer; }
+.coll-btn { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; margin: 0 .4rem 0 -.15rem; padding: 0; vertical-align: .05em; border: 0; border-radius: 50%;
+  background: var(--tint); color: var(--accent); font: 700 1.1rem/1 sans-serif; cursor: pointer; flex: none; }
+.coll-btn svg { display: block; transform: rotate(90deg); transition: transform .15s; }
+section.is-collapsed .coll-btn svg { transform: rotate(0deg); }
+.coll-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+section.is-collapsed > :not(.coll-head) { display: none !important; }
+section.is-collapsed > .coll-head { margin-bottom: 0 !important; }
+section.is-collapsed > h2.coll-head, section.is-collapsed > h3.coll-head { border-bottom-color: transparent; padding-bottom: 0; }
+.coll-all { display: flex; justify-content: flex-end; margin: -.4rem 0 .6rem; }
+.coll-all .check { font-size: .9rem; }
+@media (prefers-reduced-motion: reduce) { .coll-btn svg { transition: none; } }
+section.is-collapsed .coll-head, section.is-collapsed .coll-head h2, section.is-collapsed .coll-head h3 { border-bottom-color: transparent !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }
 .urgent-panel { border-left: 4px solid var(--fb-fg); }
 .added-ack { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; }
 .combo input { width: 100%; }
@@ -1496,7 +1510,7 @@ function syncToOptions(form) {
 document.addEventListener("change", e => { if (e.target.name === "stage" && e.target.form) syncToOptions(e.target.form); });
 function openModal(html, wide, narrow) {
   modal.classList.toggle("wide", !!wide); modal.classList.toggle("narrow", !!narrow);
-  modal.innerHTML = html; if (!modal.open) modal.showModal();
+  modal.innerHTML = html; makeCollapsible(modal, "card", false); if (!modal.open) modal.showModal();
   const f = modal.querySelector(".pwrap") ? modal.querySelector('[role=tab][aria-selected="true"]')
     : modal.querySelector("form[data-form=card]") ? modal.querySelector(".x")
     : modal.querySelector("input:not(.sr-only):not([type=hidden]), select, textarea");
@@ -2189,7 +2203,7 @@ function viewSent(u) {
   const prSec = mine.length ? `<section><h2>Project requests</h2>${tbl(`<thead><tr><th>Project</th><th>Type</th><th>End date</th><th>Sent</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${mine.map(x => `<tr>
     <td><strong>${h(x.name)}</strong>${x.status === "Declined" && x.note ? `<br><span class="file-meta">Reason: ${h(x.note)}</span>` : ""}</td><td>${h(x.type)}</td><td class="num">${x.deadline}</td><td class="num">${fmt(x.at)}</td><td>${prStatus(x)}</td>
     <td>${x.status === "Pending" ? `<button class="btn secondary" data-act="pr-withdraw" data-id="${x.id}">Withdraw</button>` : x.status === "Approved" && proj(x.pid) && canView(u, x.pid) ? `<button class="btn secondary" data-go="project" data-id="${x.pid}">Open</button>` : ""}</td></tr>`).join("")}</tbody>`)}</section>` : "";
-  return `<h1>Sent Requests</h1>${prSec}${mine.length ? `<h2>Requirements</h2>` : ""}
+  return `<h1>Sent Requests</h1>${prSec}<section>${mine.length ? `<h2>Requirements</h2>` : ""}
   <p class="note">Requirements you sent. If you sent one to the wrong person, Unsend brings it back to you at the stage it was in. Once the person you sent it to sends it on, it can no longer be unsent.</p>
   ${list.length ? tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Sent to</th><th>Stage</th><th>Sent</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${list.map(x => {
     const r = req(x.rid), title = `${reqCode(r)} ${h(r.title)}`;
@@ -2198,7 +2212,7 @@ function viewSent(u) {
       <td>${x.fromStage !== x.toStage ? `${stageLabel(x.fromStage)} → ${stageLabel(x.toStage)}` : stageLabel(x.toStage)}</td>
       <td class="num">${fmt(x.at)}</td><td>${status(x)}</td>
       <td>${canUnsend(u, x) ? `<button class="btn secondary" data-act="unsend" data-hid="${x.id}">Unsend</button>` : ""}</td></tr>`;
-  }).join("")}</tbody>`) : `<p style="margin-top:1rem">You have not sent any requirements yet.</p>`}`;
+  }).join("")}</tbody>`) : `<p style="margin-top:1rem">You have not sent any requirements yet.</p>`}</section>`;
 }
 
 // Reminders and notes: a self-organizer for each person; reminders and note copies can be sent to others.
@@ -2358,7 +2372,7 @@ function viewNotifications(u) {
 }
 // How To: a short text manual for the essential tasks.
 function viewHowTo() {
-  return `<div class="head-row"><h1>How To</h1><div class="row" style="margin:0"><button type="button" class="btn secondary" data-act="howto-all" data-open="1">Expand all</button><button type="button" class="btn secondary" data-act="howto-all" data-open="0">Collapse all</button></div></div>` + howtoEn();
+  return `<div class="head-row"><h1>How To</h1></div>` + howtoEn();
 }
 function howtoEn() {
   const ol = items => `<ol>${items.map(x => `<li>${x}</li>`).join("")}</ol>`, ul = items => `<ul>${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
@@ -2399,7 +2413,7 @@ function howtoEn() {
     ${row("Approve the overview", 1, 1, 0, 0, 0, 0)}
     ${row("Request a change to an approved overview", 0, 0, 0, 1, 0, 0)}
   </tbody>`).replace('<div class="tbl">', '<div class="tbl ht-matrix">');
-  return `<p class="note" style="max-width:52rem;margin-bottom:1rem">The manual for IDLC Streams. Press a title to open or close it. What you can do depends on your role in each project; one person can have different roles in different projects.</p>
+  return `<p class="note" style="max-width:52rem;margin-bottom:1rem">The manual for IDLC Streams. Press a title to open or close it, or use Expand all. What you can do depends on your role in each project; one person can have different roles in different projects.</p>
 
   ${panel("start", "Start here", "What IDLC Streams does, in one minute", ul([
     "IDLC Streams tracks IT projects and the <strong>requirements</strong> (pieces of work) inside them. Each requirement moves through <strong>stages</strong>: " + stageOrder().map(n => STAGES[n]).join(" → ") + ".",
@@ -2651,7 +2665,45 @@ function render() {
     : v.name === "paused" ? viewPaused(u) : v.name === "howto" ? viewHowTo() : v.name === "reminders" ? viewReminders(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
   renderTop(); setTopbarHeight();
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
+  makeCollapsible(main, v.name, true);
   save();
+}
+document.addEventListener("toggle", e => { if (e.target.matches && e.target.matches("main details.panel, main details.howto-panel")) syncCollAll(main); }, true);
+// Collapsible cards: every section with a heading gets a chevron; the heading toggles it.
+// Pages also get an "Expand all" switch. Collapsed state is kept per page while you use the site.
+const collapsed = new Set();
+let collSeq = 0;
+function makeCollapsible(root, scope, withSwitch) {
+  const secs = [...root.querySelectorAll("section.panel, main > section, section.card-section, .card-body > section")]
+    .filter((sec, i, all) => all.indexOf(sec) === i && !sec.closest(".howto-panel") && !sec.classList.contains("coll"));
+  const made = [];
+  secs.forEach(sec => {
+    const hd = sec.querySelector(":scope > h2, :scope > h3, :scope > .head-row > h2, :scope > .head-row > h3, :scope > div > h3.sec-title, :scope > div > h2");
+    if (!hd || hd.querySelector(".coll-btn")) return;
+    const block = hd.parentElement === sec ? hd : hd.parentElement;
+    if (!sec.contains(block) || block === sec || [...sec.children].length < 2) return;
+    const key = `${scope}|${hd.textContent.replace(/\(\d+\)/g, "").trim()}`, id = sec.id || `coll-${++collSeq}`;
+    sec.id = id; sec.classList.add("coll"); block.classList.add("coll-head"); sec.dataset.ckey = key;
+    hd.insertAdjacentHTML("afterbegin", `<button type="button" class="coll-btn" data-act="coll" aria-controls="${id}" aria-label="Collapse or expand ${h(hd.textContent.trim())}"><svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><path d="M5 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`);
+    setColl(sec, collapsed.has(key));
+    made.push(sec);
+  });
+  const dets = withSwitch ? [...root.querySelectorAll("details.panel, details.howto-panel")] : [];
+  if (withSwitch && made.length + dets.length > 1) {
+    const all = made.every(sec => !sec.classList.contains("is-collapsed")) && dets.every(d => d.open);
+    const sw = `<div class="coll-all"><label class="check" for="coll-all-${scope}"><input type="checkbox" id="coll-all-${scope}" data-act="coll-all" ${all ? "checked" : ""}> Expand all</label></div>`;
+    const top = root.querySelector(":scope > .head-row, :scope > h1");
+    if (top) top.insertAdjacentHTML("afterend", sw); else root.insertAdjacentHTML("afterbegin", sw);
+  }
+}
+function setColl(sec, on) {
+  sec.classList.toggle("is-collapsed", on);
+  const b = sec.querySelector(".coll-btn"); if (b) b.setAttribute("aria-expanded", on ? "false" : "true");
+  if (on) collapsed.add(sec.dataset.ckey); else collapsed.delete(sec.dataset.ckey);
+}
+function syncCollAll(root) {
+  const sw = root.querySelector("[data-act=coll-all]"); if (!sw) return;
+  sw.checked = [...root.querySelectorAll("section.coll")].every(sec => !sec.classList.contains("is-collapsed")) && [...root.querySelectorAll("details.panel, details.howto-panel")].every(d => d.open);
 }
 
 // ---------- events ----------
@@ -2662,6 +2714,8 @@ document.addEventListener("click", e => {
     go(g.dataset.go, g.dataset.id ? +g.dataset.id : undefined); return;
   }
   if (e.target === modal) { closeModal(); return; }
+  { const hd = e.target.closest(".coll-head h2, .coll-head h3, h2.coll-head, h3.coll-head");   // clicking a card's heading toggles it
+    if (hd && !e.target.closest("[data-act]:not(.coll-btn), a, input, select, label, [data-go]")) { const sec = hd.closest("section.coll"); setColl(sec, !sec.classList.contains("is-collapsed")); syncCollAll(main); return; } }
   const a = e.target.closest("[data-act]"); if (!a) return;
   const act = a.dataset.act;
   if (act === "close") { closeModal(); return; }
@@ -2736,6 +2790,8 @@ document.addEventListener("click", e => {
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
   if (act === "open-project") { projectDialog(); return; }
   if (act === "open-projreq") { projReqDialog(); return; }
+  if (act === "coll") { const sec = a.closest("section.coll"); setColl(sec, !sec.classList.contains("is-collapsed")); syncCollAll(main); return; }
+  if (act === "coll-all") { main.querySelectorAll("section.coll").forEach(sec => setColl(sec, !a.checked)); main.querySelectorAll("details.panel, details.howto-panel").forEach(d => { d.open = a.checked; }); return; }
   if (act === "howto-all") { document.querySelectorAll(".howto-panel").forEach(d => { d.open = a.dataset.open === "1"; }); return; }
   if (act === "ack-added") { const x = (S.addedNotices || []).find(y => y.id === +a.dataset.id && y.uid === me().id); if (!x) return;
     x.ack = now(); flash("ok", `Acknowledged: ${proj(x.pid).code} · ${proj(x.pid).name}.`); const inCard = modal.open && modal.querySelector(".pwrap"); render(); if (inCard) projectCard(x.pid); return; }
