@@ -3,7 +3,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&family=Questrial&family=Merriweather:wght@400;700&family=Poppins:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&family=Questrial&family=Merriweather:wght@400;700&family=Poppins:wght@400;600;800&family=Hind+Siliguri:wght@400;500;700&display=swap">
 <style>
 /* Layout: iOS-style app shell. Translucent sticky nav bar, large titles, grouped inset cards on warm beige (light)
    or true black (dark). Text boxes, comments, file rows and emails are inverted panels with a brushed-metal rim. */
@@ -430,6 +430,7 @@ details.arc { margin: .75rem 0; }
 /* Top bar project search */
 .tsearch { position: relative; }
 .combo { position: relative; }
+.urgent-panel { border-left: 4px solid var(--fb-fg); }
 .added-ack { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; }
 .combo input { width: 100%; }
 .combo-list { position: absolute; left: 0; right: 0; top: calc(100% + .3rem); z-index: 30; margin: 0; padding: .35rem; max-height: 15rem; overflow-y: auto; min-width: 14rem;
@@ -516,6 +517,8 @@ tr.tl-project td { background: var(--surface-2); }
 .pwrap [role=tabpanel] > * { min-width: 0; }
 /* How To */
 .howto { max-width: 46rem; }
+.howto-bn, .ht-lang [lang=bn] { font-family: "Hind Siliguri", "Noto Sans Bengali", "Nirmala UI", "Vrinda", sans-serif; }
+.howto-bn .ht-body li, .howto-bn p { line-height: 1.7; }
 .howto-panel { max-width: 64rem; margin: 0 0 .6rem; border: 1px solid var(--sep-strong); border-radius: var(--radius); background: var(--surface); }
 .howto-panel > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .75rem; padding: .85rem 1rem .85rem 2.4rem; position: relative; border-radius: var(--radius); }
 .howto-panel > summary::-webkit-details-marker { display: none; }
@@ -1280,7 +1283,7 @@ function seed() {
   CLOCK = null;
   S.outbox = S.outbox.slice(0, 30);
   seedOrganizer();
-  S.addedNotices = null; ensureAuthData(); S.authV = 1;
+  S.addedNotices = null; S.urgentV1 = null; ensureAuthData(); S.authV = 1;
 }
 // Sample reminders and notes (private to each person).
 function seedOrganizer() {
@@ -1328,6 +1331,14 @@ function ensureAuthData() {
       reason: "Branch teams need a simple leave-request tracker. Today it is done by email and spreadsheets.", status: "Pending", at: Date.now() - 3 * 3600e3}] : [];
   }
   if (!S.projReqs) S.projReqs = [];
+  if (!S.urgentV1) {   // sample data: a few requirements due soon, so Urgent deadlines has something to show
+    S.urgentV1 = 1;
+    [["Branch visit scheduler", 1], ["Internal audit tracker", 0], ["Password reset self-service", 2], ["Core banking API integration", 2], ["Payment gateway vendor onboarding", 1], ["Employee leave portal", -1]].forEach(([t, n]) => {
+      const r = S.reqs.find(x => x.title === t && x.stage !== 8); if (!r) return;
+      const due = isoDay(Date.now() + n * DAY); if (r.start && r.start > due) return;
+      r.due = due; r.dues = [due];
+    });
+  }
   if (!S.roleFix1) {   // sample data: only Saifuddin leads; Alvi stays Analyst, Sayem stays Stakeholder
     S.roleFix1 = 1;
     const sf = S.users.find(x => x.username === "saifuddin");
@@ -1793,7 +1804,7 @@ const BRAND_INNER = `<svg class="brand-mark" viewBox="0 0 120 80" aria-hidden="t
         <g fill="currentColor"><rect x="76" y="10" width="44" height="10" rx="5"></rect><rect x="76" y="35" width="32" height="10" rx="5"></rect><rect x="76" y="60" width="20" height="10" rx="5"></rect></g></svg>
       <span class="brand-word"><span class="brand-idlc">IDLC</span><span class="brand-streams">STREAMS</span></span>`;
 // Date and time beside the logo; refreshed every 15 seconds without redrawing the page.
-const clockParts = () => { const d = new Date(); return {time: d.toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"}), date: d.toLocaleDateString("en-GB", {weekday: "short", day: "numeric", month: "short", year: "numeric"}), iso: d.toISOString()}; };
+const clockParts = () => { const d = new Date(); return {time: d.toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", hour12: true}), date: d.toLocaleDateString("en-GB", {weekday: "short", day: "numeric", month: "short", year: "numeric"}), iso: d.toISOString()}; };
 const clockMarkup = () => { const c = clockParts(); return `<time class="tb-clock" id="tb-clock" datetime="${c.iso}"><span class="clk-time">${c.time}</span><span class="clk-date">${c.date}</span></time>`; };
 setInterval(() => { const el = document.getElementById("tb-clock"); if (!el) return; const c = clockParts(); el.setAttribute("datetime", c.iso); el.children[0].textContent = c.time; el.children[1].textContent = c.date; }, 15000);
 const brandMarkup = clickable => clickable ? `<button type="button" class="brand" data-go="queue" aria-label="IDLC Streams, go to My Queue">${BRAND_INNER}</button>` : `<span class="brand" aria-label="IDLC Streams">${BRAND_INNER}</span>`;
@@ -1847,6 +1858,8 @@ function historyList(rows, u, pid) {
   }).join("")}</ol>`;
 }
 
+// Days from today to a YYYY-MM-DD date (negative = overdue).
+const daysLeft = iso => Math.round((Date.parse(iso + "T00:00") - Date.parse(isoDay(now()) + "T00:00")) / DAY);
 const myAdded = u => (S.addedNotices || []).filter(x => x.uid === u.id && !x.ack && proj(x.pid)).sort((a, b) => b.at - a.at);
 function addedSection(u) {
   const list = myAdded(u); if (!list.length) return "";
@@ -1867,7 +1880,13 @@ function viewQueue(u) {
   const exs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
   const ovs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveOverview(u, pp.id) && ovPending(pp));
   const prs = u.cto ? (S.projReqs || []).filter(x => x.status === "Pending") : [];
+  const urgent = items.filter(r => r.due && daysLeft(r.due) <= 2).sort((a, b) => a.due.localeCompare(b.due));
   return `<div class="head-row"><h1>My Queue</h1>${projBtn(u)}</div>
+  ${urgent.length ? `<section class="panel urgent-panel" aria-labelledby="urgent-h"><h2 id="urgent-h" style="margin-top:0">Urgent deadlines (${urgent.length})</h2>
+    <p class="note" style="margin-bottom:.5rem">Your requirements due within 2 days, or already overdue.</p>
+    ${tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Due</th><th>When</th></tr></thead><tbody>${urgent.map(r => { const d = daysLeft(r.due); return `<tr>
+      <td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td><td>${stageLabel(r.stage)}</td>
+      <td class="num">${r.due}</td><td>${d < 0 ? label(`Overdue by ${-d} day${d === -1 ? "" : "s"}`, "pr-high") : d === 0 ? label("Due today", "pr-high") : label(d === 1 ? "Due tomorrow" : "Due in 2 days", "st-fb")}</td></tr>`; }).join("")}</tbody>`)}</section>` : ""}
   ${prs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project requests waiting for you (${prs.length})</h2>
     ${tbl(`<thead><tr><th>Project</th><th>Type</th><th>Priority</th><th>Dates</th><th>Requested by</th><th>Why</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${prs.map(x => `<tr>
       <td><strong>${h(x.name)}</strong></td><td>${h(x.type)}</td><td>${priLabel(x.priority)}</td><td class="num">${x.start || "On approval"} → ${x.deadline}</td>
@@ -2261,7 +2280,135 @@ function viewNotifications(u) {
     : `<p style="margin-top:1rem">No activity in the last 24 hours.</p>`}`;
 }
 // How To: a short text manual for the essential tasks.
-function viewHowTo() {
+function howtoBn() {
+  const ol = items => `<ol>${items.map(x => `<li>${x}</li>`).join("")}</ol>`, ul = items => `<ul>${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
+  const who = t => `<p class="note who">কে: ${t}</p>`;
+  const panel = (id, title, sub, body, open) => `<details class="howto-panel" id="ht-${id}" ${open ? "open" : ""}><summary><span class="ht-title">${title}</span>${sub ? `<span class="ht-sub">${sub}</span>` : ""}</summary><div class="ht-body">${body}</div></details>`;
+  const sub = (t, body) => `<h3 class="ht-h">${t}</h3>${body}`;
+  const Y = `<span class="yes" aria-label="হ্যাঁ">✓</span>`, N = `<span class="no" aria-label="না">–</span>`, c = t => `<span class="cond">${t}</span>`;
+  const cols = ["Project Head (CTO)", "Project Lead", "Dev Lead", "Project Analyst", "Business Stakeholder", "Developer / QA"];
+  const row = (what, ...cells) => `<tr><th scope="row">${what}</th>${cells.map(x => `<td>${x === 1 ? Y : x === 0 ? N : c(x)}</td>`).join("")}</tr>`;
+  const grp = t => `<tr class="grp"><th scope="rowgroup" colspan="${cols.length + 1}">${t}</th></tr>`;
+  const ADM = "অ্যাডমিন অনুমতি দিলে", ASG = "দায়িত্বে থাকলে", MINE = "নিজে তৈরি করলে", ADDED = "নিজে যোগ করলে", ONLY = "শুধু নিজের দায়িত্বেরগুলো", NSH = "Stakeholder ছাড়া";
+  const matrix = tbl(`<thead><tr><th scope="col">কাজ</th>${cols.map(x => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>
+    ${grp("প্রজেক্ট")}
+    ${row("নতুন প্রজেক্ট শুরু করা", 1, ADM, ADM, ADM, ADM, ADM)}
+    ${row("প্রজেক্টের অনুরোধ করা", 0, 1, 1, 1, 1, 1)}
+    ${row("প্রজেক্টের অনুরোধ অনুমোদন বা বাতিল করা", 1, 0, 0, 0, 0, 0)}
+    ${row("স্ট্যাটাস বদলানো (On Hold, Cancelled, Closed)", 1, 1, 0, 0, 0, 0)}
+    ${row("প্রজেক্টের অগ্রাধিকার ও শুরুর তারিখ বদলানো", 1, 1, 1, 0, 0, 0)}
+    ${row("সদস্য ও ভূমিকা যোগ করা", 1, 1, NSH, 0, 0, 0)}
+    ${row("Project Lead বা Dev Lead সরানো", 1, 0, 0, 0, 0, 0)}
+    ${row("অন্য সদস্য সরানো", 1, 1, NSH, 0, 0, 0)}
+    ${row("On Hold & Cancelled পেজ ও টিমের কাজের চাপ দেখা", 1, "নিজের প্রজেক্টে কাজের চাপ", "নিজের প্রজেক্টে কাজের চাপ", 0, 0, 0)}
+    ${grp("রিকোয়ারমেন্ট")}
+    ${row("প্রজেক্টের সব রিকোয়ারমেন্ট দেখা", 1, 1, 1, ONLY, ONLY, ONLY)}
+    ${row("রিকোয়ারমেন্ট তৈরি করা", 1, 1, 1, 1, 1, 0)}
+    ${row("রিকোয়ারমেন্টের শিরোনাম বদলানো", MINE, MINE, MINE, MINE, MINE, 0)}
+    ${row("রিকোয়ারমেন্ট পরের ধাপে পাঠানো", "যেকোনোটি (লগ হয়)", "যেকোনোটি (লগ হয়)", ASG, ASG, ASG, ASG)}
+    ${row("Approval-এ পাঠানো → Project Lead / Dev Lead", 1, 1, 1, 1, 1, 1)}
+    ${row("Approval-এ পাঠানো → Project Head", 1, 1, 1, 0, 1, 0)}
+    ${row("Approve and close", 1, 1, 1, 0, 0, 0)}
+    ${row("ফিডব্যাক চাওয়া", ASG, ASG, ASG, ASG, ASG, ASG)}
+    ${row("ফিডব্যাকের অনুরোধ গ্রহণ করা", 1, 1, 1, 0, 0, 0)}
+    ${row("Internal মন্তব্য পড়া", 1, 1, 1, 1, 0, 1)}
+    ${row("ফাইল বা লিংক সরানো", 1, 1, 1, ADDED, ADDED, ADDED)}
+    ${grp("তারিখ ও ওভারভিউ")}
+    ${row("শুরু বা শেষের তারিখ বদলের অনুরোধ", 1, 1, 1, ASG, ASG, ASG)}
+    ${row("তারিখ বদলের অনুরোধ গ্রহণ করা", 1, 1, 0, 0, 0, 0)}
+    ${row("ওভারভিউ পূরণ করা", 0, 0, 0, 1, 1, 0)}
+    ${row("ওভারভিউ অনুমোদন করা", 1, 1, 0, 0, 0, 0)}
+    ${row("অনুমোদিত ওভারভিউ বদলের অনুরোধ", 0, 0, 0, 1, 0, 0)}
+  </tbody>`).replace('<div class="tbl">', '<div class="tbl ht-matrix">');
+  return `<p class="note" style="max-width:52rem;margin-bottom:1rem">IDLC Streams-এর ব্যবহার নির্দেশিকা। কোনো শিরোনামে চাপ দিলে সেটি খুলবে বা বন্ধ হবে। আপনি কী করতে পারবেন তা প্রতিটি প্রজেক্টে আপনার ভূমিকার ওপর নির্ভর করে; একজন মানুষের ভিন্ন ভিন্ন প্রজেক্টে ভিন্ন ভূমিকা থাকতে পারে। বোতাম ও পেজের নাম সাইটে যেমন আছে তেমনই ইংরেজিতে লেখা হয়েছে।</p>
+
+  ${panel("start", "শুরু করুন", "এক মিনিটে IDLC Streams কী করে", ul([
+    "IDLC Streams আইটি প্রজেক্ট এবং তার ভেতরের <strong>রিকোয়ারমেন্ট</strong> (কাজের অংশ) ট্র্যাক করে। প্রতিটি রিকোয়ারমেন্ট কয়েকটি <strong>ধাপ (stage)</strong> পার হয়: " + stageOrder().map(n => STAGES[n]).join(" → ") + "।",
+    "প্রতিটি রিকোয়ারমেন্ট সবসময় এক বা একাধিক জনের <strong>দায়িত্বে</strong> থাকে। সেটি তাঁদের <strong>My Queue</strong>-তে দেখা যায়। নিজের অংশ শেষ হলে তাঁরা পরের ধাপ ও পরের জনকে বেছে নিয়ে <strong>Send</strong> চাপেন।",
+    "প্রজেক্টের ধরন আছে। <strong>Vendor</strong> প্রজেক্টে Developer থাকে না; <strong>Integration</strong> প্রজেক্টে Project Analyst থাকে না; <strong>Internal</strong> প্রজেক্টে সব ভূমিকাই থাকতে পারে। কোড নিজে থেকেই তৈরি হয়: VND-001, INT-002, ITG-003, আর রিকোয়ারমেন্টের কোড যেমন INT-002-R01।",
+    "সবকিছু রেকর্ড থাকে: কে কী পাঠিয়েছেন, কাকে, কখন এবং কেন। চুপিচুপি কিছুই বদলায় না।"]), true)}
+
+  ${panel("roles", "ভূমিকার স্তরবিন্যাস", "কে কোথায়, আর প্রতিটি ভূমিকার কাজ কী", `
+    <ol class="hier">
+      <li><strong>System admin</strong> <span class="note">(<code>admin</code> অ্যাকাউন্ট)</span> — প্রজেক্ট নয়, সিস্টেম চালান। শুধু Admin পেজ দেখেন: ব্যবহারকারী, অ্যাক্সেস নিয়ন্ত্রণ, মেইল, ফোল্ডার শেয়ার, ইন্টিগ্রেশন, ভূমিকা ও ধাপ। কোনো প্রজেক্টের সদস্য নন।</li>
+      <li><strong>Project Head (CTO)</strong> — সব প্রজেক্ট তদারকি করেন এবং নিজে থেকেই সব প্রজেক্টে থাকেন। প্রজেক্ট শুরু করেন ও প্রজেক্টের অনুরোধ অনুমোদন করেন। রিকোয়ারমেন্ট পান <em>শুধু</em> অনুমোদনের অনুরোধ হিসেবে, তাই তাঁর My Queue-তে শুধু অনুমোদনের কাজ থাকে। যেকোনো রিকোয়ারমেন্টে কাজ করতে পারেন (override হিসেবে লগ হয়)।
+        <ol>
+          <li><strong>Project Lead</strong> — একটি প্রজেক্ট চালান; সেই প্রজেক্টের ভেতরে প্রায় Project Head-এর মতোই ক্ষমতা: সদস্য, স্ট্যাটাস, তারিখ ও ওভারভিউ পরিচালনা করেন, কাজ অনুমোদন ও বন্ধ করেন।
+            <ol>
+              <li><strong>Dev Lead</strong> — কারিগরি কাজের নেতৃত্ব দেন: সব রিকোয়ারমেন্ট দেখেন, ডেভেলপারদের কাজ দেন, অগ্রাধিকার ও শুরুর তারিখ ঠিক করেন, কাজ অনুমোদন ও বন্ধ করেন, ফিডব্যাকের অনুরোধ গ্রহণ করেন।
+                <ol><li><strong>Developer</strong> ও <strong>QA</strong> — নিজের দায়িত্বের রিকোয়ারমেন্ট তৈরি ও পরীক্ষা করেন।</li></ol></li>
+              <li><strong>Project Analyst</strong> — রিকোয়ারমেন্ট লেখেন ও বিশ্লেষণ করেন এবং প্রজেক্টের ওভারভিউ পূরণ করেন। অনুমোদিত ওভারভিউ বদলের অনুরোধ শুধু তিনিই করতে পারেন।</li>
+            </ol></li>
+        </ol></li>
+      <li><strong>Business Stakeholder</strong> — ব্যবসার দিক। রিকোয়ারমেন্ট তৈরি করেন, ওভারভিউ পূরণ করেন, এবং সরাসরি Project Head-কে অনুমোদনের অনুরোধ পাঠাতে পারেন। Internal মন্তব্য কখনো দেখেন না।</li>
+    </ol>
+    ${ul(["একজন মানুষ একটি প্রজেক্টে একাধিক ভূমিকা রাখতে পারেন (<strong>+ Add role</strong> ব্যবহার করুন), যেমন Developer ও QA দুটোই।", "System admin, Admin পেজে নতুন ভূমিকার নাম যোগ করতে পারেন। নতুন ভূমিকা রিকোয়ারমেন্ট রাখতে ও পাঠাতে পারে, তবে বিশেষ কোনো ক্ষমতা পায় না।"])}`)}
+
+  ${panel("access", "অ্যাক্সেস নিয়ন্ত্রণ", "সাইন ইন, কে কী দেখতে পায়, আর কে প্রজেক্ট শুরু করতে পারে", `
+    ${sub("সাইন ইন", ul(["সবাই ইউজারনেম ও পাসওয়ার্ড দিয়ে সাইন ইন করেন। ইউজারনেম মানুষের নাম থেকে তৈরি হয়।", "System admin অ্যাকাউন্ট শুধু Admin খোলে। Project Head-এর Admin অ্যাক্সেস <strong>নেই</strong>।"]))}
+    ${sub("কে কী দেখতে পায়", ul(["আপনি শুধু সেই প্রজেক্টগুলো দেখেন যেগুলোর আপনি সদস্য। Project Head সবগুলো দেখেন।", "একটি প্রজেক্টের ভেতরে <strong>Project Head, Project Lead ও Dev Lead</strong> সব রিকোয়ারমেন্ট দেখেন। বাকিরা শুধু নিজের দায়িত্বেরগুলো দেখেন, আর যেগুলোতে কাজ করেছেন সেগুলো বন্ধ হলে Archive-এ দেখেন।", "<strong>Internal</strong> মন্তব্য Business Stakeholder-দের কাছ থেকে লুকানো থাকে — কার্ডে, ইতিহাসে ও ইমেইলে।", "Search শুধু সেই প্রজেক্ট ও রিকোয়ারমেন্ট খুঁজে দেয় যেগুলো খোলার অনুমতি আপনার আছে।"]))}
+    ${sub("প্রজেক্ট শুরু করা", ul(["Project Head সবসময় প্রজেক্ট শুরু করতে পারেন।", "System admin নির্দিষ্ট কাউকে প্রজেক্ট শুরু করার অনুমতি দিতে পারেন (Admin → Access control)। তাঁরা নিজের নতুন প্রজেক্টে Project Lead হিসেবে যুক্ত হন।", "বাকিরা প্রজেক্টের <strong>অনুরোধ</strong> করতে পারেন, যা Project Head অনুমোদন বা বাতিল করেন। System admin অনুরোধ বন্ধ করে দিতে পারেন; তখন কোনো বোতামই দেখা যায় না।"]))}
+    ${sub("Override", ul(["Project Head ও Project Lead নিজের দায়িত্বে না থাকা রিকোয়ারমেন্টেও কাজ করতে পারেন। কার্ড আগে সতর্ক করে, আর কাজটি override হিসেবে লগ হয়।"]))}`)}
+
+  ${panel("matrix", "কে কী করতে পারে", "ভূমিকা অনুযায়ী অনুমতির একটি টেবিল", `${matrix}
+    <p class="note">✓ হ্যাঁ · – না। “দায়িত্বে থাকলে” মানে রিকোয়ারমেন্টটি যতক্ষণ তাঁর queue-তে আছে। System admin এগুলোর কোনোটিই করতে পারেন না; তিনি শুধু Admin-এ সিস্টেম পরিচালনা করেন।</p>`)}
+
+  ${panel("queue", "প্রতিদিনের পেজ", "My Queue, Notifications, Sent Requests, Archive, Search", ul([
+    "<strong>My Queue</strong>: এখন আপনার দায়িত্বে থাকা রিকোয়ারমেন্ট, বেশি অগ্রাধিকারেরগুলো আগে। সবার ওপরে <strong>Urgent deadlines</strong>: যেগুলোর শেষ তারিখ ২ দিনের মধ্যে বা পার হয়ে গেছে। এরপর আপনার অপেক্ষায় থাকা অনুমোদনগুলো (ফিডব্যাক, তারিখ বদল, ওভারভিউ, প্রজেক্টের অনুরোধ)। নিচে <strong>Added to project</strong> নোটিশ, সঙ্গে <strong>Open project</strong> ও <strong>Acknowledge</strong>; Acknowledge না চাপা পর্যন্ত নোটিশটি থাকে।",
+    "<strong>Notifications</strong>: গত ২৪ ঘণ্টায় আপনার সঙ্গে সম্পর্কিত কাজকর্ম। লাল সংখ্যা নতুনগুলো দেখায়।",
+    "<strong>Sent Requests</strong>: আপনার পাঠানো রিকোয়ারমেন্ট ও প্রজেক্টের অনুরোধ। অন্যজন পরের ধাপে পাঠানোর আগ পর্যন্ত <strong>Unsend</strong> দিয়ে রিকোয়ারমেন্ট ফেরত আনা যায়; <strong>Withdraw</strong> অপেক্ষমাণ প্রজেক্টের অনুরোধ বাতিল করে।",
+    "<strong>Archive</strong>: আপনি যেসব বন্ধ প্রজেক্ট ও রিকোয়ারমেন্টে কাজ করেছেন। <strong>On Hold & Cancelled</strong> (শুধু Project Head) স্থগিত ও বাতিল প্রজেক্টের তালিকা।",
+    "<strong>Search</strong> (ওপরের বার): প্রজেক্টের কোড (VND-001), রিকোয়ারমেন্টের কোড (VND-001-R02) বা নামের অংশ লিখুন।"]))}
+
+  ${panel("projects", "প্রজেক্ট", "শুরু, অনুরোধ, সদস্য, স্ট্যাটাস", `
+    ${sub("প্রজেক্ট শুরু করা", who("Project Head, এবং System admin যাঁদের অনুমতি দিয়েছেন") + ol(["Projects বা My Queue-তে <strong>New project</strong> চাপুন।", "নাম লিখুন ও ধরন বাছুন; কোড নিজে থেকেই তৈরি হবে। অগ্রাধিকার ও <strong>শেষের তারিখ</strong> (আবশ্যক) দিন। শুরুর তারিখ ফাঁকা রাখলে আজকের তারিখ ধরা হবে।", "টিম: নাম লিখে তালিকা থেকে মানুষটিকে বাছুন, তারপর ভূমিকা দিন। আরও ভূমিকার জন্য <strong>+ Add role</strong>, আরও মানুষের জন্য <strong>Add another person</strong>।", "Review ধাপ দেখে <strong>Create project</strong> চাপুন। যাঁদের যোগ করা হলো, প্রত্যেকে একটি Added to project নোটিশ পাবেন।"]))}
+    ${sub("প্রজেক্টের অনুরোধ করা", who("বাকি সবাই, যতক্ষণ অনুরোধ চালু আছে") + ol(["<strong>Request project</strong> চাপুন। নাম, ধরন, অগ্রাধিকার, তারিখ এবং কেন দরকার তা লিখুন।", "Project Head এটি My Queue-তে দেখবেন। <strong>Approve and set up</strong> চাপলে New project আগে থেকে পূরণ হয়ে খোলে; <strong>Decline</strong> করতে কারণ লিখতে হয়, যা আপনাকে ইমেইলে জানানো হয়।"]))}
+    ${sub("সদস্য পরিচালনা", who("Project Head, Project Lead, Dev Lead") + ul(["প্রজেক্ট কার্ড → Primary → Members। নাম লিখুন, ভূমিকা বাছুন এবং <strong>Add member</strong> চাপুন। আগে থেকে থাকা সদস্যকে বাছলে তিনি আরেকটি ভূমিকা পান।", "ভূমিকার চিপের × দিয়ে ভূমিকা সরান। Project Lead বা Dev Lead শুধু Project Head সরাতে পারেন। Business Stakeholder যোগ বা সরাতে পারেন শুধু Project Head বা Project Lead।", "কাজের চাপের টেবিলে দেখা যায় কার কাছে কয়টি খোলা রিকোয়ারমেন্ট আছে — এই প্রজেক্টে এবং সব প্রজেক্ট মিলিয়ে।"]))}
+    ${sub("স্ট্যাটাস", who("Project Head ও Project Lead") + ul(["On Hold ও Cancelled প্রজেক্টকে থামিয়ে দেয় এবং এর কাজ queue থেকে লুকিয়ে রাখে।", "সব রিকোয়ারমেন্ট Closed হলেই কেবল প্রজেক্ট Closed করা যায়। বন্ধ প্রজেক্ট Archive-এ চলে যায়।"]))}`)}
+
+  ${panel("reqs", "রিকোয়ারমেন্ট", "তৈরি, পাঠানো, অনুমোদন, ফিডব্যাক", `
+    ${sub("তৈরি করা", who("Project Head, Project Lead, Dev Lead, Project Analyst, Business Stakeholder") + ol(["প্রজেক্ট কার্ড → <strong>New requirement</strong>।", "শিরোনাম (পরে শুধু যিনি তৈরি করেছেন তিনিই বদলাতে পারেন), বিবরণ, অগ্রাধিকার ও তারিখ দিন। দরকার হলে ফাইল ও লিংক যোগ করুন।", "ধাপ এবং এক বা একাধিক জনকে বাছুন, তারপর <strong>Send</strong>, অথবা <strong>Keep it with me</strong>।"]))}
+    ${sub("কাজ করা ও পরের ধাপে পাঠানো", who("যাঁদের দায়িত্বে আছে") + ol(["My Queue থেকে খুলুন। ফাইল, লিংক ও মন্তব্য যোগ করুন (Send চাপলে মন্তব্য সেভ হয়)। Business Stakeholder-দের কাছ থেকে মন্তব্য লুকাতে <strong>Internal</strong> চালু করুন।", "পরের <strong>Stage</strong> ও মানুষ বাছুন (একাধিক জনের জন্য <strong>+ Add person</strong>) এবং <strong>Send</strong> চাপুন।", "Feedback ধাপে মন্তব্য আবশ্যক।"]))}
+    ${sub("অনুমোদন (Approval)", ul(["যে কেউ রিকোয়ারমেন্ট <strong>Approval</strong>-এ পাঠাতে পারেন, তবে শুধু Project Lead বা Dev Lead-কে।", "শুধু Project Lead, Dev Lead বা Business Stakeholder এটি <strong>Project Head</strong>-কে পাঠাতে পারেন; Project Head রিকোয়ারমেন্ট পান শুধু অনুমোদনের জন্য।", "অনুমোদনকারী <strong>Approve and close</strong> চাপেন, অথবা মন্তব্যসহ ফেরত পাঠান।"]))}
+    ${sub("ফিডব্যাক", ul(["দায়িত্বে থাকা ব্যক্তি কারণ লিখে <strong>Request feedback</strong> চাপেন।", "Project Head, Project Lead বা Dev Lead অনুরোধটি গ্রহণ করেন (Feedback ধাপ ও কে ফিডব্যাক দেবেন তা বেছে) অথবা বাতিল করেন।"]))}`)}
+
+  ${panel("dates", "তারিখ, ওভারভিউ ও টাইমলাইন", "তারিখ পরিবর্তন, ওভারভিউ, ডাউনলোড", `
+    ${sub("শুরু বা শেষের তারিখ বদলানো", who("অনুরোধ করেন Project Head, Project Lead, Dev Lead বা দায়িত্বে থাকা ব্যক্তিরা; গ্রহণ করেন Project Lead বা Project Head") + ol(["Overview ট্যাব → <strong>Date change requests</strong>, অথবা রিকোয়ারমেন্ট কার্ডে <strong>Ask to change dates</strong>।", "শুরু না শেষ, নতুন তারিখ ও কারণ (আবশ্যক) দিন।", "গৃহীত পরিবর্তন কারণ ও কত দিন সরেছে তা সহ টাইমলাইনে থেকে যায়।"]))}
+    ${sub("প্রজেক্টের ওভারভিউ", who("পূরণ করেন Project Analyst বা Business Stakeholder; অনুমোদন করেন Project Head বা Project Lead") + ol(["Overview ট্যাব: Summary, Description, Analysis ও Project cost পূরণ করে <strong>Send for approval</strong> চাপুন।", "অনুমোদনের পর এটি শুধু পড়া যায়। শুধু Project Analyst <strong>Request change</strong> করতে পারেন, যার জন্য আবার অনুমোদন লাগে।"]))}
+    ${sub("টাইমলাইন ও ডাউনলোড", ul(["টাইমলাইনে প্রজেক্ট ও প্রতিটি রিকোয়ারমেন্টের সব তারিখ, প্রতিটি পরিবর্তনের কারণ ও কত দিন সরেছে তা থাকে।", "Overview ট্যাবের <strong>Download</strong> দিয়ে Overview রিপোর্ট (.html, PDF হিসেবে প্রিন্ট করা যায়) বা টাইমলাইন (.csv) সেভ করুন।"]))}`)}
+
+  ${panel("files", "ফাইল ও লিংক", "ফাইল কোথায় যায়, আর কেন কিছুই মুছে ফেলা হয় না", ul([
+    "আপলোড করা ফাইল কোম্পানির ফোল্ডার শেয়ারে সেভ হয় এই ক্রমে: শেয়ার \\ প্রজেক্ট কোড \\ রিকোয়ারমেন্ট কোড \\ ধাপের ফোল্ডার।",
+    "সিস্টেম কখনো ফাইল <strong>মুছে বা ওভাররাইট করে না</strong>। একই নামের ফাইল _v2, _v3 নামে সেভ হয়।",
+    "রিকোয়ারমেন্টে <strong>Remove</strong> চাপলে ফাইলটি শুধু সেখান থেকে লুকায়; শেয়ারে থেকেই যায়। যিনি যোগ করেছেন, অথবা Project Head, Project Lead বা Dev Lead সরাতে পারেন। লিংকও একইভাবে কাজ করে।",
+    "এই ডেমোতে <strong>Add dummy file</strong> শুধু ফাইলের নাম যোগ করে।"]))}
+
+  ${panel("account", "সাইন ইন, পাসওয়ার্ড ও সেটিংস", "সবার জন্য", ul([
+    "সাইন-ইন পেজে পাসওয়ার্ড ভুলে গেলে <strong>Forgot password?</strong> চাপুন, ইউজারনেম বা ইমেইল দিন, তারপর ইমেইলে আসা ৬ সংখ্যার কোডটি ব্যবহার করুন (১৫ মিনিট কার্যকর)।",
+    "Settings (ওপরে ডানে) → <strong>Change password</strong>: বর্তমান পাসওয়ার্ড এবং নতুনটি দুবার। ভুলে গেছেন? <strong>Send a reset code</strong>, অথবা ইমেইল বন্ধ থাকলে System admin-এর সঙ্গে যোগাযোগ করুন।",
+    "Settings-এ Dark বা Light, অ্যাকসেন্ট রং, উজ্জ্বলতা, ফন্ট ও ফন্টের আকারও ঠিক করা যায়। Sign out আছে Settings-এর নিচে।"]))}
+
+  ${panel("reminders", "রিমাইন্ডার ও নোট", "শুধু আপনার জন্য", ul([
+    "<strong>Reminders</strong> খুলুন, একটি দিন বাছুন, কী মনে রাখতে হবে লিখুন (সময় ও নোট ঐচ্ছিক) এবং <strong>Add reminder</strong> চাপুন।",
+    "কাজ শেষ হলে টিক দিন, মুছতে × চাপুন। লাল সংখ্যা আজকের ও মেয়াদ পেরোনো রিমাইন্ডার গোনে।",
+    "নিচের <strong>Notes</strong> দ্রুত ব্যক্তিগত নোটের জন্য; চাইলে একটি প্রজেক্ট ট্যাগ করুন।"]))}
+
+  ${panel("admin", "অ্যাডমিন", "শুধু System admin", ul([
+    "<strong>Users</strong>: নতুন ব্যবহারকারী যোগ করুন (ইউজারনেম নাম থেকে তৈরি হয়; CIF হলো আইডি নম্বর), অস্থায়ী পাসওয়ার্ড দিন, রিসেট কোড ইমেইল করুন, অথবা HR ইন্টিগ্রেশন থেকে মানুষ আনুন (Name, Username, CIF, Email)।",
+    "<strong>Access control</strong>: প্রজেক্টের অনুরোধ চালু বা বন্ধ করুন, এবং নির্দিষ্ট কাউকে প্রজেক্ট শুরু করার অনুমতি দিন।",
+    "<strong>Folder share</strong>: যে সার্ভার ফোল্ডারে ফাইল সেভ হয়, এবং সার্ভিস অ্যাকাউন্ট। এর শুধু তৈরি ও লেখার অনুমতি থাকবে, মোছার অনুমতি কখনো নয়।",
+    "<strong>Mail integration</strong>: রিসেট কোড ও নোটিফিকেশনের জন্য মেইল সার্ভার। <strong>Integrations</strong>: ডিরেক্টরি সাইন-ইন, সিঙ্গেল সাইন-অন, ওয়েবহুক, API, HR থেকে ব্যবহারকারী আনা।",
+    "<strong>Roles</strong> ও <strong>Stages</strong>: নতুন নাম যোগ করুন। <strong>Email log</strong>: সিস্টেম যে ইমেইলগুলো পাঠাত।"]))}`;
+}
+
+function viewHowTo(u) {
+  const bn = !!(u && u.howtoBn);
+  const head = `<div class="head-row"><h1>${bn ? "কীভাবে করবেন (How To)" : "How To"}</h1><div class="row" style="margin:0;align-items:center">
+    <label class="check ht-lang" for="ht-bn"><input type="checkbox" id="ht-bn" data-act="howto-lang" ${bn ? "checked" : ""}> <span lang="bn">বাংলা</span></label>
+    <button type="button" class="btn secondary" data-act="howto-all" data-open="1">${bn ? "সব খুলুন" : "Expand all"}</button><button type="button" class="btn secondary" data-act="howto-all" data-open="0">${bn ? "সব বন্ধ করুন" : "Collapse all"}</button></div></div>`;
+  return head + (bn ? `<div lang="bn" class="howto-bn">${howtoBn()}</div>` : howtoEn());
+}
+function howtoEn() {
   const ol = items => `<ol>${items.map(x => `<li>${x}</li>`).join("")}</ol>`, ul = items => `<ul>${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
   const who = t => `<p class="note who">Who: ${t}</p>`;
   const panel = (id, title, sub, body, open) => `<details class="howto-panel" id="ht-${id}" ${open ? "open" : ""}><summary><span class="ht-title">${title}</span>${sub ? `<span class="ht-sub">${sub}</span>` : ""}</summary><div class="ht-body">${body}</div></details>`;
@@ -2300,8 +2447,7 @@ function viewHowTo() {
     ${row("Approve the overview", 1, 1, 0, 0, 0, 0)}
     ${row("Request a change to an approved overview", 0, 0, 0, 1, 0, 0)}
   </tbody>`).replace('<div class="tbl">', '<div class="tbl ht-matrix">');
-  return `<div class="head-row"><h1>How To</h1><div class="row" style="margin:0"><button type="button" class="btn secondary" data-act="howto-all" data-open="1">Expand all</button><button type="button" class="btn secondary" data-act="howto-all" data-open="0">Collapse all</button></div></div>
-  <p class="note" style="max-width:52rem;margin-bottom:1rem">The manual for IDLC Streams. Press a title to open or close it. What you can do depends on your role in each project; one person can have different roles in different projects.</p>
+  return `<p class="note" style="max-width:52rem;margin-bottom:1rem">The manual for IDLC Streams. Press a title to open or close it. What you can do depends on your role in each project; one person can have different roles in different projects.</p>
 
   ${panel("start", "Start here", "What IDLC Streams does, in one minute", ul([
     "IDLC Streams tracks IT projects and the <strong>requirements</strong> (pieces of work) inside them. Each requirement moves through <strong>stages</strong>: " + stageOrder().map(n => STAGES[n]).join(" → ") + ".",
@@ -2335,7 +2481,7 @@ function viewHowTo() {
     <p class="note">✓ yes · – no. “When assigned” means only while the requirement is in their queue. The system admin cannot do any of these; they only manage the system in Admin.</p>`)}
 
   ${panel("queue", "Your daily pages", "My Queue, Notifications, Sent Requests, Archive, Search", ul([
-    "<strong>My Queue</strong>: the requirements assigned to you now, highest priority first. Approvals waiting for you (feedback, date changes, overviews, project requests) show at the top. <strong>Added to project</strong> notices show at the bottom with <strong>Open project</strong> and <strong>Acknowledge</strong>; they stay until you acknowledge them.",
+    "<strong>My Queue</strong>: the requirements assigned to you now, highest priority first. <strong>Urgent deadlines</strong> at the very top lists the ones due within 2 days or already overdue. Approvals waiting for you (feedback, date changes, overviews, project requests) show at the top. <strong>Added to project</strong> notices show at the bottom with <strong>Open project</strong> and <strong>Acknowledge</strong>; they stay until you acknowledge them.",
     "<strong>Notifications</strong>: activity from the last 24 hours that involves you. The red number shows new items.",
     "<strong>Sent Requests</strong>: requirements and project requests you sent. <strong>Unsend</strong> brings a requirement back until the other person sends it on; <strong>Withdraw</strong> cancels a waiting project request.",
     "<strong>Archive</strong>: closed projects and requirements you took part in. <strong>On Hold & Cancelled</strong> (Project Head only) lists paused and stopped projects.",
@@ -2490,7 +2636,7 @@ function render() {
   const u = me(), v = S.view;
   const body = v.name === "projects" || v.name === "project" ? viewProjects(u)
     : v.name === "admin" ? viewAdmin(u) : v.name === "archive" ? viewArchive(u)
-    : v.name === "paused" ? viewPaused(u) : v.name === "howto" ? viewHowTo() : v.name === "reminders" ? viewReminders(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
+    : v.name === "paused" ? viewPaused(u) : v.name === "howto" ? viewHowTo(u) : v.name === "reminders" ? viewReminders(u) : v.name === "sent" ? viewSent(u) : v.name === "notifications" ? viewNotifications(u) : viewQueue(u);
   renderTop(); setTopbarHeight();
   main.innerHTML = (S.flash ? `<div class="flash ${S.flash.type}" role="${S.flash.type === "error" ? "alert" : "status"}">${h(S.flash.text)}</div>` : "") + body;
   save();
@@ -2567,6 +2713,11 @@ document.addEventListener("click", e => {
   if (act === "open-req") { reqDialog(+a.dataset.pid); return; }
   if (act === "open-project") { projectDialog(); return; }
   if (act === "open-projreq") { projReqDialog(); return; }
+  if (act === "howto-lang") {
+    const open = [...document.querySelectorAll(".howto-panel[open]")].map(d => d.id), y = window.scrollY;
+    me().howtoBn = a.checked; save(); render();
+    document.querySelectorAll(".howto-panel").forEach(d => { d.open = open.includes(d.id); }); window.scrollTo(0, y); document.getElementById("ht-bn").focus(); return;
+  }
   if (act === "howto-all") { document.querySelectorAll(".howto-panel").forEach(d => { d.open = a.dataset.open === "1"; }); return; }
   if (act === "ack-added") { const x = (S.addedNotices || []).find(y => y.id === +a.dataset.id && y.uid === me().id); if (!x) return;
     x.ack = now(); flash("ok", `Acknowledged: ${proj(x.pid).code} · ${proj(x.pid).name}.`); const inCard = modal.open && modal.querySelector(".pwrap"); render(); if (inCard) projectCard(x.pid); return; }
