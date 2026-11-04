@@ -1208,7 +1208,16 @@ function seed() {
   const U = n => S.users.find(x => x.username === n), id = n => U(n).id;
   const at = d => { CLOCK = base - d * DAY; }, day = d => isoDay(base + d * DAY);
   const head = U("jewel");
-  const mk = (name, type, start, end, pri, team) => { const pid = createProject(head, name, pri, day(end), day(start), type); team.forEach(([n, roles]) => addMember(head, pid, id(n), roles)); return pid; };
+  // The Project Head creates the project and adds only the Project Lead and Dev Lead.
+  // The Project Lead then adds the Analyst and Stakeholder; the Dev Lead adds Developers and QA.
+  const mk = (name, type, start, end, pri, team) => {
+    const pid = createProject(head, name, pri, day(end), day(start), type), isLeadRole = r => r === "Project Lead" || r === "Dev Lead";
+    team.filter(([, roles]) => roles.some(isLeadRole)).forEach(([n, roles]) => addMember(head, pid, id(n), roles));
+    const pl = U((team.find(([, roles]) => roles.includes("Project Lead")) || [])[0]), dl = U((team.find(([, roles]) => roles.includes("Dev Lead")) || [])[0]);
+    CLOCK += 3600e3;
+    team.filter(([, roles]) => !roles.some(isLeadRole)).forEach(([n, roles]) => addMember(roles.every(r => r === "Developer" || r === "QA") && dl ? dl : pl, pid, id(n), roles));
+    return pid;
+  };
   const rq = (who, pid, title, desc, due, pri) => createReq(U(who), pid, title, desc, due === null ? "" : day(due), pri, "");
   const send = (who, rid, to, stage, c = "", internal = false) => proceed(U(who), rid, [].concat(to).map(id), c, internal, stage);
   const AN = 1, DEV = 3, QA = 5, APPR = 7, CLOSED = 8;
@@ -1230,8 +1239,7 @@ function seed() {
   send("saifuddin", r13, "shahriar", AN);
   at(25); send("shahriar", r13, "imam", QA, "Docs received. Please check examples against the sandbox.");
   at(15); send("imam", r13, "nafis", APPR, "All documented endpoints answer as described.");
-  at(13.5); send("nafis", r13, "jewel", APPR, "Please approve.");
-  at(12); send("jewel", r13, "jewel", CLOSED, "Approved.");
+  at(13.5); accept(U("nafis"), r13, "Checked against the sandbox. Approved and closed.");
   at(14); requestExt(U("nafis"), "project", p1, day(50), "Vendor needs two more weeks to give sandbox access.", "end");
   at(13); decideExt(U("saifuddin"), "project", p1, true);
   at(0.6); addComment(U("imam"), r11, "Two SLA penalties are missing from the draft contract.", false);
@@ -1257,33 +1265,34 @@ function seed() {
   at(2.5); send("sayem", r24, "alvi", AN, "Requested by Branch Operations.");
   at(0.4); submitOverview(U("alvi"), p2, {summary: "Small internal tools that save the IT helpdesk time.", desc: "Leave portal, asset dashboard, ticket form and password self-service.", analysis: "About 40% of helpdesk calls are password resets and leave questions.", cost: "BDT 1,200,000"});
 
-  // 3. Integration project (no Project Analyst; Shahriar leads because Saifuddin is not on it)
+  // 3. Integration project (no Project Analyst); led by Saifuddin
   at(20);
-  const p3 = mk("Dummy Integration Proj 3", "Integration", -20, 40, "High", [["shahriar", ["Project Lead"]], ["nafis", ["Dev Lead"]], ["kawshik", ["Developer"]],
+  const p3 = mk("Dummy Integration Proj 3", "Integration", -20, 40, "High", [["saifuddin", ["Project Lead"]], ["nafis", ["Dev Lead"]], ["kawshik", ["Developer"]],
     ["mashequr", ["Developer"]], ["imam", ["QA"]], ["sayem", ["Business Stakeholder"]]]);
   at(19.5); submitOverview(U("sayem"), p3, {summary: "Connect core banking with the SMS gateway and the credit bureau.", desc: "Two-way integrations with real-time alerts and nightly data sync.", analysis: "Core banking exposes REST APIs; the bureau only accepts SFTP batch files.", cost: "BDT 2,600,000"});
-  at(19); decideOverview(U("shahriar"), p3, true, "");
-  at(19); const r31 = rq("shahriar", p3, "Core banking API integration", "Read balances and post transactions through the core banking API.", 15, "High");
-  at(18); send("shahriar", r31, "nafis", DEV, "Please split the work.");
+  at(19); decideOverview(U("saifuddin"), p3, true, "");
+  at(19); const r31 = rq("saifuddin", p3, "Core banking API integration", "Read balances and post transactions through the core banking API.", 15, "High");
+  at(18); send("saifuddin", r31, "nafis", DEV, "Please split the work.");
   at(15); send("nafis", r31, ["kawshik", "mashequr"], DEV, "Kawshik: read APIs. Mashequr: posting.");
   at(17); const r32 = rq("sayem", p3, "SMS gateway integration", "Send transaction alerts through the telco SMS gateway.", -1, "Normal");
-  send("sayem", r32, "shahriar", AN);
-  at(14); send("shahriar", r32, "kawshik", DEV);
+  send("sayem", r32, "saifuddin", DEV, "Please plan this with the Dev Lead.");
+  at(14); send("saifuddin", r32, "kawshik", DEV);
   at(10); requestExt(U("kawshik"), "req", r32, day(3), "Telco sandbox was down for four days.", "end");
-  at(9.5); decideExt(U("shahriar"), "req", r32, true);
+  at(9.5); decideExt(U("saifuddin"), "req", r32, true);
   at(3); send("kawshik", r32, "imam", QA, "Delivery reports wired up.");
-  at(16); const r33 = rq("shahriar", p3, "Credit bureau data sync", "Nightly SFTP upload of loan data to the credit bureau.", 12, "High");
-  at(15); send("shahriar", r33, "mashequr", DEV);
+  at(16); const r33 = rq("saifuddin", p3, "Credit bureau data sync", "Nightly SFTP upload of loan data to the credit bureau.", 12, "High");
+  at(15.5); send("saifuddin", r33, "nafis", DEV, "Bureau file format attached.");
+  at(15); send("nafis", r33, "mashequr", DEV, "Mashequr, please take the SFTP batch.");
   at(8); send("mashequr", r33, "imam", QA, "Batch file passes the bureau's validator.");
   at(0.7); send("imam", r33, "nafis", APPR, "All test cases passed.");
   at(0.5); send("nafis", r33, "jewel", APPR, "Please approve.");
 
-  // 4. Vendor project led by Sayem (Saifuddin and Shahriar not on it); currently On Hold
+  // 4. Vendor project led by Saifuddin; put On Hold by him
   at(15);
   const p4 = mk("Dummy Vend. Proj 4", "Vendor", -15, 75, "Low", [["saifuddin", ["Project Lead"]], ["sayem", ["Business Stakeholder"]], ["nafis", ["Dev Lead"]], ["alvi", ["Project Analyst"]], ["mashequr", ["QA"]]]);
   at(14); const r41 = rq("alvi", p4, "Card printer vendor evaluation", "Compare three instant card printer vendors.", 20, "Low");
   at(9); send("alvi", r41, "mashequr", QA, "Test cards from two vendors arrived.");
-  at(6); setStatus(head, p4, "On Hold");
+  at(6); setStatus(U("saifuddin"), p4, "On Hold");
 
   // 5. Internal project led by Saifuddin, analysed by Alvi (Shahriar not on it)
   at(10);
@@ -1295,12 +1304,18 @@ function seed() {
   at(7); send("alvi", r52, "nafis", DEV);
   at(6); send("nafis", r52, "ehsanul", DEV);
   at(4); rq("alvi", p5, "Staff training calendar", "Publish IT training sessions and sign-ups.", null, "Low");
+  at(6.5); const r54 = rq("saifuddin", p5, "Branch Wi-Fi survey form", "A short form for branches to report Wi-Fi problems.", 10, "Low");
+  at(6); send("saifuddin", r54, "nafis", DEV);
+  at(5.5); send("nafis", r54, "sazzadur", DEV, "Simple form; reuse the helpdesk styles.");
+  at(3.5); send("sazzadur", r54, "imam", QA, "Ready for testing.");
+  at(2.5); send("imam", r54, "saifuddin", APPR, "Works on mobile and desktop.");
+  at(2); accept(U("saifuddin"), r54, "Approved and closed.");
   at(0.3); requestExt(U("ehsanul"), "req", r52, day(7), "Branch list arrives next week, so work starts later.", "start");
 
   CLOCK = null;
   S.outbox = S.outbox.slice(0, 30);
   seedOrganizer();
-  S.addedNotices = null; S.urgentV1 = null; ensureAuthData(); S.authV = 1;
+  S.addedNotices = null; S.urgentV1 = null; ensureAuthData(); S.authV = 1; S.seedV3 = 1;
 }
 // Sample reminders and notes (private to each person).
 function seedOrganizer() {
@@ -3037,6 +3052,13 @@ document.getElementById("reset-yes").addEventListener("click", () => { rc.hidden
   flash("ok", "Sample data restored. Roles and stages you added were kept."); render(); });
 
 if (!load()) seed();
+else if (!S.seedV3) {   // sample data changed: rebuild it once, keeping the signed-in person, roles and stages
+  const keep = {roles: S.roles, stages: S.stages, mail: S.mail, integrations: S.integrations, storage: S.storage, access: S.access}, who = S.me && (S.users.find(x => x.id === S.me) || {}).username;
+  const extra = S.users.filter(x => !x.sysadmin && !["jewel", "saifuddin", "nafis", "shahriar", "alvi", "ehsanul", "sazzadur", "kawshik", "mashequr", "imam", "sayem"].includes(x.username));
+  seed(); Object.keys(keep).forEach(k => { if (keep[k]) S[k] = keep[k]; });
+  extra.forEach(x => S.users.push({...x, id: nextId("u")}));
+  if (who) { const x = S.users.find(y => y.username === who); if (x) S.me = x.id; }
+}
 syncLists();
 S.reqs.forEach(r => { if (!r.holders) r.holders = r.holder ? [r.holder] : []; delete r.holder; });
 S.projects.forEach(p => S.reqs.filter(r => r.pid === p.id).sort((a, b) => a.id - b.id).forEach((r, i) => { if (!r.code) r.code = `${p.code}-R${String(i + 1).padStart(2, "0")}`; }));
