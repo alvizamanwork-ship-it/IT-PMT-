@@ -337,6 +337,10 @@ summary { cursor: pointer; font-weight: 600; }
 .flash.error { color: var(--error); }
 .flash.ok { color: var(--ok); }
 .history { padding-left: 1.5rem; margin: 0; }
+.ov-warn { border-left: 4px solid var(--fb-fg); background: var(--fb-bg); color: var(--fb-fg); }
+.ov-ok { display: inline-flex; align-items: center; gap: .45rem; font-size: .9rem; font-weight: 600; margin-left: auto; }
+.card-foot .ov-ok ~ .spacer { display: none; }
+.ov-ok input { width: 1.15rem; height: 1.15rem; accent-color: var(--accent); }
 .history li { margin-bottom: .5rem; }
 .history strong { font-weight: 600; }
 blockquote { margin: .3rem 0 0; padding-left: .75rem; border-left: 3px solid var(--sep-strong); }
@@ -875,7 +879,7 @@ function requestExt(u, kind, id, date, reason, field = "end") {
   if (pendingExt(t)) throw new RuleError("A date change request for this is already waiting for approval.");
   if (canApproveExt(u, pid)) { (t.extReqs = t.extReqs || []).push({id: nextId("ex"), field, by: u.id, date, reason, at: now(), status: "accepted", decidedBy: u.id, decidedAt: now()}); applyExt(u, kind, id, date, reason, u.id, field); return "applied"; }
   (t.extReqs = t.extReqs || []).push({id: nextId("ex"), field, by: u.id, date, reason, at: now(), status: "pending"});
-  log(pid, u, `Requested ${fieldWord(field)}${forWord(kind, id)} to ${date}`, {rid: kind === "project" ? null : id, comment: reason});
+  log(pid, u, `Requested ${fieldWord(field)}${forWord(kind, id)} to ${date}`, {rid: kind === "project" ? null : id, comment: reason, override: kind === "req" && overrideFor(u, req(id))});
   return "requested";
 }
 function decideExt(u, kind, id, ok) {
@@ -1007,6 +1011,8 @@ function createReq(u, pid, title, desc, due, priority, start) {
   log(pid, u, "Created requirement", {rid: id, to: u.id, toStage: 1, override: ov});
   return id;
 }
+// Acting on a requirement you are not assigned to (Project Head, SuperUser or Project Lead) is an override.
+const overrideFor = (u, r) => !!r && r.stage !== 8 && !holds(r, u.id) && isHead(u, r.pid);
 function guard(u, r) {
   if (r.stage === 8) throw new RuleError("This requirement is Closed.");
   const st = proj(r.pid).status;
@@ -1151,6 +1157,7 @@ function addComment(u, id, text, internal) {
   const r = loadReq(u, id); text = (text || "").trim(); if (!text) throw new RuleError("Write a comment first.");
   if (stakeholderView(u, r.pid)) internal = false;
   S.comments.push({id: nextId("c"), rid: id, uid: u.id, at: now(), text, internal: !!internal});
+  if (overrideFor(u, r)) log(r.pid, u, "Commented", {rid: id, override: true});
 }
 function upload(u, id, filename) {
   const r = loadReq(u, id); const st = proj(r.pid).status;
@@ -1162,7 +1169,7 @@ function upload(u, id, filename) {
   let name = base0, n = 1; while (taken.has(name)) name = `${base}_v${++n}${ext}`;
   const st0 = S.storage || {}, path = st0.enabled && st0.path ? [st0.path.replace(/[\\/]+$/, ""), proj(r.pid).code, reqCode(r), folder, name].join("\\") : "";
   S.files.push({id: nextId("f"), rid: id, stage: r.stage, folder, name, uid: u.id, at: now(), path});
-  log(r.pid, u, `Uploaded ${name}`, {rid: id, override: ov});
+  log(r.pid, u, `Uploaded ${name}`, {rid: id, override: ov || overrideFor(u, r)});
   return name;
 }
 
@@ -1180,7 +1187,7 @@ function addLink(u, id, url, labelText) {
   url = cleanUrl(url); labelText = (labelText || "").trim();
   if ((S.links || []).some(l => l.rid === id && l.url === url)) throw new RuleError("That link is already added.");
   (S.links = S.links || []).push({id: nextId("l"), rid: id, url, label: labelText, uid: u.id, at: now()});
-  log(r.pid, u, `Added ${linkKind(url) === "REPO" ? "repository" : "reference"} link ${labelText || url}`, {rid: id, override: ov});
+  log(r.pid, u, `Added ${linkKind(url) === "REPO" ? "repository" : "reference"} link ${labelText || url}`, {rid: id, override: ov || overrideFor(u, r)});
 }
 // Remove a file or link: the person who added it, or the Project Head / Project Lead / Dev Lead.
 const canRemoveItem = (u, r, x) => x.uid === u.id || seesAll(u, r.pid);
@@ -1193,7 +1200,7 @@ function removeItem(u, kind, xid) {
   if (!canRemoveItem(u, r, x)) throw new Forbidden("Only the person who added it, or the Project Head, Project Lead or Dev Lead, can remove it.");
   if (kind === "file") { S.files = S.files.filter(y => y !== x); (S.removedFiles = S.removedFiles || []).push({...x, removedBy: u.id, removedAt: now()}); }
   else S.links = S.links.filter(y => y !== x);
-  log(r.pid, u, kind === "file" ? `Removed file ${x.name} from the requirement${x.path ? " (it stays on the folder share)" : ""}` : `Removed link ${x.label || x.url}`, {rid: r.id, override: ov});
+  log(r.pid, u, kind === "file" ? `Removed file ${x.name} from the requirement${x.path ? " (it stays on the folder share)" : ""}` : `Removed link ${x.label || x.url}`, {rid: r.id, override: ov || overrideFor(u, r)});
   return kind === "file" ? x.name : (x.label || x.url);
 }
 const linkRow = (l, extra = "") => `<li class="file"><span class="ext" aria-hidden="true">${linkKind(l.url)}</span><span class="file-main">
@@ -1564,15 +1571,17 @@ function reqCard(id, keepComment) {
     .sort((a, b) => a.at - b.at);
   const notes = [p.status !== "Active" ? `Project is ${p.status}. Sending is blocked${isHead(u, r.pid) ? "; you can override it (logged)" : ""}.` : "",
     viewOnly ? `View only: assigned to ${h(holderNames(r))}. As Dev Lead you can see it but only the assigned people can work on it.` :
-    !closed && !holds(r, u.id) ? `Assigned to ${h(holderNames(r))}. As ${u.cto ? "Project Head" : isSU(u) ? "SuperUser" : "Project Lead"} you can still act; it is logged as an override.` : "",
+    "",
     closed ? "This requirement is Closed." : ""].filter(Boolean).map(t => `<p class="note">${t}</p>`).join("");
+  const ovr = overrideFor(u, r), ovWho = u.cto ? "Project Head" : isSU(u) ? "SuperUser" : "Project Lead";
+  const ovBanner = ovr ? `<div class="flash ov-warn" role="alert"><strong>Override:</strong> you are not assigned to this requirement (assigned to ${h(holderNames(r))}). Anything you do here is logged as a ${ovWho} override.</div>` : "";
   const pf = pendingFb(r), all = seesAll(u, r.pid);
   const fbStage = pf ? defaultFbStage(r) : null, fbFrom = pf ? (members.find(m => m.uid === r.prev && m.uid !== pf.by && !m.roles.includes(HEAD)) || members.find(m => m.uid !== pf.by && !m.roles.includes(HEAD)) || members[0]) : null;
   const back = modal.open && modal.dataset.back ? +modal.dataset.back : 0;
   openModal(`<div class="card-head">${back ? `<button type="button" class="btn secondary back-btn" data-act="back-project">‹ ${h(proj(back).code)}</button>` : ""}<h2 id="modal-title">${h(`Requirement ${reqCode(r)} · ${p.code}`)}</h2><button type="button" class="x" data-act="close" aria-label="Close">×</button></div>
   <form data-form="card" data-id="${id}">
     <div class="card-body">
-      ${notes}
+      ${ovBanner}${notes}
       ${pf ? `<section class="card-section fb-alert"><h3 class="fl">Feedback request · waiting for approval</h3>
         <p style="margin:0"><strong>${h(uname(pf.by))}</strong> <span class="file-meta">${fmt(pf.at)}</span></p><p class="pre" style="margin:.3rem 0 0">${h(pf.reason)}</p>
         ${all && !closed ? `<div class="stack" style="margin-top:.8rem">
@@ -1620,6 +1629,7 @@ function reqCard(id, keepComment) {
       ${modalError}
     </div>
     <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Close</button>
+      ${!ro && ovr ? `<label class="ov-ok" for="cd-ovok"><input type="checkbox" id="cd-ovok" name="ovok" value="yes"> I understand this is an override</label>` : ""}
       ${ro ? "" : r.stage === APPROVAL && isApprover(r.pid, u.id)
         ? `<span class="spacer"></span><button class="btn secondary" name="do" value="send">Send</button><button class="btn primary" name="do" value="approve">Approve and close</button>`
         : `<span class="spacer"></span><button class="btn primary" name="do" value="send">Send</button>`}</div>
@@ -1918,7 +1928,7 @@ function historyList(rows, u, pid) {
   const hide = stakeholderView(u, pid);
   return `<ol class="history" reversed>${rows.slice().reverse().map(x => {
     const c = x.comment && !(hide && x.internal) ? `<blockquote>${x.internal ? label("Internal", "tag-int") + " " : ""}${h(x.comment)}</blockquote>` : "";
-    return `<li><time>${fmt(x.at)}</time> · <strong>${h(uname(x.uid))}</strong>: ${h(x.action)}${(x.fromList || [x.from]).filter(Boolean).length ? ` · from ${h((x.fromList || [x.from]).filter(Boolean).map(uname).join(", "))}` : ""}${(x.toList || [x.to]).filter(Boolean).length ? ` · to ${h((x.toList || [x.to]).filter(Boolean).map(uname).join(", "))}` : ""}${x.fromStage && x.toStage && x.fromStage !== x.toStage ? ` · ${STAGES[x.fromStage]} → ${STAGES[x.toStage]}` : ""}${c}</li>`;
+    return `<li><time>${fmt(x.at)}</time> · <strong>${h(uname(x.uid))}</strong>: ${x.override ? label("Override", "pr-high") + " " : ""}${h(x.action)}${(x.fromList || [x.from]).filter(Boolean).length ? ` · from ${h((x.fromList || [x.from]).filter(Boolean).map(uname).join(", "))}` : ""}${(x.toList || [x.to]).filter(Boolean).length ? ` · to ${h((x.toList || [x.to]).filter(Boolean).map(uname).join(", "))}` : ""}${x.fromStage && x.toStage && x.fromStage !== x.toStage ? ` · ${STAGES[x.fromStage]} → ${STAGES[x.toStage]}` : ""}${c}</li>`;
   }).join("")}</ol>`;
 }
 
@@ -2937,6 +2947,8 @@ document.addEventListener("submit", e => {
       case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: Math.min(5, Math.max(1, +d.size || 3)), bri: +d.bri || 3, con: 3, accent: ACCENTS.some(a => a[0] === d.accent) ? d.accent : "red"}); flash("ok", "Settings saved to your account."); break;
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
+        if (["send", "approve", "extreq", "fbaccept", "fbdecline"].includes(doIt || "send") && overrideFor(u, req(id)) && d.ovok !== "yes")
+          throw new RuleError("You are not assigned to this requirement. Tick “I understand this is an override” to continue.");
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
         if (doIt === "approve") { accept(u, id, d.comment); flash("ok", `${reqCode(req(id))} approved and closed.`); break; }
         if (doIt === "extreq") { const res = requestExt(u, "req", id, d.extdate, d.extreason, d.extfield); flash("ok", res === "applied" ? "Date changed. The Timeline keeps the earlier date and your reason." : "Date change requested. The Project Lead or Project Head can now accept or decline it."); return {reopen: id}; }
