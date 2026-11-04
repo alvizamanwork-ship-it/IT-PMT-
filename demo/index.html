@@ -517,6 +517,13 @@ tr.tl-project td { background: var(--surface-2); }
 .pwrap [role=tabpanel] > * { min-width: 0; }
 /* How To */
 .howto { max-width: 46rem; }
+.flow-steps { list-style: none; padding: 0; margin: .3rem 0 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+.flow-steps li { display: flex; align-items: center; gap: .45rem; padding: .4rem .75rem .4rem .45rem; border: 1px solid var(--sep-strong); border-radius: 999px; font-size: .9rem; }
+.flow-steps li.fs-free { border-color: var(--accent); background: var(--tint); font-weight: 600; }
+.flow-steps .fs-n { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent); color: #fff; font-size: .78rem; font-weight: 700; flex: none; }
+.flow-fig { margin: 0 0 .8rem; padding: .6rem; border: 1px solid var(--sep-strong); border-radius: var(--radius); background: var(--surface); overflow-x: auto; }
+.flow-svg { display: block; width: 100%; min-width: 34rem; height: auto; }
+.flow-key { padding: .7rem .9rem; border-left: 4px solid var(--accent); background: var(--tint); border-radius: .6rem; margin-bottom: .5rem; }
 .howto-panel { max-width: 64rem; margin: 0 0 .6rem; border: 1px solid var(--sep-strong); border-radius: var(--radius); background: var(--surface); }
 .howto-panel > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .75rem; padding: .85rem 1rem .85rem 2.4rem; position: relative; border-radius: var(--radius); }
 .howto-panel > summary::-webkit-details-marker { display: none; }
@@ -699,9 +706,11 @@ const rolesOf = (pid, uid) => ((proj(pid)?.members || []).find(m => m.uid === ui
 const has = (pid, uid, r) => rolesOf(pid, uid).includes(r);
 const role = (pid, uid) => rolesOf(pid, uid).join(", ") || null;
 const isLead = (pid, uid) => rolesOf(pid, uid).some(r => LEADS.includes(r));
-const canView = (u, pid) => u.cto || !!role(pid, u.id);
+// SuperUser: the Project Head's privileges in every project. The Project Head always has it; the system admin can give it to anyone.
+const isSU = u => !!u && !u.sysadmin && !!(u.cto || u.su);
+const canView = (u, pid) => isSU(u) || !!role(pid, u.id);
 // The CTO everywhere, and the Project Lead inside their own project, have the same powers.
-const isHead = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
+const isHead = (u, pid) => isSU(u) || has(pid, u.id, "Project Lead");
 const nextId = k => (S.seq[k] = (S.seq[k] || 0) + 1);
 const clean = (t, n) => (t.replace(/[^A-Za-z0-9._ -]+/g, "_").replace(/^[ ._]+|[ ._]+$/g, "").slice(0, n) || "file");
 const tbl = inner => `<div class="tbl"><table>${inner}</table></div>`;
@@ -710,7 +719,7 @@ class Forbidden extends Error {}
 class RuleError extends Error {}
 function require_(u, ok, msg, pid) { if (ok) return false; if (isHead(u, pid)) return true; throw new Forbidden(msg); }
 function log(pid, u, action, o = {}) {
-  S.history.push({id: nextId("h"), pid, rid: o.rid ?? null, uid: u.id, at: now(), action: action + (o.override ? (u.cto ? " (CTO override)" : " (Project Lead override)") : ""),
+  S.history.push({id: nextId("h"), pid, rid: o.rid ?? null, uid: u.id, at: now(), action: action + (o.override ? (isSU(u) ? " (SuperUser override)" : " (Project Lead override)") : ""),
     from: o.from ?? null, to: o.to ?? null, fromStage: o.fromStage ?? null, toStage: o.toStage ?? null,
     comment: (o.comment || "").trim(), internal: !!o.internal, override: !!o.override});
 }
@@ -732,7 +741,7 @@ const TYPE_BLOCKS = {Vendor: ["Developer"], Integration: ["Project Analyst"]};
 const typeBlocks = (type, r) => (TYPE_BLOCKS[type] || []).includes(r);
 // Access control: the Project Head can always start projects; the system admin can let other people start them.
 // Everyone else can request a project (on by default; the system admin can close requests).
-const canStart = u => !!u && !u.sysadmin && (u.cto || ((S.access || {}).starters || []).includes(u.id));
+const canStart = u => !!u && !u.sysadmin && (isSU(u) || ((S.access || {}).starters || []).includes(u.id));
 const canRequest = u => !!u && !u.sysadmin && !canStart(u) && !!(S.access || {}).requests;
 const projBtn = u => canStart(u) ? `<button class="btn primary" data-act="open-project">New project</button>`
   : canRequest(u) ? `<button class="btn primary" data-act="open-projreq">Request project</button>` : "";
@@ -746,13 +755,13 @@ function requestProject(u, d) {
   if (!(d.reason || "").trim()) throw new RuleError("Say why the project is needed.");
   const pr = {id: nextId("pr"), by: u.id, name, type: d.type, priority: PRIORITIES.includes(d.priority) ? d.priority : "Normal", start: d.start || "", deadline: d.deadline, reason: d.reason.trim(), status: "Pending", at: now()};
   S.projReqs.push(pr);
-  S.users.filter(x => x.cto).forEach(x => mailTo(x.id, `Project request: ${name}`, `${u.name} requested a new ${pr.type} project "${name}".\nEnd date needed: ${pr.deadline}\nWhy: ${pr.reason}\n\nOpen My Queue to approve or decline it.`));
+  S.users.filter(isSU).forEach(x => mailTo(x.id, `Project request: ${name}`, `${u.name} requested a new ${pr.type} project "${name}".\nEnd date needed: ${pr.deadline}\nWhy: ${pr.reason}\n\nOpen My Queue to approve or decline it.`));
   return pr;
 }
 function decideProjReq(u, prid, ok, note, pid) {
   const pr = (S.projReqs || []).find(x => x.id === prid);
   if (!pr || pr.status !== "Pending") throw new RuleError("That request was already handled or withdrawn.");
-  if (!u.cto) throw new Forbidden("Only the Project Head approves or declines project requests.");
+  if (!isSU(u)) throw new Forbidden("Only the Project Head or a SuperUser approves or declines project requests.");
   if (!ok && !(note || "").trim()) throw new RuleError("Say why you are declining it.");
   Object.assign(pr, {status: ok ? "Approved" : "Declined", decidedBy: u.id, decidedAt: now(), note: (note || "").trim(), pid: pid || null});
   mailTo(pr.by, `Project request ${ok ? "approved" : "declined"}: ${pr.name}`, ok ? `Your project request "${pr.name}" was approved by ${u.name}. Project code: ${proj(pid).code}.` : `Your project request "${pr.name}" was declined by ${u.name}.\nReason: ${pr.note}`);
@@ -792,7 +801,7 @@ function deviation(ends) {
   return d === 0 ? label("0 days", "st-ap") : d > 0 ? label(`+${dayWord(d)}`, "st-fb") : label(`${dayWord(-d)} earlier`, "st-an");
 }
 // End date extensions: anyone allowed asks with a reason; the Project Lead (or the Project Head) accepts or declines.
-const canApproveExt = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
+const canApproveExt = (u, pid) => isSU(u) || has(pid, u.id, "Project Lead");
 const extTarget = (kind, id) => kind === "project" ? proj(id) : req(id);
 const extPid = (kind, id) => kind === "project" ? id : req(id).pid;
 const extName = (kind, id) => kind === "project" ? "Whole project" : `${reqCode(req(id))} ${req(id).title}`;
@@ -869,7 +878,7 @@ function extTable(u, items, withProject, decide) {
 const OV_FIELDS = {summary: "Summary", desc: "Description", analysis: "Analysis", cost: "Project cost"};
 const canFillOverview = (u, pid) => has(pid, u.id, AN) || has(pid, u.id, SH);
 const canChangeOverview = (u, pid) => has(pid, u.id, AN);
-const canApproveOverview = (u, pid) => u.cto || has(pid, u.id, "Project Lead");
+const canApproveOverview = (u, pid) => isSU(u) || has(pid, u.id, "Project Lead");
 const ovPending = p => p.ovDraft && p.ovDraft.status === "pending" ? p.ovDraft : null;
 function submitOverview(u, pid, d) {
   const p = proj(pid), approved = !!p.ovApprovedAt;
@@ -894,7 +903,7 @@ const overdue = p => p.deadline && p.status === "Active" && p.deadline < isoDay(
 const deadlineText = p => p.deadline ? `${p.deadline}${overdue(p) ? " " + label("Overdue", "st-fb") : ""}` : `<span class="note">None</span>`;
 // Member rules: Stakeholders are managed by the CTO or Project Lead; Project Lead and Dev Lead roles can be removed only by the CTO.
 function canAddRole(u, pid, r) { return r === SH ? isHead(u, pid) : isHead(u, pid) || isLead(pid, u.id); }
-function canRemoveRole(u, pid, r) { if (r === HEAD) return false; if (LEADS.includes(r)) return !!u.cto; return canAddRole(u, pid, r); }
+function canRemoveRole(u, pid, r) { if (r === HEAD) return false; if (LEADS.includes(r)) return isSU(u); return canAddRole(u, pid, r); }
 const removeWhy = r => r === HEAD ? "The Project Head is in every project and cannot be removed."
   : LEADS.includes(r) ? "Only the CTO can remove a Project Lead or Dev Lead."
   : r === SH ? "Only the CTO or the Project Lead manage Business Stakeholders." : "Only the CTO, Project Lead or Dev Lead manage members.";
@@ -954,7 +963,7 @@ function setStatus(u, pid, status, confirm) {
 function createReq(u, pid, title, desc, due, priority, start) {
   const p = proj(pid); if (!canView(u, pid)) throw new Forbidden("You are not a member of this project.");
   title = title.trim(); if (!title) throw new RuleError("Title is required.");
-  let ov = require_(u, u.cto || rolesOf(pid, u.id).some(r => CREATORS.includes(r)), "Only Stakeholders, Analysts, Project Leads, Dev Leads or the CTO create requirements.", pid);
+  let ov = require_(u, isSU(u) || rolesOf(pid, u.id).some(r => CREATORS.includes(r)), "Only Stakeholders, Analysts, Project Leads, Dev Leads or the CTO create requirements.", pid);
   ov = require_(u, p.status === "Active", `Project is ${p.status}; no new requirements.`, pid) || ov;
   checkDates(start, due, "due date");
   const id = nextId("r"), t = now();
@@ -1047,7 +1056,7 @@ const isApprover = (pid, uid) => has(pid, uid, HEAD) || has(pid, uid, "Project L
 // The Project Head only receives approval requests, and only from the Project Lead, Dev Lead or Business Stakeholder.
 // Everyone else sends approval requests to the Project Lead or Dev Lead.
 const isHeadMember = (pid, uid) => has(pid, uid, HEAD);
-const canSendToHead = (u, pid) => u.cto || has(pid, u.id, "Project Lead") || has(pid, u.id, "Dev Lead") || has(pid, u.id, SH);
+const canSendToHead = (u, pid) => isSU(u) || has(pid, u.id, "Project Lead") || has(pid, u.id, "Dev Lead") || has(pid, u.id, SH);
 function checkHeadRule(u, pid, to, stage) {
   if (!to.some(t => isHeadMember(pid, t))) return;
   if (stage !== APPROVAL) throw new RuleError("The Project Head only receives approval requests. Choose the Approval stage, or send it to someone else.");
@@ -1413,7 +1422,7 @@ function renderLoggedOut() {
   Object.assign(d.dataset, {appearance: "dark", font: "century", size: "2", accent: "red", nav: "top"}); setLight(3, 3);
   document.getElementById("sidenav").hidden = true;
   document.getElementById("topbar").innerHTML = brandMarkup(false);
-  document.getElementById("as-user").innerHTML = `<option value="" selected>Signed out</option>` + S.users.map(x => `<option value="${x.id}">${h(x.name)}${x.cto ? " · CTO" : x.sysadmin ? " · Admin" : ""}</option>`).join("");
+  document.getElementById("as-user").innerHTML = `<option value="" selected>Signed out</option>` + S.users.map(x => `<option value="${x.id}">${h(x.name)}${x.cto ? " · CTO" : x.su ? " · SuperUser" : x.sysadmin ? " · Admin" : ""}</option>`).join("");
   setTopbarHeight();
   main.innerHTML = viewLogin();
   save();
@@ -1497,7 +1506,7 @@ function reqCard(id, keepComment) {
     .sort((a, b) => a.at - b.at);
   const notes = [p.status !== "Active" ? `Project is ${p.status}. Sending is blocked${isHead(u, r.pid) ? "; you can override it (logged)" : ""}.` : "",
     viewOnly ? `View only: assigned to ${h(holderNames(r))}. As Dev Lead you can see it but only the assigned people can work on it.` :
-    !closed && !holds(r, u.id) ? `Assigned to ${h(holderNames(r))}. As ${u.cto ? "CTO" : "Project Lead"} you can still act; it is logged as an override.` : "",
+    !closed && !holds(r, u.id) ? `Assigned to ${h(holderNames(r))}. As ${u.cto ? "Project Head" : isSU(u) ? "SuperUser" : "Project Lead"} you can still act; it is logged as an override.` : "",
     closed ? "This requirement is Closed." : ""].filter(Boolean).map(t => `<p class="note">${t}</p>`).join("");
   const pf = pendingFb(r), all = seesAll(u, r.pid);
   const fbStage = pf ? defaultFbStage(r) : null, fbFrom = pf ? (members.find(m => m.uid === r.prev && m.uid !== pf.by && !m.roles.includes(HEAD)) || members.find(m => m.uid !== pf.by && !m.roles.includes(HEAD)) || members[0]) : null;
@@ -1816,7 +1825,7 @@ function renderTop() {
   const addedN = myAdded(u).length;
   const nav = [["queue", `My Queue${addedN ? ` <span class="badge" aria-label="${addedN} added to project">${addedN}</span>` : ""}`], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
     ["reminders", `Reminders${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
-    .concat(u.cto ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], [["howto", "How To"]]);
+    .concat(isSU(u) ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], [["howto", "How To"]]);
   if (isSysAdmin(u)) nav.splice(0, nav.length, ["admin", "Admin"]);
   const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
   document.documentElement.dataset.nav = side ? "side" : "top";
@@ -1844,7 +1853,7 @@ function renderTop() {
         <button class="btn primary">Save settings</button></form>
         <button type="button" class="btn secondary" data-act="chpw-open">Change password</button>
         <button type="button" class="btn secondary" data-act="logout">Sign out</button></div></details>`;
-  document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.sysadmin ? " · Admin" : ""}${x.cto ? " · CTO" : ""}</option>`).join("");
+  document.getElementById("as-user").innerHTML = S.users.map(x => `<option value="${x.id}" ${x.id === S.me ? "selected" : ""}>${h(x.name)}${x.sysadmin ? " · Admin" : ""}${x.cto ? " · CTO" : x.su ? " · SuperUser" : ""}</option>`).join("");
 }
 
 function historyList(rows, u, pid) {
@@ -1877,7 +1886,7 @@ function viewQueue(u) {
   const fbs = u.cto ? [] : S.reqs.filter(r => pendingFb(r) && seesAll(u, r.pid) && proj(r.pid).status === "Active");
   const exs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveExt(u, pp.id)).flatMap(pp => extList(u, pp.id, "pending"));
   const ovs = u.cto ? [] : S.projects.filter(pp => pp.status === "Active" && canApproveOverview(u, pp.id) && ovPending(pp));
-  const prs = u.cto ? (S.projReqs || []).filter(x => x.status === "Pending") : [];
+  const prs = isSU(u) ? (S.projReqs || []).filter(x => x.status === "Pending") : [];
   const urgent = items.filter(r => r.due && daysLeft(r.due) <= 2).sort((a, b) => a.due.localeCompare(b.due));
   return `<div class="head-row"><h1>My Queue</h1>${projBtn(u)}</div>
   ${urgent.length ? `<section class="panel urgent-panel" aria-labelledby="urgent-h"><h2 id="urgent-h" style="margin-top:0">Urgent deadlines (${urgent.length})</h2>
@@ -1906,18 +1915,18 @@ function viewQueue(u) {
 }
 
 function viewProjects(u) {
-  return viewProjectList(u) + (u.cto ? `<section><h2>Team workload</h2><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each person across all active projects.</p>
+  return viewProjectList(u) + (isSU(u) ? `<section><h2>Team workload</h2><p class="note" style="margin-bottom:.5rem">Open requirements assigned to each person across all active projects.</p>
     ${workloadTable(S.users.filter(x => !x.cto && !x.sysadmin).map(x => ({uid: x.id, roles: S.projects.filter(pp => pp.status === "Active" && role(pp.id, x.id)).map(pp => `${pp.code} · ${pp.name}`).join(", ") || "No active project", total: openLoad(x.id)}))
       .sort((a, b) => b.total - a.total || uname(a.uid).localeCompare(uname(b.uid))), false).replace("<th>Roles</th>", "<th>Active projects</th>")}</section>` : "");
 }
 function viewProjectList(u) {
-  const list = S.projects.filter(p => canView(u, p.id) && p.status !== "Closed" && !(u.cto && PAUSED.includes(p.status)));
-  const paused = u.cto ? S.projects.filter(p => PAUSED.includes(p.status)).length : 0;
+  const list = S.projects.filter(p => canView(u, p.id) && p.status !== "Closed" && !(isSU(u) && PAUSED.includes(p.status)));
+  const paused = isSU(u) ? S.projects.filter(p => PAUSED.includes(p.status)).length : 0;
   const archived = S.projects.filter(p => p.status === "Closed" && canView(u, p.id)).length;
   return `<div class="head-row"><h1>Projects</h1>${projBtn(u)}</div>${!canStart(u) && !canRequest(u) ? `<p class="note" style="margin-bottom:.4rem">Project requests are closed. Contact the system admin if you need a new project.</p>` : ""}${paused ? `<p class="note" style="margin-bottom:.4rem">${paused} project${paused === 1 ? " is" : "s are"} on hold or cancelled: see <button class="linkish" data-go="paused">On Hold &amp; Cancelled</button>.</p>` : ""}${archived ? `<p class="note" style="margin-bottom:.75rem">${archived} closed project${archived === 1 ? " is" : "s are"} in the <button class="linkish" data-go="archive">Archive</button>.</p>` : ""}${list.length ? tbl(`<thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th>Priority</th><th>Start date</th><th>End date</th><th>My role</th><th>Open requirements you can see</th></tr></thead><tbody>${list.map(p => `
     <tr><td>${h(p.code)}</td><td><button class="linkish" data-go="project" data-id="${p.id}">${h(p.name)}</button></td><td>${h(p.type || "Internal")}</td><td>${label(p.status)}</td>
-    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (u.cto ? "CTO" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (seesAll(u, p.id) || holds(r, u.id))).length}</td></tr>`).join("")}</tbody>`)
-    : `<p>${u.cto ? "No open projects. Press New project to start one." : `You are not a member of any open project.${canStart(u) ? " Press New project to start one." : canRequest(u) ? " Press Request project to ask for one." : ""}`}</p>`}`;
+    <td>${priLabel(p.priority || "Normal")}</td><td class="num">${p.start || ""}</td><td class="num">${deadlineText(p)}</td><td>${h(role(p.id, u.id) || (isSU(u) ? "SuperUser" : ""))}</td><td class="num">${S.reqs.filter(r => r.pid === p.id && r.stage !== 8 && (seesAll(u, p.id) || holds(r, u.id))).length}</td></tr>`).join("")}</tbody>`)
+    : `<p>${isSU(u) ? "No open projects. Press New project to start one." : `You are not a member of any open project.${canStart(u) ? " Press New project to start one." : canRequest(u) ? " Press Request project to ask for one." : ""}`}</p>`}`;
 }
 
 // Project card: opens as a popup with two tabs, Primary and Overview.
@@ -1945,7 +1954,7 @@ function setTab(tab) {
 }
 function projectPrimary(u, pid) {
   const p = proj(pid), myRole = role(pid, u.id), head = isHead(u, pid), all = seesAll(u, pid), manage = head || isLead(pid, u.id);
-  const canCreate = (u.cto || rolesOf(pid, u.id).some(r => CREATORS.includes(r))) && (p.status === "Active" || head);
+  const canCreate = (isSU(u) || rolesOf(pid, u.id).some(r => CREATORS.includes(r))) && (p.status === "Active" || head);
   const order = {High: 0, Normal: 1, Low: 2};
   const reqs = S.reqs.filter(r => r.pid === pid && (all || holds(r, u.id))).sort((a, b) => (a.stage === 8) - (b.stage === 8) || order[a.priority] - order[b.priority] || a.id - b.id);
   const members = memberSort(p), others = S.users.filter(x => !has(pid, x.id, HEAD) && !x.sysadmin);
@@ -2058,7 +2067,7 @@ function projectOverviewBody(u, pid, rows, n, hist, approver, pendingX, pastX, a
     ${timelineList(u, rows)}
   </section>
   <section class="card-section${pendingX.length && approver ? " fb-alert" : ""}"><h3 class="sec-title">Date change requests</h3>
-    <p class="note" style="margin-bottom:.5rem">Ask to change a start or end date, with a reason. The Project Lead or Project Head accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
+    <p class="note" style="margin-bottom:.5rem">Ask to change a start or end date, with a reason. The Project Lead or Project Head accepts or declines it; accepted changes are added to the Timeline.${approver ? " As " + (u.cto ? "Project Head" : isSU(u) ? "SuperUser" : "Project Lead") + ", your own requests are applied straight away." : ""}</p>
     ${pendingX.length ? `<h4 class="fl">Waiting for approval (${pendingX.length})</h4>${extTable(u, pendingX, false, true)}` : `<p class="note">No requests waiting.</p>`}
     ${askable.length ? `<form data-form="extreq" data-pid="${pid}" class="stack" style="margin-top:.8rem">
       <div class="row" style="margin:0"><label for="ex-item">For<select id="ex-item" name="item">${askable.map(x => `<option value="${x.kind}:${x.id}">${h(x.name)} (starts ${x.starts[x.starts.length - 1] || "not set"}, ends ${x.ends[x.ends.length - 1] || "not set"})</option>`).join("")}</select></label>
@@ -2087,7 +2096,7 @@ function viewArchive(u) {
     <td class="num">${S.files.filter(f => f.rid === r.id).length}</td><td class="num">${(S.links || []).filter(l => l.rid === r.id).length}</td></tr>`).join("")}</tbody>`);
   const empty = !list.length && !doneReqs.length;
   return `<h1>Archive</h1>
-  <p class="note">${u.cto ? "Every closed project and closed requirement." : "Closed projects you were part of, and the closed requirements you worked on. The Project Lead and Dev Lead also see every requirement in their projects."} Archived requirements open read-only.</p>
+  <p class="note">${isSU(u) ? "Every closed project and closed requirement." : "Closed projects you were part of, and the closed requirements you worked on. The Project Lead and Dev Lead also see every requirement in their projects."} Archived requirements open read-only.</p>
   ${empty ? `<p style="margin-top:1rem">Nothing archived yet. Closed projects and requirements you worked on will appear here.</p>` : `
   <label for="arc-q" class="narrow" style="margin:1rem 0">Search the archive<input id="arc-q" placeholder="Project, code or requirement" autocomplete="off"></label>
   <p class="note" id="arc-none" hidden>Nothing in the archive matches that search.</p>
@@ -2201,7 +2210,7 @@ function viewReminders(u) {
 
 // On Hold & Cancelled (Project Head / CTO only)
 function viewPaused(u) {
-  if (!u.cto) return "<h1>Not allowed</h1><p>This page is for the Project Head only.</p>";
+  if (!isSU(u)) return "<h1>Not allowed</h1><p>This page is for the Project Head and SuperUsers only.</p>";
   const section = (status, intro) => {
     const list = S.projects.filter(p => p.status === status).sort((a, b) => (b.pausedAt || 0) - (a.pausedAt || 0));
     return `<h2>${status} <span class="note">(${list.length})</span></h2><p class="note" style="margin-bottom:.5rem">${intro}</p>
@@ -2218,7 +2227,7 @@ function viewPaused(u) {
 }
 
 // Notifications: activity from the last 24 hours that this person is allowed to see, excluding their own actions.
-const actorLabel = (pid, uid) => `${uname(uid)} (${role(pid, uid) || (user(uid) && user(uid).cto ? "CTO" : "former member")})`;
+const actorLabel = (pid, uid) => `${uname(uid)} (${role(pid, uid) || (user(uid) && user(uid).cto ? "CTO" : isSU(user(uid)) ? "SuperUser" : "former member")})`;
 const lower = t => t.charAt(0).toLowerCase() + t.slice(1);
 function notifText(x, u, p, r, toList) {
   const q = r ? `“${r.title}”` : "", a = x.action.replace(/ \((CTO|Project Lead) override\)$/, "");
@@ -2287,7 +2296,7 @@ function howtoEn() {
   const panel = (id, title, sub, body, open) => `<details class="howto-panel" id="ht-${id}" ${open ? "open" : ""}><summary><span class="ht-title">${title}</span>${sub ? `<span class="ht-sub">${sub}</span>` : ""}</summary><div class="ht-body">${body}</div></details>`;
   const sub = (t, body) => `<h3 class="ht-h">${t}</h3>${body}`;
   const Y = `<span class="yes" aria-label="Yes">✓</span>`, N = `<span class="no" aria-label="No">–</span>`, c = t => `<span class="cond">${t}</span>`;
-  const cols = ["Project Head (CTO)", "Project Lead", "Dev Lead", "Project Analyst", "Business Stakeholder", "Developer / QA"];
+  const cols = ["Project Head / SuperUser", "Project Lead", "Dev Lead", "Project Analyst", "Business Stakeholder", "Developer / QA"];
   const row = (what, ...cells) => `<tr><th scope="row">${what}</th>${cells.map(x => `<td>${x === 1 ? Y : x === 0 ? N : c(x)}</td>`).join("")}</tr>`;
   const grp = t => `<tr class="grp"><th scope="rowgroup" colspan="${cols.length + 1}">${t}</th></tr>`;
   const matrix = tbl(`<thead><tr><th scope="col">What</th>${cols.map(x => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>
@@ -2328,9 +2337,62 @@ function howtoEn() {
     "Projects have a type. <strong>Vendor</strong> projects have no Developers; <strong>Integration</strong> projects have no Project Analysts; <strong>Internal</strong> projects can have every role. Codes are automatic: VND-001, INT-002, ITG-003, and requirements like INT-002-R01.",
     "Everything is recorded: who sent what, to whom, when, and why. Nothing is silently changed."]), true)}
 
+  ${panel("flow", "How a project runs", "A flexible flow, not a fixed pipeline", `
+    <ol class="flow-steps" aria-label="Project lifecycle">
+      <li><span class="fs-n">1</span><span>Start or request a project</span></li>
+      <li><span class="fs-n">2</span><span>Add the team and roles</span></li>
+      <li><span class="fs-n">3</span><span>Create requirements</span></li>
+      <li class="fs-free"><span class="fs-n">4</span><span>Move work between stages, in any order</span></li>
+      <li><span class="fs-n">5</span><span>Approve and close each requirement</span></li>
+      <li><span class="fs-n">6</span><span>Close the project</span></li>
+    </ol>
+    <figure class="flow-fig">
+      <svg viewBox="0 0 900 330" role="img" aria-labelledby="flow-t flow-d" class="flow-svg">
+        <title id="flow-t">Stages a requirement can move between</title>
+        <desc id="flow-d">Analysis, Development, QA and Approval sit in a row, each with a Feedback stage below it. Arrows go both ways between every neighbour, and curved arrows jump across stages: Analysis straight to QA, QA back to Analysis, Approval back to Development. Approve and close leads to Closed.</desc>
+        <defs>
+          <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--text)"/></marker>
+          <marker id="fj" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker>
+        </defs>
+        <g class="jumps" style="fill:none;stroke:var(--accent);stroke-width:2.5" marker-end="url(#fj)">
+          <path d="M115,128 C170,30 490,30 543,126"/>
+          <path d="M520,128 C470,62 180,62 140,126" stroke-dasharray="7 6"/>
+          <path d="M760,128 C700,52 400,52 345,126" stroke-dasharray="2 6" stroke-linecap="round"/>
+        </g>
+        <g style="font:600 13px var(--font, sans-serif);fill:var(--accent);paint-order:stroke;stroke:var(--surface);stroke-width:6px;stroke-linejoin:round">
+          <text x="330" y="38" text-anchor="middle">skip ahead: Analysis → QA</text>
+          <text x="250" y="96" text-anchor="middle">go back: QA → Analysis</text>
+          <text x="700" y="88" text-anchor="middle">rework: Approval → Development</text>
+        </g>
+        <g style="stroke:var(--text);stroke-width:1.6;fill:none" marker-end="url(#fa)" marker-start="url(#fa)">
+          <line x1="198" y1="155" x2="262" y2="155"/><line x1="418" y1="155" x2="482" y2="155"/><line x1="638" y1="155" x2="702" y2="155"/>
+          <line x1="120" y1="182" x2="120" y2="228"/><line x1="340" y1="182" x2="340" y2="228"/><line x1="560" y1="182" x2="560" y2="228"/>
+        </g>
+        <g style="stroke:var(--text);stroke-width:1.6;fill:none" marker-end="url(#fa)"><line x1="780" y1="182" x2="780" y2="228"/></g>
+        <g style="font:700 15px var(--font, sans-serif)" text-anchor="middle">
+          ${[["Analysis", 40], ["Development", 260], ["QA", 480], ["Approval", 700]].map(([t, x]) => `<rect x="${x}" y="128" width="160" height="54" rx="12" style="fill:var(--surface);stroke:var(--accent);stroke-width:2"/><text x="${x + 80}" y="160" style="fill:var(--text)">${t}</text>`).join("")}
+        </g>
+        <g style="font:500 13px var(--font, sans-serif)" text-anchor="middle">
+          ${[["Analysis Feedback", 40], ["Development Feedback", 260], ["QA Feedback", 480]].map(([t, x]) => `<rect x="${x}" y="230" width="160" height="46" rx="12" style="fill:var(--tint);stroke:var(--sep-strong);stroke-width:1.5" stroke-dasharray="5 4"/><text x="${x + 80}" y="258" style="fill:var(--text)">${t}</text>`).join("")}
+          <rect x="700" y="230" width="160" height="46" rx="23" style="fill:var(--accent)"/><text x="780" y="258" style="fill:#fff;font-weight:700">Closed</text>
+          <text x="812" y="208" text-anchor="start" style="fill:var(--muted);font-size:12px">Approve</text><text x="812" y="222" text-anchor="start" style="fill:var(--muted);font-size:12px">and close</text>
+        </g>
+        <text x="450" y="316" text-anchor="middle" style="font:500 13px var(--font, sans-serif);fill:var(--muted)">Any stage can be sent to any other stage. These arrows are only examples.</text>
+      </svg>
+    </figure>
+    <div class="flow-key"><strong>The system does not force a fixed order.</strong> A project can move forward, go back, or skip stages whenever the work needs it. The person holding a requirement picks the next stage and person each time.</div>
+    ${ul([
+      "<strong>Skip ahead:</strong> a one-line text change can go from Analysis straight to QA.",
+      "<strong>Go back:</strong> QA finds a gap in the requirement and sends it back to Analysis, not just to Development.",
+      "<strong>Rework:</strong> the approver sends it back to Development instead of closing it, as many times as needed.",
+      "<strong>Loop through feedback:</strong> any stage can have a Feedback round (asked for with Request feedback, or sent by the Project Head, Project Lead or Dev Lead).",
+      "<strong>Work in parallel:</strong> a requirement can be assigned to several people at once, and each project runs on its own pace.",
+      "Only a few rules are fixed: Feedback stages need a comment; Approval goes to the Project Lead or Dev Lead (and on to the Project Head only from them or the Business Stakeholder); a requirement becomes Closed only through Approve and close; a project closes only when all its requirements are Closed. Every move is logged, so freedom never means losing track."])}`, true)}
+
   ${panel("roles", "Role hierarchy", "Who sits where, and what each role is for", `
     <ol class="hier">
       <li><strong>System admin</strong> <span class="note">(the <code>admin</code> account)</span> — runs the system, not projects. Only sees the Admin page: users, access control, mail, folder share, integrations, roles and stages. Not a member of any project.</li>
+      <li><strong>SuperUser</strong> — not a project role but an access level the system admin gives. A SuperUser has the Project Head's privileges in every project (the table in Who can do what). The Project Head is always a SuperUser; others keep their normal roles and My Queue.</li>
       <li><strong>Project Head (CTO)</strong> — oversees every project and is automatically in all of them. Starts projects and approves project requests. Receives requirements <em>only</em> as approval requests, so My Queue holds just approvals. Can act on any requirement (logged as an override).
         <ol>
           <li><strong>Project Lead</strong> — runs one project with almost the same powers as the Project Head inside it: manages members, status, dates and the overview, approves and closes work.
@@ -2348,7 +2410,8 @@ function howtoEn() {
     ${sub("Signing in", ul(["Everyone signs in with a username and password. Usernames are made from the person's name.", "The system admin account only opens Admin. The Project Head does <strong>not</strong> have Admin."]))}
     ${sub("What you can see", ul(["You only see projects you are a member of. The Project Head sees all of them.", "Inside a project, the <strong>Project Head, Project Lead and Dev Lead</strong> see every requirement. Everyone else sees the requirements assigned to them, plus closed ones they worked on (in the Archive).", "<strong>Internal</strong> comments are hidden from Business Stakeholders, in the card, the history and emails.", "Search only finds projects and requirements you are allowed to open."]))}
     ${sub("Starting projects", ul(["The Project Head can always start a project.", "The system admin can allow chosen people to start projects (Admin → Access control). They join their new project as Project Lead.", "Everyone else can <strong>request</strong> a project, which the Project Head approves or declines. The system admin can turn requests off; then neither button shows."]))}
-    ${sub("Overrides", ul(["The Project Head and Project Lead can act on a requirement that is not assigned to them. The card warns them first and the action is logged as an override."]))}`)}
+    ${sub("SuperUser", ul(["The Project Head's privileges are a special access level called <strong>SuperUser</strong>.", "The system admin can make any person a SuperUser (Admin → Access control → <strong>Make SuperUser</strong>) or take it away. That person then has the Project Head's privileges in every project.", "The Project Head is always a SuperUser and is the only one who joins every project as Project Head."]))}
+    ${sub("Overrides", ul(["The Project Head, SuperUsers and Project Leads can act on a requirement that is not assigned to them. The card warns them first and the action is logged as an override."]))}`)}
 
   ${panel("matrix", "Who can do what", "One table of permissions by role", `${matrix}
     <p class="note">✓ yes · – no. “When assigned” means only while the requirement is in their queue. The system admin cannot do any of these; they only manage the system in Admin.</p>`)}
@@ -2395,7 +2458,7 @@ function howtoEn() {
 
   ${panel("admin", "Admin", "System admin only", ul([
     "<strong>Users</strong>: add a person (the username is made from the name; CIF is the ID number), set a temporary password, email a reset code, or import people from the HR integration (Name, Username, CIF, Email).",
-    "<strong>Access control</strong>: turn project requests on or off, and allow chosen people to start projects.",
+    "<strong>Access control</strong>: make people SuperUsers (the Project Head's privileges), turn project requests on or off, and allow chosen people to start projects.",
     "<strong>Folder share</strong>: the server folder where files are saved, and the service account. It must have create and write rights only, never delete.",
     "<strong>Mail integration</strong>: the mail server used for reset codes and notifications. <strong>Integrations</strong>: directory sign-in, single sign-on, webhooks, APIs, HR user import.",
     "<strong>Roles</strong> and <strong>Stages</strong>: add new names. <strong>Email log</strong>: what the system would send."]))}`;
@@ -2432,19 +2495,22 @@ function viewAdmin(u) {
     <label for="nu-pw">Temporary password<input id="nu-pw" type="password" name="pw" required autocomplete="new-password"></label>
     <button class="btn primary">Add user</button></form>
     ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>CIF</th><th>Email</th><th>Access</th><th><span class="sr-only">Password</span></th></tr></thead><tbody>${S.users.map(x => `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td><td>${h(x.cif || "")}</td><td>${h(x.email)}</td>
-      <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head", "st-ap") : label("Staff", "st-cl")}</td>
+      <td>${x.sysadmin ? label("Admin only", "st-new") : x.cto ? label("Project Head · SuperUser", "st-ap") : x.su ? label("SuperUser", "st-ap") : label("Staff", "st-cl")}</td>
       <td>${x.email ? `<button type="button" class="btn secondary qbtn" data-act="admin-reset" data-id="${x.id}">Email reset code</button>` : ""}</td></tr>`).join("")}</tbody>`)}
     ${importPanel()}
   </section>
   <section><h2>Access control</h2>
-    <p class="note" style="margin-bottom:.5rem">Who can start a new project. The Project Head can always start projects. Everyone else can <strong>request</strong> one (the Project Head approves it), unless you close requests. You can let chosen people <strong>start</strong> projects themselves; they join their new project as Project Lead.</p>
+    <p class="note" style="margin-bottom:.5rem">Who is a SuperUser, and who can start a new project. The Project Head can always start projects. Everyone else can <strong>request</strong> one (the Project Head approves it), unless you close requests. You can let chosen people <strong>start</strong> projects themselves; they join their new project as Project Lead.</p>
     <form data-form="access" class="row panel" style="margin:0 0 .75rem"><label class="check"><input type="checkbox" id="ac-req" name="requests" value="yes" ${S.access.requests ? "checked" : ""}> Allow project requests from staff</label>
       <button class="btn primary">Save</button></form>
-    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>New projects</th><th><span class="sr-only">Change</span></th></tr></thead><tbody>${S.users.filter(x => !x.sysadmin).map(x => {
+    <p class="note" style="margin:.25rem 0 .5rem"><strong>SuperUser</strong> gives a person the Project Head's privileges in every project: see every project and requirement, start projects and approve project requests, manage members (including Project Leads and Dev Leads), change status and dates, approve overviews and date changes, approve and close work, and act on any requirement (logged as an override). The Project Head is always a SuperUser. SuperUsers do not join projects as Project Head and keep their normal My Queue.</p>
+    ${tbl(`<thead><tr><th>Name</th><th>Username</th><th>SuperUser</th><th>New projects</th><th><span class="sr-only">Change</span></th></tr></thead><tbody>${S.users.filter(x => !x.sysadmin).map(x => {
       const st = canStart(x);
       return `<tr><td>${h(x.name)}</td><td>${h(x.username)}</td>
-        <td>${x.cto ? label("Start (Project Head)", "st-ap") : st ? label("Can start", "st-ap") : S.access.requests ? label("Request only", "st-an") : label("No access", "pr-low")}</td>
-        <td>${x.cto ? "" : `<button type="button" class="btn secondary qbtn" data-act="acc-start" data-id="${x.id}">${st ? "Remove start access" : "Allow to start projects"}</button>`}</td></tr>`; }).join("")}</tbody>`)}
+        <td>${x.cto ? label("Yes · Project Head", "st-ap") : x.su ? label("Yes", "st-ap") : label("No", "pr-low")}</td>
+        <td>${isSU(x) ? label("Can start (SuperUser)", "st-ap") : st ? label("Can start", "st-ap") : S.access.requests ? label("Request only", "st-an") : label("No access", "pr-low")}</td>
+        <td>${x.cto ? "" : `<div class="extend"><button type="button" class="btn secondary qbtn" data-act="acc-su" data-id="${x.id}">${x.su ? "Remove SuperUser" : "Make SuperUser"}</button>
+          ${x.su ? "" : `<button type="button" class="btn secondary qbtn" data-act="acc-start" data-id="${x.id}">${st ? "Remove start access" : "Allow to start projects"}</button>`}</div>`}</td></tr>`; }).join("")}</tbody>`)}
   </section>
   <section><h2>Mail integration</h2>
     <p class="note" style="margin-bottom:.5rem">Used for password reset codes and email notifications. ${mailOn() ? label("On", "st-ap") : label("Off", "pr-low")} In this demo nothing is actually sent; emails appear in the Email log below.</p>
@@ -2590,7 +2656,7 @@ document.addEventListener("click", e => {
   if (act === "ack-added") { const x = (S.addedNotices || []).find(y => y.id === +a.dataset.id && y.uid === me().id); if (!x) return;
     x.ack = now(); flash("ok", `Acknowledged: ${proj(x.pid).code} · ${proj(x.pid).name}.`); const inCard = modal.open && modal.querySelector(".pwrap"); render(); if (inCard) projectCard(x.pid); return; }
   if (act === "pr-approve") {
-    const pr = S.projReqs.find(x => x.id === +a.dataset.id); if (!pr || !me().cto) return;
+    const pr = S.projReqs.find(x => x.id === +a.dataset.id); if (!pr || !isSU(me())) return;
     projectDialog(pr);
     const set = (id, v) => { const el = modal.querySelector(id); if (el && v) { el.value = v; el.dispatchEvent(new Event("input", {bubbles: true})); el.dispatchEvent(new Event("change", {bubbles: true})); } };
     set("#np-type", pr.type); set("#np-name", pr.name); set("#np-pri", pr.priority); set("#np-start", pr.start); set("#np-deadline", pr.deadline);
@@ -2607,6 +2673,10 @@ document.addEventListener("click", e => {
   }
   if (act === "pr-withdraw") { run(() => { const pr = S.projReqs.find(x => x.id === +a.dataset.id && x.by === me().id && x.status === "Pending"); if (!pr) throw new RuleError("That request was already handled.");
     pr.status = "Withdrawn"; pr.decidedAt = now(); flash("ok", `Project request "${pr.name}" withdrawn.`); }); return; }
+  if (act === "acc-su") { const u = me(); if (!isSysAdmin(u)) return; const x = user(+a.dataset.id); if (!x || x.cto || x.sysadmin) return;
+    x.su = !x.su;
+    mailTo(x.id, x.su ? "You are now a SuperUser" : "SuperUser access removed", x.su ? "The system admin gave you SuperUser access: the Project Head's privileges in every project." : "The system admin removed your SuperUser access.");
+    flash("ok", x.su ? `${x.name} is now a SuperUser.` : `${x.name} is no longer a SuperUser.`); render(); return; }
   if (act === "acc-start") { const u = me(); if (!isSysAdmin(u)) return; const x = user(+a.dataset.id), st = S.access.starters;
     if (st.includes(x.id)) S.access.starters = st.filter(i => i !== x.id); else st.push(x.id);
     flash("ok", S.access.starters.includes(x.id) ? `${x.name} can now start projects.` : `${x.name} can no longer start projects.`); render(); return; }
@@ -2884,8 +2954,8 @@ document.getElementById("as-user").addEventListener("change", e => {
   if (!e.target.value) return;
   S.me = +e.target.value; const u = me(); calDay = null; calYM = null; auth = {step: "login", username: ""};
   if (isSysAdmin(u)) { S.view = {name: "admin"}; flash("ok", "Now signed in as the system admin (Admin page only)."); render(); return; }
-  if (S.view.name === "admin" || (S.view.name === "paused" && !u.cto) || S.view.name === "notifications") S.view = {name: "queue"};
-  flash("ok", `Now viewing as ${u.name}${u.cto ? " (CTO)" : ""}. Roles: ${S.projects.filter(p => role(p.id, u.id)).map(p => `${p.code} ${role(p.id, u.id)}`).join(", ") || (u.cto ? "CTO on all projects" : "none")}.`);
+  if (S.view.name === "admin" || (S.view.name === "paused" && !isSU(u)) || S.view.name === "notifications") S.view = {name: "queue"};
+  flash("ok", `Now viewing as ${u.name}${u.cto ? " (CTO)" : isSU(u) ? " (SuperUser)" : ""}. Roles: ${S.projects.filter(p => role(p.id, u.id)).map(p => `${p.code} ${role(p.id, u.id)}`).join(", ") || (isSU(u) ? "SuperUser on all projects" : "none")}.`);
   render();
 });
 const rc = document.getElementById("reset-confirm"), rb = document.getElementById("reset-demo");
