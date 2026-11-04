@@ -594,6 +594,16 @@ input.lvl { width: 100%; min-height: 1.6rem; padding: 0; accent-color: var(--btn
   background: var(--inv-link); color: var(--inv-bg); }
 .note-card .file-meta { color: var(--inv-muted); flex: 1; }
 .note-card .x { background: transparent; color: var(--inv-fg); }
+.note-card { display: flex; flex-direction: column; }
+.note-card .note-proj { align-self: flex-start; }
+.note-card .cmt-text { flex: 1; }
+.note-from { align-self: flex-start; margin-bottom: .35rem; padding: .1rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 700; border: 1px solid var(--inv-link); color: var(--inv-link); }
+.note-send { align-self: flex-start; margin-top: .5rem; background: none; border: 0; padding: .2rem 0; font: inherit; font-size: .85rem; font-weight: 700; color: var(--inv-link); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.seg-group { display: inline-flex; gap: .25rem; padding: .2rem; border-radius: 999px; border: 1px solid var(--sep-strong); flex-wrap: wrap; }
+.seg-btn { background: none; border: 0; padding: .35rem .8rem; border-radius: 999px; font: inherit; font-size: .88rem; color: var(--text); cursor: pointer; }
+.seg-btn.is-on { background: var(--btn); color: var(--on-btn); font-weight: 700; }
+.rem-today .rem-quick { align-items: end; }
+.rem-today .rem-quick > label:first-of-type { flex: 1 1 14rem; }
 /* Accent colour options (Red is the default palette above). Each pair is checked for 4.5:1 in both themes. */
 :root[data-appearance="light"][data-accent="blue"] { --accent: #0A4F9E; --btn: #0A4F9E; --tint: rgba(10, 79, 158, .12); --inv-link: #8CC4FF; }
 :root[data-appearance="dark"][data-accent="blue"] { --accent: #6CB6FF; --btn: #0062CC; --tint: rgba(108, 182, 255, .18); --inv-link: #0050B8; }
@@ -1311,6 +1321,14 @@ function seedOrganizer() {
   note("jewel", "Q4 priorities", "1. Payment gateway go-live\n2. Credit bureau sync\n3. Helpdesk tools");
   note("jewel", "Ideas", "Quarterly review of vendor SLAs.", "Dummy Vend. Proj 1");
   note("alvi", "Questions for Finance", "Are software licences assets or expenses?", "Dummy Internal Proj 2");
+  orgSamples();
+}
+// Sample shared items: a reminder and a note copy sent by someone else.
+function orgSamples() {
+  S.orgV2 = 1;
+  const U2 = n => S.users.find(x => x.username === n), al = U2("alvi"), sf = U2("saifuddin"), jw = U2("jewel");
+  if (al && sf) S.reminders.push({id: nextId("rm"), uid: al.id, from: sf.id, date: isoDay(Date.now()), time: "16:00", title: "Send me the INT-002 overview draft", note: "I want to review it before tomorrow's meeting.", done: false, at: Date.now() - 3600e3});
+  if (al && jw) S.notes.push({id: nextId("nt"), uid: al.id, from: jw.id, pid: null, title: "Q4 priorities", body: "1. Payment gateway go-live\n2. Credit bureau sync\n3. Helpdesk tools", at: Date.now() - 2 * 3600e3});
 }
 
 // ---------- persistence (per viewer, optional) ----------
@@ -1824,7 +1842,7 @@ function renderTop() {
   const dueRem = dueReminders(u);
   const addedN = myAdded(u).length;
   const nav = [["queue", `My Queue${addedN ? ` <span class="badge" aria-label="${addedN} added to project">${addedN}</span>` : ""}`], ["notifications", `Notifications${unread ? ` <span class="badge" aria-label="${unread} new">${unread}</span>` : ""}`],
-    ["reminders", `Reminders${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
+    ["reminders", `Reminders and Notes${dueRem ? ` <span class="badge" aria-label="${dueRem} due">${dueRem}</span>` : ""}`], ["projects", "Projects"]]
     .concat(isSU(u) ? [["paused", "On Hold & Cancelled"]] : [], [["sent", "Sent Requests"], ["archive", "Archive"]], [["howto", "How To"]]);
   if (isSysAdmin(u)) nav.splice(0, nav.length, ["admin", "Admin"]);
   const side = true, links = nav.map(([k, t]) => `<button class="linkish" data-go="${k}" ${v === k ? 'aria-current="page"' : ""}>${t}</button>`).join("");
@@ -1867,6 +1885,16 @@ function historyList(rows, u, pid) {
 
 // Days from today to a YYYY-MM-DD date (negative = overdue).
 const daysLeft = iso => Math.round((Date.parse(iso + "T00:00") - Date.parse(isoDay(now()) + "T00:00")) / DAY);
+function remToday(u) {
+  const today = isoDay(now()), list = myReminders(u).filter(r => !r.done && r.date <= today).sort(remSort);
+  return `<section class="panel rem-today" aria-labelledby="remt-h"><div class="head-row" style="margin:0 0 .4rem"><h2 id="remt-h" style="margin:0">Reminders today${list.length ? ` (${list.length})` : ""}</h2>
+      <button type="button" class="btn secondary qbtn" data-go="reminders">Open Reminders and Notes</button></div>
+    ${list.length ? `<ul class="rem-list">${list.map(r => remRow(r, r.date !== today)).join("")}</ul>` : `<p class="note" style="margin:0">Nothing for today.</p>`}
+    <form data-form="remadd" data-quick="1" class="row rem-quick" style="margin:.6rem 0 0"><input type="hidden" name="date" value="${today}">
+      <label for="rq-title">Quick reminder for today<input id="rq-title" name="title" required placeholder="What to remember" autocomplete="off"></label>
+      <label for="rq-time" class="narrow">Time<input id="rq-time" type="time" name="time"></label>
+      <button class="btn primary">Add</button></form></section>`;
+}
 const myAdded = u => (S.addedNotices || []).filter(x => x.uid === u.id && !x.ack && proj(x.pid)).sort((a, b) => b.at - a.at);
 function addedSection(u) {
   const list = myAdded(u); if (!list.length) return "";
@@ -1894,6 +1922,7 @@ function viewQueue(u) {
     ${tbl(`<thead><tr><th>Requirement</th><th>Project</th><th>Stage</th><th>Due</th><th>When</th></tr></thead><tbody>${urgent.map(r => { const d = daysLeft(r.due); return `<tr>
       <td><button class="linkish" data-act="open-card" data-id="${r.id}">${reqCode(r)} ${h(r.title)}</button></td><td>${h(proj(r.pid).code)}</td><td>${stageLabel(r.stage)}</td>
       <td class="num">${r.due}</td><td>${d < 0 ? label(`Overdue by ${-d} day${d === -1 ? "" : "s"}`, "pr-high") : d === 0 ? label("Due today", "pr-high") : label(d === 1 ? "Due tomorrow" : "Due in 2 days", "st-fb")}</td></tr>`; }).join("")}</tbody>`)}</section>` : ""}
+  ${remToday(u)}
   ${prs.length ? `<section class="panel fb-alert"><h2 style="margin-top:0">Project requests waiting for you (${prs.length})</h2>
     ${tbl(`<thead><tr><th>Project</th><th>Type</th><th>Priority</th><th>Dates</th><th>Requested by</th><th>Why</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${prs.map(x => `<tr>
       <td><strong>${h(x.name)}</strong></td><td>${h(x.type)}</td><td>${priLabel(x.priority)}</td><td class="num">${x.start || "On approval"} → ${x.deadline}</td>
@@ -2147,7 +2176,8 @@ function viewSent(u) {
   }).join("")}</tbody>`) : `<p style="margin-top:1rem">You have not sent any requirements yet.</p>`}`;
 }
 
-// Reminders and notes: a private self-organizer for each person.
+// Reminders and notes: a self-organizer for each person; reminders and note copies can be sent to others.
+let noteFilter = "all";
 let calYM = null, calDay = null;   // month on screen (YYYY-MM) and selected day (YYYY-MM-DD)
 const myReminders = u => (S.reminders || []).filter(r => r.uid === u.id);
 const dueReminders = u => myReminders(u).filter(r => !r.done && r.date <= isoDay(now())).length;
@@ -2159,6 +2189,7 @@ function remRow(r, showDate) {
     <label class="rem-check"><input type="checkbox" data-act="rem-done" data-id="${r.id}" ${r.done ? "checked" : ""} aria-label="Mark ${h(r.title)} as done"></label>
     <div class="rem-main"><p class="rem-title">${h(r.title)}</p>
       <p class="file-meta">${showDate ? `<button type="button" class="linkish" data-act="cal-day" data-date="${r.date}">${r.date}</button>` : ""}${showDate && r.time ? " · " : ""}${r.time || (showDate ? "" : "All day")}${late ? ` · ${label("Overdue", "st-fb")}` : ""}${r.done ? ` · ${label("Done", "st-ap")}` : ""}</p>
+      ${r.from ? `<p class="file-meta">${label(`From ${uname(r.from)}`, "tag-sh")}</p>` : ""}
       ${r.note ? `<p class="pre rem-note">${h(r.note)}</p>` : ""}</div>
     <button type="button" class="x" data-act="rem-del" data-id="${r.id}" aria-label="Delete reminder ${h(r.title)}">×</button></li>`;
 }
@@ -2175,8 +2206,12 @@ function viewReminders(u) {
   }
   const dayList = (byDay[calDay] || []).sort(remSort);
   const upcoming = mine.filter(r => !r.done && r.date <= isoDay(now() + 14 * DAY)).sort(remSort);
-  const notes = (S.notes || []).filter(n => n.uid === u.id).sort((a, b) => b.at - a.at);
-  return `<h1>Reminders</h1><p class="note" style="margin-bottom:1rem">Your private organizer. Only you see your reminders and notes.</p>
+  const allNotes = (S.notes || []).filter(n => n.uid === u.id).sort((a, b) => b.at - a.at);
+  const notes = allNotes.filter(n => noteFilter === "mine" ? !n.from : noteFilter === "others" ? !!n.from : true);
+  const sentRem = (S.reminders || []).filter(r => r.from === u.id).sort(remSort);
+  const people = S.users.filter(x => !x.sysadmin && x.id !== u.id);
+  const fBtn = (k, t) => `<button type="button" class="seg-btn${noteFilter === k ? " is-on" : ""}" data-act="note-filter" data-f="${k}" aria-pressed="${noteFilter === k}">${t}</button>`;
+  return `<h1>Reminders and Notes</h1><p class="note" style="margin-bottom:1rem">Your organizer. Reminders and notes are private to you unless you send them to someone.</p>
   <div class="org-grid">
     <section class="panel cal">
       <div class="cal-head"><button type="button" class="btn secondary cal-nav" data-act="cal-move" data-d="-1" aria-label="Previous month">‹</button>
@@ -2193,19 +2228,29 @@ function viewReminders(u) {
         <div class="row" style="margin:0"><label for="rm-date">Date<input id="rm-date" type="date" name="date" value="${calDay}" required></label>
           <label for="rm-time">Time (optional)<input id="rm-time" type="time" name="time"></label></div>
         <label for="rm-note">Note (optional)<textarea id="rm-note" name="note" rows="2"></textarea></label>
+        <label for="rm-to">Send to someone else <span class="note">(optional; leave empty for yourself)</span>${personPicker("rm-to", people, {name: "to"})}</label>
         <button class="btn primary">Add reminder</button></form>
     </section>
   </div>
   <section class="panel"><h2 style="margin-top:0">Overdue and next 14 days</h2>
     ${upcoming.length ? `<ul class="rem-list">${upcoming.map(r => remRow(r, true)).join("")}</ul>` : `<p class="note">Nothing coming up.</p>`}</section>
-  <section class="panel"><h2 style="margin-top:0">Notes</h2>
+  ${sentRem.length ? `<section class="panel"><h2 style="margin-top:0">Reminders you sent</h2>
+    <ul class="rem-list">${sentRem.map(r => `<li class="rem${r.done ? " is-done" : ""}"><div class="rem-main"><p class="rem-title">${h(r.title)}</p>
+      <p class="file-meta">To ${h(uname(r.uid))} · ${r.date}${r.time ? " " + r.time : ""} · ${r.done ? label("Done", "st-ap") : label("Not done yet", "st-an")}</p></div>
+      <button type="button" class="x" data-act="rem-del" data-id="${r.id}" aria-label="Cancel reminder ${h(r.title)}">×</button></li>`).join("")}</ul></section>` : ""}
+  <section class="panel"><h2 style="margin-top:0">Add a note</h2>
     <form data-form="noteadd" class="stack">
       <label for="nt-project" class="narrow">Project<select id="nt-project" name="pid"><option value="">No project</option>${S.projects.filter(pp => canView(u, pp.id)).map(pp => `<option value="${pp.id}">${h(pp.code)} · ${h(pp.name)}</option>`).join("")}</select></label>
       <label for="nt-title">Title<input id="nt-title" name="title" placeholder="e.g. Meeting points" autocomplete="off"></label>
       <label for="nt-body">Note<textarea id="nt-body" name="body" rows="3" required></textarea></label>
       <button class="btn primary">Add note</button></form>
-    ${notes.length ? `<div class="notes-grid">${notes.map(n => `<article class="note-card">${n.pid && proj(n.pid) ? `<button type="button" class="note-proj" data-go="project" data-id="${n.pid}">${h(proj(n.pid).code)} · ${h(proj(n.pid).name)}</button>` : ""}<div class="cmt-head"><strong>${h(n.title || "Note")}</strong><span class="file-meta">${fmt(n.at)}</span>
-      <button type="button" class="x" data-act="note-del" data-id="${n.id}" aria-label="Delete note ${h(n.title || "")}">×</button></div><p class="pre cmt-text">${h(n.body)}</p></article>`).join("")}</div>` : `<p class="note" style="margin-top:.75rem">No notes yet.</p>`}</section>`;
+  </section>
+  <section class="panel my-notes"><div class="head-row" style="margin:0"><h2 style="margin:0">My Notes</h2>
+    <div class="seg-group" role="group" aria-label="Show notes">${fBtn("all", `All (${allNotes.length})`)}${fBtn("mine", "By me")}${fBtn("others", "From others")}</div></div>
+    ${notes.length ? `<div class="notes-grid">${notes.map(n => `<article class="note-card">${n.pid && proj(n.pid) ? `<button type="button" class="note-proj" data-go="project" data-id="${n.pid}">${h(proj(n.pid).code)} · ${h(proj(n.pid).name)}</button>` : ""}${n.from ? `<span class="note-from">From ${h(uname(n.from))}</span>` : ""}<div class="cmt-head"><strong>${h(n.title || "Note")}</strong><span class="file-meta">${fmt(n.at)}</span>
+      <button type="button" class="x" data-act="note-del" data-id="${n.id}" aria-label="Delete note ${h(n.title || "")}">×</button></div><p class="pre cmt-text">${h(n.body)}</p>
+      <button type="button" class="note-send" data-act="note-send" data-id="${n.id}">Send a copy</button></article>`).join("")}</div>`
+      : `<p class="note" style="margin-top:.75rem">${noteFilter === "others" ? "No notes from others yet." : noteFilter === "mine" ? "You have not written any notes yet." : "No notes yet."}</p>`}</section>`;
 }
 
 // On Hold & Cancelled (Project Head / CTO only)
@@ -2451,10 +2496,13 @@ function howtoEn() {
     "Settings (top right) → <strong>Change password</strong>: current password and the new one twice. Forgot it? <strong>Send a reset code</strong>, or contact the system admin if email is off.",
     "Settings also sets Dark or Light, accent colour, brightness, font and font size. Sign out is at the bottom of Settings."]))}
 
-  ${panel("reminders", "Reminders and notes", "Private to you", ul([
-    "Open <strong>Reminders</strong>, pick a day, type what to remember (time and note optional) and press <strong>Add reminder</strong>.",
+  ${panel("reminders", "Reminders and Notes", "Private unless you send them", ul([
+    "My Queue shows <strong>Reminders today</strong> (today's and overdue ones, including ones others sent you) with a quick box to add one for today.",
+    "To remind someone else, fill in <strong>Send to someone else</strong> when adding a reminder. It appears in their My Queue on that day, marked as from you. You can follow it, or cancel it, under <strong>Reminders you sent</strong>.",
+    "Notes show as tiles in <strong>My Notes</strong>. Filter them by <strong>By me</strong> or <strong>From others</strong>. <strong>Send a copy</strong> gives anyone their own copy of a note.",
+    "Open <strong>Reminders and Notes</strong>, pick a day, type what to remember (time and note optional) and press <strong>Add reminder</strong>.",
     "Tick it when done or × to delete it. The red number counts today's and overdue reminders.",
-    "<strong>Notes</strong> at the bottom are quick personal notes; tag one with a project if you like."]))}
+    "Add notes with <strong>Add a note</strong>; tag one with a project if you like."]))}
 
   ${panel("admin", "Admin", "System admin only", ul([
     "<strong>Users</strong>: add a person (the username is made from the name; CIF is the ID number), set a temporary password, email a reset code, or import people from the HR integration (Name, Username, CIF, Email).",
@@ -2629,7 +2677,18 @@ document.addEventListener("click", e => {
   if (act === "cal-day") { calDay = a.dataset.date; calYM = calDay.slice(0, 7); S.flash = null; render(); return; }
   if (act === "cal-move") { const [y, m] = calYM.split("-").map(Number), d = new Date(y, m - 1 + +a.dataset.d, 1); calYM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; S.flash = null; render(); return; }
   if (act === "rem-done") { const r = S.reminders.find(x => x.id === +a.dataset.id && x.uid === me().id); if (r) r.done = a.checked; S.flash = null; render(); return; }
-  if (act === "rem-del") { S.reminders = S.reminders.filter(x => !(x.id === +a.dataset.id && x.uid === me().id)); flash("ok", "Reminder deleted."); render(); return; }
+  if (act === "rem-del") { S.reminders = S.reminders.filter(x => !(x.id === +a.dataset.id && (x.uid === me().id || x.from === me().id))); flash("ok", "Reminder deleted."); render(); return; }
+  if (act === "note-filter") { noteFilter = a.dataset.f; render(); return; }
+  if (act === "note-send") {
+    const n = S.notes.find(x => x.id === +a.dataset.id && x.uid === me().id); if (!n) return;
+    const people = S.users.filter(x => !x.sysadmin && x.id !== me().id);
+    openModal(`${cardHead("Send a copy")}<form data-form="notesend" data-id="${n.id}"><div class="card-body"><section class="card-section stack">
+      <p style="margin:0"><strong>${h(n.title || "Note")}</strong></p><p class="pre note" style="margin:0">${h(n.body.length > 160 ? n.body.slice(0, 160) + "…" : n.body)}</p>
+      <label for="ns-to">Send to${personPicker("ns-to", people, {name: "to"})}</label>
+      <p class="note" style="margin:0">They get their own copy in My Notes, marked as from you. Changes you make later are not sent.</p></section>${modalError}</div>
+      <div class="card-foot"><button type="button" class="btn secondary" data-act="close">Cancel</button><span class="spacer"></span><button class="btn primary">Send copy</button></div></form>`, false, true);
+    return;
+  }
   if (act === "note-del") { S.notes = S.notes.filter(x => !(x.id === +a.dataset.id && x.uid === me().id)); flash("ok", "Note deleted."); render(); return; }
   if (act === "dl-report" || act === "dl-csv") { offerDownload(act, +a.dataset.pid); return; }
   if (act === "back-project") { S.flash = null; projectCard(+modal.dataset.back); return; }
@@ -2772,8 +2831,20 @@ document.addEventListener("submit", e => {
       case "remadd": {
         if (!d.title.trim()) throw new RuleError("Write what to remember.");
         if (!d.date) throw new RuleError("Pick a date.");
-        (S.reminders = S.reminders || []).push({id: nextId("rm"), uid: u.id, date: d.date, time: d.time || "", title: d.title.trim(), note: (d.note || "").trim(), done: false, at: now()});
-        calDay = d.date; calYM = d.date.slice(0, 7); flash("ok", `Reminder added for ${d.date}${d.time ? " at " + d.time : ""}.`); break;
+        const to = +d.to && +d.to !== u.id ? user(+d.to) : null;
+        if (d.to === "" && f.querySelector("#rm-to") && f.querySelector("#rm-to").value.trim()) throw new RuleError("Pick the person from the list, or clear the box to keep the reminder for yourself.");
+        (S.reminders = S.reminders || []).push({id: nextId("rm"), uid: to ? to.id : u.id, from: to ? u.id : null, date: d.date, time: d.time || "", title: d.title.trim(), note: (d.note || "").trim(), done: false, at: now()});
+        if (to) mailTo(to.id, `Reminder from ${u.name}: ${d.title.trim()}`, `${u.name} set a reminder for you on ${d.date}${d.time ? " at " + d.time : ""}.\n\n${d.title.trim()}${d.note ? "\n" + d.note.trim() : ""}\n\nIt is in your My Queue on that day.`);
+        if (f.dataset.quick !== "1") { calDay = d.date; calYM = d.date.slice(0, 7); }
+        flash("ok", to ? `Reminder sent to ${to.name} for ${d.date}${d.time ? " at " + d.time : ""}. It shows in their My Queue.` : `Reminder added for ${d.date}${d.time ? " at " + d.time : ""}.`); break;
+      }
+      case "notesend": {
+        const n = S.notes.find(x => x.id === +f.dataset.id && x.uid === u.id), to = user(+d.to);
+        if (!n) throw new RuleError("That note no longer exists.");
+        if (!to || to.sysadmin || to.id === u.id) throw new RuleError("Type a name and pick the person from the list.");
+        S.notes.push({id: nextId("nt"), uid: to.id, from: u.id, pid: n.pid && canView(to, n.pid) ? n.pid : null, title: n.title, body: n.body, at: now()});
+        mailTo(to.id, `Note from ${u.name}: ${n.title || "Note"}`, `${u.name} sent you a copy of a note. It is in My Notes under Reminders and Notes.\n\n${n.title ? n.title + "\n" : ""}${n.body}`);
+        flash("ok", `Copy sent to ${to.name}. It is in their My Notes.`); break;
       }
       case "noteadd": {
         if (!d.body.trim()) throw new RuleError("Write the note first.");
@@ -2976,6 +3047,7 @@ if (S.view && S.view.name === "project") S.view = {name: "projects"};
 S.projects.forEach(p => p.members.forEach(m => { if (!m.roles) { m.roles = [m.role]; delete m.role; } }));
 if (!S.iosDefault) { S.iosDefault = true; }
 if (!S.reminders) seedOrganizer();
+if (!S.orgV2) orgSamples();
 ensureAuthData();
 if (!S.authV) { S.me = null; S.authV = 1; S.flash = null; }   // everyone starts at the sign-in page once
 if (!S.cgDefault) { S.users.forEach(x => { if (!x.font || x.font === "system") x.font = "century"; }); S.cgDefault = true; }
