@@ -44,6 +44,7 @@
 - The top bar shows a 12-hour clock and the date beside the logo.
 - How To: a full manual in collapsible panels (Expand all / Collapse all): start here, how a project runs (a diagram showing work can move forward, back or skip stages; no fixed pipeline), role hierarchy, access control, a "who can do what" permissions table by role, daily pages, projects, requirements, dates and overview, files, account, reminders and Admin.
 - Requirement and project cards open wide (landscape).
+- Appearance: Light mode is the default; font size is a 5-step slider with live preview. Page and section headings have a line under them.
 - Choosing members (New project team step and Add member): type part of a name or username and pick from the suggestion list (arrow keys and Enter work).
 - Start or request a project: the Project Head and people the system admin allows press New project (a non-Head starter joins as Project Lead). Everyone else presses Request project (name, type, priority, dates, why); the Project Head approves it (the New project form opens pre-filled) or declines it with a reason. Requests are tracked in Sent Requests and can be withdrawn while waiting.
 - Access control (Admin): make any person a SuperUser (the Project Head's privileges in every project; the Project Head is always one), turn project requests from staff on (default) or off, and allow chosen people to start projects.

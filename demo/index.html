@@ -226,9 +226,11 @@
 :root[data-font="poppins"] { --font: "Poppins", system-ui, sans-serif; }
 :root[data-font="atkinson"] { --font: "Atkinson Hyperlegible", system-ui, sans-serif; }
 :root[data-font="merriweather"] { --font: "Merriweather", Georgia, serif; }
-:root[data-size="1"] { --size: 14px; }
-:root[data-size="2"] { --size: 16px; }
-:root[data-size="3"] { --size: 19px; }
+:root[data-size="1"] { --size: 13px; }
+:root[data-size="2"] { --size: 14.5px; }
+:root[data-size="3"] { --size: 16px; }
+:root[data-size="4"] { --size: 17.5px; }
+:root[data-size="5"] { --size: 19px; }
 
 html { font-size: var(--size); -webkit-text-size-adjust: 100%; }
 * { box-sizing: border-box; }
@@ -239,6 +241,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 main { max-width: 64rem; margin: 0 auto; padding-block: 1.25rem 3rem; }
 h1 { font-size: 2.125rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; margin: .25rem 0 1rem; text-wrap: balance; }
 h2 { font-size: 1.25rem; font-weight: 600; letter-spacing: -.015em; margin: 1.75rem 0 .6rem; text-wrap: balance; }
+/* Headline rule: a line under page and section headings */
+main h1, main h2 { padding-bottom: .35rem; border-bottom: 1.5px solid var(--sep-strong); }
+main h1 { border-bottom-width: 2px; border-bottom-color: var(--accent); }
+main .head-row:has(> h1, > h2) { border-bottom: 2px solid var(--sep-strong); padding-bottom: .4rem; margin-bottom: .9rem; }
+main .head-row:has(> h1) { border-bottom-color: var(--accent); }
+main .head-row > h1, main .head-row > h2, .card-head h2, .cal-head h2, .login-card h1 { border-bottom: 0; padding-bottom: 0; }
+dialog .card-section > h3, dialog .sec-title { padding-bottom: .3rem; border-bottom: 1px solid var(--sep-strong); }
+dialog .sec-title { flex: 1 1 auto; }
 a, .linkish { color: var(--accent); }
 .linkish { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-align: left; text-decoration: none; }
 .linkish:hover { text-decoration: underline; }
@@ -1199,12 +1209,12 @@ function handoff(actor, r, action, to, comment, internal) {
 function seed() {
   const base = Date.now();
   S = {seq: {}, users: [], projects: [], reqs: [], history: [], comments: [], files: [], links: [], outbox: [], stallDays: 5,
-       me: null, view: {name: "queue"}, flash: null, iosDefault: true, darkDefault: true};
+       me: null, view: {name: "queue"}, flash: null, iosDefault: true, darkDefault: true, lightDefault: true, sizeV2: true};
   syncLists();
   [["jewel", "Nurul Alam (Jewel)", 1], ["saifuddin", "Mohammad Saifuddin"], ["nafis", "Nafis Ahmed"], ["shahriar", "Mohammad Shahriar Hossain"],
    ["alvi", "Alvi Zaman"], ["ehsanul", "Ehsanul Hassan"], ["sazzadur", "Sazzadur Rahman"], ["kawshik", "Kawshik Barua"],
    ["mashequr", "Mashequr Rahman Khan"], ["imam", "Imam"], ["sayem", "Nakib Uddin M Sayem"]].forEach(([un, name, cto]) =>
-    S.users.push({id: nextId("u"), username: un, name, email: `${un}@example.com`, cto: !!cto, theme: "dark", font: "century", size: 2, bri: 3, con: 3}));
+    S.users.push({id: nextId("u"), username: un, name, email: `${un}@example.com`, cto: !!cto, theme: "light", font: "century", size: 3, bri: 3, con: 3}));
   const U = n => S.users.find(x => x.username === n), id = n => U(n).id;
   const at = d => { CLOCK = base - d * DAY; }, day = d => isoDay(base + d * DAY);
   const head = U("jewel");
@@ -1355,7 +1365,7 @@ const INT_TYPES = ["User import (HR / core system)", "Directory sign-in (LDAP / 
 function ensureAuthData() {
   S.users.forEach((x, i) => { if (!x.sysadmin && !x.cif) x.cif = String(1004101 + i); });
   S.users.forEach(x => { if (!x.pw) x.pw = hashPw(x.sysadmin ? "admin" : "demo"); });
-  if (!S.users.some(x => x.sysadmin)) S.users.push({id: nextId("u"), username: "admin", name: "System Admin", email: "admin@example.com", cto: false, sysadmin: true, pw: hashPw("admin"), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+  if (!S.users.some(x => x.sysadmin)) S.users.push({id: nextId("u"), username: "admin", name: "System Admin", email: "admin@example.com", cto: false, sysadmin: true, pw: hashPw("admin"), theme: "light", font: "century", size: 3, bri: 3, con: 3});
   if (!S.mail) S.mail = {enabled: true, host: "smtp.example.com", port: 587, security: "STARTTLS", user: "streams@example.com", passSet: true, from: "streams@example.com", fromName: "IDLC Streams"};
   if (!S.integrations) S.integrations = [
     {id: nextId("in"), name: "Company directory sign-in", type: INT_TYPES[1], url: "ldaps://ad.example.com", key: "saved", enabled: false, at: Date.now()}];
@@ -1450,9 +1460,10 @@ function viewLogin() {
     <div class="row" style="margin:.75rem 0 0"><button type="button" class="linkish" data-act="auth-step" data-step="reset">Forgot password?</button></div>`;
   return `<div class="login-wrap"><section class="login-card"><div class="login-logo">${BRAND_INNER}</div>${body}${demoNote}</section></div>`;
 }
+const SIZE_PX = {1: "13px", 2: "14.5px", 3: "16px (default)", 4: "17.5px", 5: "19px"};
 function renderLoggedOut() {
   const d = document.documentElement;
-  Object.assign(d.dataset, {appearance: "dark", font: "century", size: "2", accent: "red", nav: "top"}); setLight(3, 3);
+  Object.assign(d.dataset, {appearance: "light", font: "century", size: "3", accent: "red", nav: "top"}); setLight(3, 3);
   document.getElementById("sidenav").hidden = true;
   document.getElementById("topbar").innerHTML = brandMarkup(false);
   document.getElementById("as-user").innerHTML = `<option value="" selected>Signed out</option>` + S.users.map(x => `<option value="${x.id}">${h(x.name)}${x.cto ? " · CTO" : x.su ? " · SuperUser" : x.sysadmin ? " · Admin" : ""}</option>`).join("");
@@ -1881,8 +1892,7 @@ function renderTop() {
         <fieldset><legend>Accent colour</legend><div class="swatches">${ACCENTS.map(([k, n, c]) => `<label class="swatch" for="pref-acc-${k}" title="${n}">
           <input class="sr-only" type="radio" id="pref-acc-${k}" name="accent" value="${k}" ${(u.accent || "red") === k ? "checked" : ""}><span class="sw-dot" style="background:${c}"></span><span class="sw-name">${n}</span></label>`).join("")}</div></fieldset>
         <label for="pref-bri">Brightness <span class="note" id="pref-bri-v">${u.bri || 3} of 5</span><input id="pref-bri" name="bri" type="range" min="1" max="5" step="1" value="${u.bri || 3}" class="lvl"></label>
-        <label for="pref-size">Font size<select id="pref-size" name="size">${[[1, "1 (14px)"], [2, "2 (16px)"], [3, "3 (19px)"]]
-          .map(([k, t]) => `<option value="${k}" ${+u.size === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label for="pref-size">Font size <span class="note" id="pref-size-v">${SIZE_PX[u.size || 3]}</span><input id="pref-size" name="size" type="range" min="1" max="5" step="1" value="${u.size || 3}" class="lvl" aria-valuetext="${SIZE_PX[u.size || 3]}"></label>
         <button class="btn primary">Save settings</button></form>
         <button type="button" class="btn secondary" data-act="chpw-open">Change password</button>
         <button type="button" class="btn secondary" data-act="logout">Sign out</button></div></details>`;
@@ -2826,7 +2836,7 @@ document.addEventListener("submit", e => {
         if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
         const names = picks.map(r => {
           const un = r.username && !S.users.some(x => x.username.toLowerCase() === r.username.toLowerCase()) ? r.username : genUsername(r.name);
-          S.users.push({id: nextId("u"), username: un, name: r.name, cif: r.cif, email: (r.email || "").trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+          S.users.push({id: nextId("u"), username: un, name: r.name, cif: r.cif, email: (r.email || "").trim(), cto: false, pw: hashPw(d.pw), theme: "light", font: "century", size: 3, bri: 3, con: 3});
           return `${r.name} (${un})`; });
         importRows = null; flash("ok", `Imported ${names.length}: ${names.join(", ")}.`); break;
       }
@@ -2865,7 +2875,7 @@ document.addEventListener("submit", e => {
         if (!d.body.trim()) throw new RuleError("Write the note first.");
         (S.notes = S.notes || []).push({id: nextId("nt"), uid: u.id, pid: +d.pid || null, title: (d.title || "").trim(), body: d.body.trim(), at: now()}); flash("ok", "Note added."); break;
       }
-      case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: +d.size, bri: +d.bri || 3, con: 3, accent: ACCENTS.some(a => a[0] === d.accent) ? d.accent : "red"}); flash("ok", "Settings saved to your account."); break;
+      case "prefs": Object.assign(u, {theme: d.theme, font: d.font, size: Math.min(5, Math.max(1, +d.size || 3)), bri: +d.bri || 3, con: 3, accent: ACCENTS.some(a => a[0] === d.accent) ? d.accent : "red"}); flash("ok", "Settings saved to your account."); break;
       case "card": {
         const doIt = e.submitter && e.submitter.value, internal = d.internal === "yes";
         if (doIt === "comment") { addComment(u, id, d.comment, internal); return {reopen: id}; }
@@ -2941,7 +2951,7 @@ document.addEventListener("submit", e => {
         if (S.users.some(x => x.cif === cif)) throw new RuleError("Someone with that CIF is already a user.");
         if (!isSysAdmin(u)) throw new Forbidden("Only the system admin adds users.");
         if ((d.pw || "").length < 4) throw new RuleError("The temporary password needs at least 4 characters.");
-        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), cif, email: d.email.trim(), cto: false, pw: hashPw(d.pw), theme: "dark", font: "century", size: 2, bri: 3, con: 3});
+        S.users.push({id: nextId("u"), username: un, name: d.name.trim(), cif, email: d.email.trim(), cto: false, pw: hashPw(d.pw), theme: "light", font: "century", size: 3, bri: 3, con: 3});
         flash("ok", `User added. Username: ${un}.`); break;
       }
     }
@@ -2969,6 +2979,9 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("click", e => { if (!e.target.closest(".tsearch")) { const box = document.getElementById("top-q-results"); if (box) box.hidden = true; } });
 document.addEventListener("input", e => {
+  if (e.target.id === "pref-size") {   // live preview; Save settings keeps it
+    const v = +e.target.value; document.getElementById("pref-size-v").textContent = SIZE_PX[v]; e.target.setAttribute("aria-valuetext", SIZE_PX[v]); document.documentElement.dataset.size = v; return;
+  }
   if (e.target.id === "pref-bri") {   // live preview; Save settings keeps it
     document.getElementById("pref-bri-v").textContent = `${e.target.value} of 5`; setLight(+e.target.value, 3); return;
   }
@@ -3073,7 +3086,9 @@ if (!S.orgV2) orgSamples();
 ensureAuthData();
 if (!S.authV) { S.me = null; S.authV = 1; S.flash = null; }   // everyone starts at the sign-in page once
 if (!S.cgDefault) { S.users.forEach(x => { if (!x.font || x.font === "system") x.font = "century"; }); S.cgDefault = true; }
-if (!S.darkDefault) { S.users.forEach(x => { x.theme = "dark"; }); S.darkDefault = true; }
+if (!S.darkDefault) { S.darkDefault = true; }
+if (!S.lightDefault) { S.users.forEach(x => { x.theme = "light"; }); S.lightDefault = true; }   // light is now the default for everyone
+if (!S.sizeV2) { S.users.forEach(x => { x.size = ({1: 2, 2: 3, 3: 5})[x.size] || 3; }); S.sizeV2 = true; }   // font size moved from 3 steps to a 5-step slider
 if (me()) S.flash = S.flash || {type: "ok", text: S.projects.length ? `You are viewing as ${me().name}. Use "Quick switch" above to try another person.`
   : `No projects yet. You are viewing as ${me().name} (CTO): press New project to start. Use "Quick switch" above to try another person.`};
 render();
