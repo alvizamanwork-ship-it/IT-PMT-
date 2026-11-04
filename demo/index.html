@@ -2357,17 +2357,20 @@ function notifications(u) {
     }
     out.push({at: c.at, who: actorLabel(r.pid, c.uid), text: `commented on “${r.title}”${c.internal ? " (internal)" : ""}`, rid: r.id, pid: r.pid, mine: false});
   });
+  // Notes and reminders other people sent you
+  (S.notes || []).forEach(n => { if (n.uid === u.id && n.from && n.at >= since) out.push({at: n.at, who: uname(n.from), text: `sent you a note: “${n.title || "Note"}”`, go: "reminders", goLabel: "View note", mine: true}); });
+  (S.reminders || []).forEach(r => { if (r.uid === u.id && r.from && r.at >= since) out.push({at: r.at, who: uname(r.from), text: `set a reminder for you on ${r.date}${r.time ? " at " + r.time : ""}: “${r.title}”`, go: "reminders", goLabel: "View reminder", mine: true}); });
   return out.sort((a, b) => b.at - a.at);
 }
 const ago = t => { const m = Math.max(0, Math.round((now() - t) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; };
 function viewNotifications(u) {
   const list = notifications(u), prev = u.notifSeen || 0;
   u.notifSeen = now();
-  return `<h1>Notifications</h1><p class="note">Assignments and activity from the last 24 hours that involve you or that you are allowed to see.</p>
+  return `<h1>Notifications</h1><p class="note">Assignments, activity, and notes or reminders sent to you in the last 24 hours.</p>
   ${list.length ? `<ul class="notifs">${list.map(n => `<li class="notif${n.at > prev ? " is-new" : ""}${n.mine ? " is-mine" : ""}">
     <div class="notif-main"><p class="notif-text"><strong>${h(n.who)}</strong> ${h(n.text)}</p>
-      <p class="file-meta"><time>${ago(n.at)}</time> · ${h(proj(n.pid).code)}${n.at > prev ? ` · ${label("New", "tag-sh")}` : ""}</p></div>
-    ${n.rid ? `<button class="btn secondary" data-act="open-card" data-id="${n.rid}">Open</button>` : `<button class="btn secondary" data-go="project" data-id="${n.pid}">View project</button>`}</li>`).join("")}</ul>`
+      <p class="file-meta"><time>${ago(n.at)}</time>${n.pid ? ` · ${h(proj(n.pid).code)}` : " · Reminders and Notes"}${n.at > prev ? ` · ${label("New", "tag-sh")}` : ""}</p></div>
+    ${n.go ? `<button class="btn secondary" data-go="${n.go}">${n.goLabel}</button>` : n.rid ? `<button class="btn secondary" data-act="open-card" data-id="${n.rid}">Open</button>` : `<button class="btn secondary" data-go="project" data-id="${n.pid}">View project</button>`}</li>`).join("")}</ul>`
     : `<p style="margin-top:1rem">No activity in the last 24 hours.</p>`}`;
 }
 // How To: a short text manual for the essential tasks.

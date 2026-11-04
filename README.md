@@ -40,7 +40,7 @@
 - "Added to project": when someone adds you to a project (or gives you another role), a notice appears in My Queue below your tasks, with Open project and Acknowledge buttons (also shown inside the project card). It stays until you press Acknowledge; the My Queue menu item shows the count.
 - My Queue starts with Urgent deadlines: your requirements due within 2 days or already overdue.
 - My Queue also shows Reminders today (today's and overdue, including ones others sent you) with a quick add box.
-- Reminders and Notes page: send a reminder to someone else (it shows in their My Queue on that day, and you can track or cancel it under Reminders you sent). Notes show as tiles in My Notes with All / By me / From others filters, and Send a copy gives anyone their own copy.
+- Reminders and Notes page: send a reminder to someone else (it shows in their My Queue on that day, and you can track or cancel it under Reminders you sent). Notes show as tiles in My Notes with All / By me / From others filters, and Send a copy gives anyone their own copy. Notes and reminders sent to you also appear in Notifications.
 - The top bar shows a 12-hour clock and the date beside the logo.
 - How To: a full manual in collapsible panels (Expand all switch): start here, how a project runs (a diagram showing work can move forward, back or skip stages; no fixed pipeline), role hierarchy, access control, a "who can do what" permissions table by role, daily pages, projects, requirements, dates and overview, files, account, reminders and Admin.
 - Requirement and project cards open wide (landscape).
