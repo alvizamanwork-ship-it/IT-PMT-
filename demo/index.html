@@ -353,6 +353,8 @@ code { font-family: var(--mono); font-size: .9em; overflow-wrap: anywhere; }
 .team-row.wiz { display: grid; grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr) auto; gap: .75rem; align-items: start;
   padding-bottom: .85rem; border-bottom: 1px solid var(--sep); }
 .team-row.wiz > .btn { margin-top: 1.75rem; }
+.team-row.am-row { margin: .75rem 0 .5rem; padding-bottom: 0; border-bottom: 0; }
+.team-row.am-row > label .combo input { min-height: 2.75rem; }
 @media (max-width: 40rem) { .team-row.wiz { grid-template-columns: 1fr; } .team-row.wiz > .btn { justify-self: start; margin-top: 0; } }
 .role-picks { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
 .team-row.wiz > label, .role-picks > label { min-width: 0; }
@@ -2055,7 +2057,7 @@ function projectPrimary(u, pid) {
   <section class="card-section"><h3 class="sec-title">Members</h3>
   ${tbl(`<thead><tr><th>Name</th><th>Roles</th>${manage ? "<th>Manage</th>" : ""}</tr></thead><tbody>${members.map(m => `
     <tr><td>${h(uname(m.uid))}</td><td><div class="chips" style="margin:0">${m.roles.map(r => `<span class="label">${h(r)}${manage && canRemoveRole(u, pid, r) && m.roles.length > 1 ? `<button type="button" class="chip-x" data-act="remove-role" data-pid="${pid}" data-uid="${m.uid}" data-role="${h(r)}" aria-label="Remove the ${h(r)} role from ${h(uname(m.uid))}">×</button>` : ""}</span>`).join("")}</div></td>${manage ? `<td>${m.roles.every(r => canRemoveRole(u, pid, r)) ? `<button class="btn secondary" data-act="remove" data-pid="${pid}" data-uid="${m.uid}">Remove</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody>`)}
-  ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="row team-row">
+  ${manage && others.length ? `<form data-form="addmember" data-pid="${pid}" class="team-row wiz am-row">
     <label for="am-user">Person${personPicker("am-user", others, {name: "uid", tag: x => (role(pid, x.id) ? " · member" : "") + loadTag(x.id)})}</label>
     <div class="role-picks"><label for="am-role">Role<select id="am-role" class="np-role">${ROLES.filter(r => canAddRole(u, pid, r) && !typeBlocks(p.type, r)).map(r => `<option>${r}</option>`).join("")}</select></label><button type="button" class="linkish add-role" data-act="role-add">+ Add role</button></div>
     <button class="btn primary">Add member</button></form>
