@@ -40,7 +40,6 @@
 - "Added to project": when someone adds you to a project (or gives you another role), a notice appears in My Queue below your tasks, with Open project and Acknowledge buttons (also shown inside the project card). It stays until you press Acknowledge; the My Queue menu item shows the count.
 - My Queue starts with Urgent deadlines: your requirements due within 2 days or already overdue.
 - The top bar shows a 12-hour clock and the date beside the logo.
-- How To has a বাংলা switch that shows the manual in Bangla (the rest of the site stays in English); the choice is remembered.
 - How To: a full manual in collapsible panels (Expand all / Collapse all): start here, role hierarchy, access control, a "who can do what" permissions table by role, daily pages, projects, requirements, dates and overview, files, account, reminders and Admin.
 - Requirement and project cards open wide (landscape).
 - Choosing members (New project team step and Add member): type part of a name or username and pick from the suggestion list (arrow keys and Enter work).
